@@ -156,13 +156,11 @@ Tree-sitter or any parse-tree feature (G3); an embedded scripting language (Lua,
 | 19 | `proc.start_pty` size change in m31 | to verify against 0.5.0 |
 | 28 | A tap repository | owner creates |
 
-## 4. Needs the owner
+## 4. Decided by the owner (2026-10-17)
 
-Only decisions that are expensive to reverse. Each has a recommendation; none blocks the queue, the recommendation is what the work assumes.
-
-| # | Decision | Recommendation |
+| # | Decision | Answer |
 |---|---|---|
-| D1 | Multi-selection model: replay-based multi-cursor on the Vim engine (item 20) versus Helix's selection-first model as the core editing model | Replay. A selection-first core would replace the operator grammar and void the oracle. Revisit only if replay cannot give correct dot and undo |
-| D2 | Extension story after 1.0: external-process JSON-RPC (LSP-shaped) versus a bundled scripting language | External process. Keeps the single static binary and the 0.02 s start; a language is a second product |
-| D3 | Whether `m3` should depend on `m31git` as a pinned git dependency with the compile-time and binary-size cost (item 12), or keep the subprocess path and offer the library as an optional build | Depend on it, measured: if the binary grows more than 30 percent or the build more than 40 s, keep the subprocess default |
-| D4 | Release naming: `m3dit` repo, `m3` binary, `medit` in DESIGN. Fix the public name before 1.0.0 (README, man page, Homebrew formula carry it) | `m3` binary and `m3dit` as the project name; rewrite DESIGN's `medit` to `m3` in 0.15.0 |
+| D1 | Multi-selection model | **Replay-based multi-cursor** on the Vim engine (item 20) |
+| D2 | Extension story after 1.0 | **Not external-process JSON-RPC.** The recommendation was declined and no alternative was named: a bundled scripting language or no extension story are what is left. Nothing in the queue depends on it before 1.0, so it stays open until the owner picks |
+| D3 | `m3` depends on `m31git` (item 12) | **Yes**, as a pinned git dependency. Measure binary size and build time as the work lands, and report them |
+| D4 | Public name | **`m3`**. The binary is `m3`; README, man page and the Homebrew formula say `m3`; DESIGN's `medit` becomes `m3` in 0.15.0. Whether the `m3dit` repo is renamed is a separate ask |
