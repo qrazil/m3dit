@@ -1,0 +1,10 @@
+// The extensions built into this m3: none.
+//
+// scripts/build.sh --ext NAME[,NAME...] (or $M3_EXT, or ext/enabled.txt) compiles m3 against a copy of this
+// file that imports each named module and calls its `register`; this checked-in version is the default build
+// and stays empty (docs/EXTENSIONS.md, "Selecting extensions at build time").
+
+import ext.MED_ext;
+
+pub void install(MED_ext.Registry api) {
+}

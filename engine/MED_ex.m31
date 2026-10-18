@@ -994,6 +994,11 @@ List<str> command_table() {
     return ["substitute:1", "delete:1", "move:1", "t:1", "copy:2", "join:1", "global:1", "vglobal:1", "yank:1", "undo:1", "print:1", "put:2", "normal:4", "execute:3", "k:1", "mark:2", "nohlsearch:3", "set:2", "echo:2", "echomsg:5", "redraw:4", "messages:3", "highlight:2", "syntax:2", "filetype:5", "version:2", "history:3", "pwd:2", "setlocal:4", "setglobal:4", "undojoin:5", "redo:3", "read:1", "sort:3", "number:2", "quit:1", "write:1", "wq:2", "delmarks:4", "earlier:2", "later:3", "list:1", "z:1", "update:2", "xit:1", "wall:2", "qall:2", "wqall:3", "xall:2", "registers:3", "display:2", "marks:5", "jumps:2", "changes:7", "startinsert:4", "stopinsert:5", "retab:3", "left:2", "right:2", "center:2", "noautocmd:3", "edit:1", "enew:3", "bnext:2", "bprevious:2", "bNext:2", "buffer:1", "bdelete:2", "bwipeout:2", "bunload:3", "bfirst:2", "brewind:2", "blast:2", "ls:2", "buffers:7", "files:5", "close:3", "only:2", "split:2", "vsplit:2", "new:3", "vnew:3", "wincmd:4", "Rename:3", "Delete:3", "Create:3", "Mkdir:2", "resize:3", "vertical:4", "tabnew:6", "tabedit:4", "tabnext:4", "tabprevious:4", "tabNext:4", "tabfirst:6", "tabrewind:4", "tablast:4", "tabclose:4", "tabonly:4", "tabs:4", "tabmove:4", "Files:1", "Buffers:2", "Grep:1", "Commands:3", "help:1", "Explore:2", "Sexplore:3", "Vexplore:3", "Neotree:7", "NeoTree:7", "Keys:4", "Plugins:7", "PluginEnable:12", "PluginDisable:13", "Recent:6", "Symbols:7", "Todo:4", "Branches:8", "Commits:7", "Changed:7", "colorscheme:4", "theme:5", "checktime:6", "Session:7", "fold:2", "foldopen:5", "foldclose:5", "map:3", "nmap:2", "vmap:2", "xmap:2", "omap:2", "imap:2", "cmap:2", "noremap:2", "nnoremap:2", "vnoremap:2", "xnoremap:2", "onoremap:3", "inoremap:3", "cnoremap:3", "unmap:3", "nunmap:3", "vunmap:2", "xunmap:2", "ounmap:2", "iunmap:2", "cunmap:2", "mapclear:4", "nmapclear:5", "vmapclear:5", "xmapclear:5", "omapclear:5", "imapclear:5", "cmapclear:5", "let:3", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "cabbrev:2", "cnoreabbrev:5", "cunabbrev:4", "cabclear:4", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "source:2", "terminal:2", "Lsp:3", "copen:3", "cclose:3", "cnext:2", "cprevious:2", "cNext:3", "cfirst:4", "clast:3", "write!:99"];
 }
 
+/// Whether `word` names (or abbreviates) one of the editor's own ex commands; extensions may not take those names.
+pub bool is_builtin_command(str word) {
+    return resolve(word) != "";
+}
+
 str resolve(str word) {
     if (word == "") {
         return "";
@@ -1240,6 +1245,9 @@ Step run_one(MED_editor.Editor editor, str text) {
         }
         name = resolve(text.substr(index, stop));
         argstart = stop;
+        if (name == "" && editor.user_commands.contains(text.substr(index, stop))) {
+            name = text.substr(index, stop);
+        }
         if (name == "") {
             return fail(editor, "E492: Not an editor command: " + text.substr(index, text.size()));
         }
@@ -1254,7 +1262,7 @@ Step run_one(MED_editor.Editor editor, str text) {
         }
     }
     bool is_bang = false;
-    if (at(text, argstart) == 33 && (is_ui_command(name) || name == "foldopen" || name == "foldclose" || name == "global" || name == "join" || name == "put" || name == "z" || name == "normal" || name == "write" || name == "quit" || name == "sort" || name == "delmarks" || name == "wq" || name == "xit" || name == "update" || name == "qall" || name == "wall" || MED_map.kind_of(name) != "")) {
+    if (at(text, argstart) == 33 && (is_ui_command(name) || editor.user_commands.contains(name) || name == "foldopen" || name == "foldclose" || name == "global" || name == "join" || name == "put" || name == "z" || name == "normal" || name == "write" || name == "quit" || name == "sort" || name == "delmarks" || name == "wq" || name == "xit" || name == "update" || name == "qall" || name == "wall" || MED_map.kind_of(name) != "")) {
         is_bang = true;
         argstart = argstart + 1;
     }
@@ -1728,6 +1736,14 @@ Step exec_cmd(MED_editor.Editor editor, Cmd cmd) {
                 MED_vim.feed(editor, 105);
             }
         }
+        return done();
+    }
+    if (editor.user_commands.contains(name)) {
+        str user_bang = "";
+        if (cmd.is_bang) {
+            user_bang = "!";
+        }
+        editor.requests.push(name + user_bang + " " + cmd.arg);
         return done();
     }
     return fail(editor, "E492: Not an editor command: " + name);

@@ -63,6 +63,8 @@ import ui.MED_theme;
 import ui.MED_tree;
 import ui.MED_window;
 import engine.MED_view;
+import ext.MED_ext;
+import ext.MED_ext_enabled;
 
 /// Rows below the text: the status line and the command line.
 const int FOOTER_ROWS = 2;
@@ -223,6 +225,15 @@ pub type App {
     /// The git branch shown in the statusline, read from .git/HEAD.
     pub str branch = "";
     int branch_ms = 0;
+    /// Extensions built in (docs/EXTENSIONS.md): empty unless the build named some. The mode, cursor, text tick and
+    /// buffer the Mode/Cursor/Text events last saw, and the extension command names.
+    pub MED_ext.Registry ext = MED_ext.Registry();
+    List<str> ext_commands = [];
+    int ext_mode = 0;
+    int ext_row = 0;
+    int ext_col = 0;
+    int ext_tick = 0;
+    int ext_buffer = 0;
     /// The quickfix list and the entry `]q` / `:cnext` last went to.
     pub List<MED_picker.Entry> quickfix_list = [];
     pub int quickfix_index = -1;
@@ -385,7 +396,7 @@ int App.index_of(int id) {
 /// Write the active buffer to `target` (the buffer's own file when empty).
 void App.write_file(str target) {
     Slot slot = active_slot();
-    notice = write_slot(slot, target);
+    notice = write_hooked(slot, target);
     path = slot.path;
     saved_current = slot.saved_current;
     if (!notice.starts_with("E")) {
@@ -408,7 +419,7 @@ void App.write_all() {
             notice = "E141: No file name for buffer " + slot.id.to_str();
             return;
         }
-        str result = write_slot(slot, "");
+        str result = write_hooked(slot, "");
         if (result.starts_with("E")) {
             notice = result;
             return;
@@ -489,6 +500,9 @@ void App.adopt(Slot slot) {
     activate(slot.id);
     restore_position();
     restore_undo();
+    if (!slot.is_listing) {
+        ext_fire_slot(MED_ext.Event.BufOpen, slot, slot.path);
+    }
 }
 
 /// Put the cursors of a restored session where they were (the active buffer's included).
@@ -670,7 +684,7 @@ void App.autowrite(bool is_all_command) {
         if (!is_slot_modified(slot) || slot.path.size() == 0 || slot.is_listing) {
             continue;
         }
-        if (!write_slot(slot, "").starts_with("E")) {
+        if (!write_hooked(slot, "").starts_with("E")) {
             save_undo(slot);
         }
     }
@@ -696,7 +710,7 @@ void App.autosave_idle(int elapsed_ms) {
     int written = 0;
     for (Slot slot in slots) {
         if (is_slot_modified(slot) && slot.path.size() > 0 && !slot.is_listing && slot.title.size() == 0) {
-            if (!write_slot(slot, "").starts_with("E")) {
+            if (!write_hooked(slot, "").starts_with("E")) {
                 save_undo(slot);
                 written = written + 1;
             }
@@ -905,6 +919,7 @@ void App.delete_buffer(str arg, bool is_forced) {
         }
         activate(target);
     }
+    ext_fire_slot(MED_ext.Event.BufClose, victim, victim.path);
     lsp_did_close(slot_key(slots[index_of(id)]));
     slots.remove_at(index_of(id));
     if (alternate_id == id) {
@@ -947,6 +962,12 @@ void App.run_request(str request) {
     bool is_forced = name.ends_with("!");
     if (is_forced) {
         name = name.substr(0, name.size() - 1);
+    }
+    if (!ext.is_empty() && ext.has_command(name)) {
+        MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+        ext.did_run_command(name, context, arg.trim(), is_forced);
+        ext_finish(context);
+        return;
     }
     if (name == "write") {
         write_file(arg);
@@ -1180,6 +1201,9 @@ void App.run_plugin_command(str name, str arg) {
                 state = "off";
             }
             lines.push("  " + state + "  " + one.name + "  " + one.summary);
+        }
+        for (MED_ext.Extension built_in in ext.extensions) {
+            lines.push("  ext  " + built_in.name + "  " + built_in.summary);
         }
         overlay = lines;
         return;
@@ -3411,6 +3435,9 @@ pub TUI_app.Action App.tick(int elapsed_ms) {
 
 /// The timer: which-key after a pending leader waits, and the grep debounce.
 TUI_app.Action App.tick_work(int elapsed_ms) {
+    if (!ext.is_empty() && did_tick_ext(elapsed_ms)) {
+        return TUI_app.Action.Redraw;
+    }
     if (is_leader && !is_which_key) {
         leader_ms = leader_ms + elapsed_ms;
         if (leader_ms >= MED_keymap.WHICH_KEY_MS) {
@@ -3854,6 +3881,7 @@ pub TUI_app.Action App.handle(term.Event event) {
     }
     editor.view_height = current_text_rows();
     editor.file_name = path;
+    editor.user_commands = ext_commands;
     map_ms = 0;
     prefix_ms = 0;
     is_prefix_help = false;
@@ -3869,6 +3897,9 @@ pub TUI_app.Action App.handle(term.Event event) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
         editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
+        for (str one in ext_commands) {
+            editor.extra_commands.push(one);
+        }
     }
     if (is_paste_in_insert(event)) {
         // typed literally: no autoindent, auto-pairs, mappings or jk, and one undo step
@@ -3892,6 +3923,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         }
     }
     flush_clipboard();
+    ext_watch();
     if (has_picker) {
         update_preview();
     }
@@ -4666,6 +4698,9 @@ void App.draw_status(TUI_buffer.Buffer buffer, MED_window.Placed frame, MED_edit
             if (busy.size() > 0) {
                 middle = middle + "  " + busy;
             }
+        }
+        if (is_active && ext.segment_texts.size() > 0 && ext.segments().size() > 0) {
+            middle = middle + "  " + ext.segments();
         }
         int middle_x = frame.x + used + name.size() + 2;
         if (middle.size() > 0 && middle_x + middle.size() + where.size() < frame.x + frame.width) {
@@ -7371,6 +7406,195 @@ List<MED_picker.Entry> App.diagnostic_entries(bool is_buffer_only) {
     return out;
 }
 
+/// The problems extensions reported since the last call, as one message ("" when none).
+str App.ext_problem_text() {
+    List<str> taken = ext.take_problems();
+    if (taken.size() == 0) {
+        return "";
+    }
+    return taken.join(" | ");
+}
+
+/// What handlers that just ran asked for: a message, the finder, their problems.
+void App.ext_finish(MED_ext.Ctx context) {
+    if (context.notice.size() > 0) {
+        notice = context.notice;
+    }
+    str problem = ext_problem_text();
+    if (problem.size() > 0) {
+        notice = problem;
+    }
+    if (context.has_pick) {
+        context.has_pick = false;
+        overlay = [];
+        is_leader = false;
+        is_which_key = false;
+        preview_path = "";
+        is_grep_due = false;
+        end_theme_picker(true);
+        stop_source();
+        picker = MED_picker.make(MED_picker.KIND_LIST, context.pick_title);
+        picker.set_entries(context.pick_entries);
+        picker.is_deferred = true;
+        has_picker = true;
+        update_preview();
+    }
+}
+
+/// Run the handlers of `event` for the buffer in `slot`.
+void App.ext_fire_slot(MED_ext.Event event, Slot slot, str file) {
+    if (!ext.has_handler(event)) {
+        return;
+    }
+    MED_ext.Ctx context = MED_ext.context(ext, slot.editor, file);
+    ext.fire(event, context, MED_ext.Info(file: file, buffer_id: slot.id));
+    ext_finish(context);
+}
+
+/// `write_slot` with the BufWritePre / BufWritePost events around it.
+str App.write_hooked(Slot slot, str target) {
+    if (!ext.has_handler(MED_ext.Event.BufWritePre) && !ext.has_handler(MED_ext.Event.BufWritePost)) {
+        return write_slot(slot, target);
+    }
+    str file = target.trim();
+    if (file.size() == 0) {
+        file = slot.path;
+    }
+    if (slot.is_listing) {
+        return write_slot(slot, target);
+    }
+    ext_fire_slot(MED_ext.Event.BufWritePre, slot, file);
+    str result = write_slot(slot, target);
+    if (!result.starts_with("E")) {
+        ext_fire_slot(MED_ext.Event.BufWritePost, slot, file);
+    }
+    str problem = ext_problem_text();
+    if (problem.size() > 0) {
+        return result + "  " + problem;
+    }
+    return result;
+}
+
+/// Before the keymap file: let the built-in extensions register, then install their commands and key mappings
+/// (so the user's keymap file, read next, overrides them).
+pub void App.ext_install() {
+    MED_ext_enabled.install(ext);
+    if (ext.is_empty()) {
+        return;
+    }
+    ext_commands = ext.command_names();
+    for (int position in 0 .. slots.size()) {
+        slots[position].editor.user_commands = ext_commands;
+    }
+    editor.user_commands = ext_commands;
+    for (str line in ext.map_lines()) {
+        MED_ex.did_run_line(editor, line);
+    }
+    editor.message = "";
+}
+
+/// After start-up is complete (keymap file, session, theme): Startup, and BufOpen for the files given on the command line.
+pub void App.ext_started() {
+    if (ext.is_empty()) {
+        return;
+    }
+    save_active();
+    ext_buffer = current_id;
+    ext_mode = editor.mode;
+    ext_row = editor.row;
+    ext_col = editor.col;
+    ext_tick = editor.buffer.tick;
+    for (Slot slot in slots) {
+        if (!slot.is_listing) {
+            ext_fire_slot(MED_ext.Event.BufOpen, slot, slot.path);
+        }
+    }
+    if (ext.has_handler(MED_ext.Event.Startup)) {
+        MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+        ext.fire(MED_ext.Event.Startup, context, MED_ext.Info(file: path, buffer_id: current_id));
+        ext_finish(context);
+    }
+    str problem = ext_problem_text();
+    if (problem.size() > 0) {
+        notice = problem;
+    }
+}
+
+/// When the loop has ended: Shutdown, and stop background jobs.
+pub void App.ext_stop() {
+    if (ext.is_empty()) {
+        return;
+    }
+    if (ext.has_handler(MED_ext.Event.Shutdown)) {
+        MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+        ext.fire(MED_ext.Event.Shutdown, context, MED_ext.Info(file: path, buffer_id: current_id));
+    }
+    ext.stop_jobs();
+}
+
+/// After an event is handled: ModeChanged, CursorMoved and TextChanged for the active buffer, each at most once.
+/// Changes the handlers make are not reported back to them.
+void App.ext_watch() {
+    if (!ext.has_handler(MED_ext.Event.ModeChanged) && !ext.has_handler(MED_ext.Event.CursorMoved) && !ext.has_handler(MED_ext.Event.TextChanged)) {
+        return;
+    }
+    if (current_id != ext_buffer) {
+        // another buffer: its state is the new baseline, not a change
+        ext_buffer = current_id;
+        ext_mode = editor.mode;
+        ext_row = editor.row;
+        ext_col = editor.col;
+        ext_tick = editor.buffer.tick;
+        return;
+    }
+    bool is_mode = editor.mode != ext_mode;
+    bool is_cursor = editor.row != ext_row || editor.col != ext_col;
+    bool is_text = editor.buffer.tick != ext_tick;
+    if (!is_mode && !is_cursor && !is_text) {
+        return;
+    }
+    MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+    MED_ext.Info info = MED_ext.Info(file: path, buffer_id: current_id, mode_before: ext_mode, mode_after: editor.mode, row: editor.row, col: editor.col);
+    if (is_mode) {
+        ext.fire(MED_ext.Event.ModeChanged, context, info);
+    }
+    if (is_text) {
+        ext.fire(MED_ext.Event.TextChanged, context, info);
+    }
+    if (is_cursor) {
+        ext.fire(MED_ext.Event.CursorMoved, context, info);
+    }
+    ext_mode = editor.mode;
+    ext_row = editor.row;
+    ext_col = editor.col;
+    ext_tick = editor.buffer.tick;
+    ext_finish(context);
+}
+
+/// The timer: events that no key caused (a mouse move), jobs, Tick. True when the screen should be redrawn.
+bool App.did_tick_ext(int elapsed_ms) {
+    ext.tick_ms = ext.tick_ms + elapsed_ms;
+    if (ext.tick_ms < MED_ext.TICK_MS) {
+        return false;
+    }
+    int waited = ext.tick_ms;
+    ext.tick_ms = 0;
+    bool is_changed = false;
+    MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+    if (ext.is_tick_wanted()) {
+        if (ext.did_poll_jobs(context)) {
+            is_changed = true;
+        }
+        if (ext.has_handler(MED_ext.Event.Tick)) {
+            ext.fire(MED_ext.Event.Tick, context, MED_ext.Info(file: path, buffer_id: current_id, elapsed_ms: waited));
+            is_changed = true;
+        }
+    }
+    ext_finish(context);
+    ext_watch();
+    return is_changed;
+}
+
 // ----------------------------------------------------------------- sessions
 
 /// The session saved for the current directory (an empty one when there is none).
@@ -7925,6 +8149,9 @@ pub Result<App, str> open_all(List<str> paths) {
     app.did_use_theme(MED_theme.DARK);
     return Result<App, str>.Ok(app);
 }
+
+// ---------------------------------------------------------------- extensions (docs/EXTENSIONS.md)
+// Every entry point returns at once when no extension is built in (`ext.is_empty()`, or `ext.has_handler(event)` false).
 
 // ---------------------------------------------------------------- finder sources
 

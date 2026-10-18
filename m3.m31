@@ -199,6 +199,7 @@ match (MED_app.open_all(files)) {
             // persistent undo is on by default in a normal run (`:set noundofile` in the keymap file turns it off)
             app.editor.opts.set("undofile", "true");
         }
+        app.ext_install();
         app.load_keymap(keymap, is_keymap_required);
         if (keymap != "") {
             // --keymap NONE is a clean run: no state files either
@@ -214,11 +215,13 @@ match (MED_app.open_all(files)) {
         }
         TUI_style.Depth depth = colour_depth();
         TUI_app.Loop loop = TUI_app.Loop(should_report_paste: true, should_report_mouse: is_mouse, should_sync: true, should_scroll: true, should_report_focus: true, should_manage_cursor: true, animate_ms: 50, depth: depth);
+        app.ext_started();
         app.motion.loop = loop;
         app.motion.configure(is_no_anim, is_truecolour(), !is_light_background());
         match (loop.run_with((TUI_buffer.Buffer buffer, TUI_geometry.Rect area) => app.render(buffer, area), (term.Event event) => app.handle(event), (int elapsed_ms) => app.tick(elapsed_ms), (TUI_mouse.Routed routed) => app.handle_mouse(routed))) {
             case Ok(int frames): {
                 // the file in front counts as visited even when the editor is closed within a tick
+                app.ext_stop();
                 app.note_state();
                 if (is_project_session) {
                     app.save_session("");

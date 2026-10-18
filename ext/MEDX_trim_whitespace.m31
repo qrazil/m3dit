@@ -1,0 +1,42 @@
+// Sample extension: strip trailing blanks when a buffer is written, and on demand with `:TrimTrailing`.
+//
+// It is built in only when asked for: `bash scripts/build.sh --ext MEDX_trim_whitespace`. The editor has its
+// own `trimtrailing` option (EditorConfig's trim_trailing_whitespace); this one exists to show the API: an
+// event handler (BufWritePre), a command, edits through the same primitive the editor uses (so `u` undoes
+// them as one step and `.` is untouched), and a message.
+
+import engine.MED_buffer;
+import ext.MED_ext;
+
+/// Strip the spaces and tabs at the end of every line. Err when the buffer may not be changed right now.
+pub Result<bool, str> trim_all(MED_ext.Ctx context) {
+    if (!context.can_edit()) {
+        return Result<bool, str>.Err("the buffer is in the middle of a change");
+    }
+    int trimmed = 0;
+    for (int row in 0 .. context.line_count()) {
+        str line = context.line(row);
+        int keep = line.size();
+        while (keep > 0 && (line.byte_at(keep - 1) == 32 || line.byte_at(keep - 1) == 9)) {
+            keep = keep - 1;
+        }
+        if (keep < line.size()) {
+            if (!context.did_replace(MED_buffer.Pos(row, keep), MED_buffer.Pos(row, line.size()), "")) {
+                return Result<bool, str>.Err("could not edit line " + (row + 1).to_str());
+            }
+            trimmed = trimmed + 1;
+        }
+    }
+    if (trimmed > 0) {
+        context.say("trimmed " + trimmed.to_str() + " line(s)");
+    }
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    if (!api.did_declare("TrimWhitespace", "strip trailing blanks on write", MED_ext.API_MAJOR, MED_ext.API_MINOR)) {
+        return;
+    }
+    api.did_hook(MED_ext.Event.BufWritePre, (MED_ext.Ctx context, MED_ext.Info info) => trim_all(context));
+    api.did_command("TrimTrailing", "strip trailing blanks now", (MED_ext.Ctx context, str arguments, bool is_bang) => trim_all(context));
+}
