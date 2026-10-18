@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+Extension API 0.1.0 (docs/EXTENSIONS.md). Off by default: with no extension built in the editor behaves as before.
+Per decision D2 an extension is an m31 module compiled into the binary; there is no runtime loading.
+
+- `ext/MED_ext.m31`: the API (events, commands, key mappings, statusline segments, buffer edits through
+  `editor.change`, finder lists, background jobs, version check), its own semantic version (API 0.1.0, separate
+  from the editor's), and the registry with dispatch and error isolation (`Err` is reported, three in a row switch
+  an extension off; a trap is still fatal).
+- `scripts/build.sh --ext NAME[,NAME] [--ext-dir DIR]` (or `$M3_EXT`, `ext/enabled.txt`) builds m3 with extensions;
+  no name, no change to the build. `ext/MED_ext_enabled.m31` is the (empty) installer it replaces in a scratch tree.
+- Sample extension `ext/MEDX_trim_whitespace.m31` (trim trailing blanks on write, `:TrimTrailing`); not built by default.
+- Hooks in the editor: `Editor.user_commands` and `MED_ex.is_builtin_command` (engine), event dispatch in
+  `ui/MED_app.m31` and three calls in `m3.m31`; each returns at once when nothing is registered.
+- Tests: `tests/t_ext.m31`, `tests/ext_pty.py` (builds with and without the sample, `tests/test_ext.sh`).
+
 ## 0.10.0
 
 The file finder: no corrupted borders, hints on the bottom edge, name-first ranking with a relevance and

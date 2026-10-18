@@ -116,7 +116,7 @@ Each row: scope; reference behaviour; test; dependencies; size; decision.
 |---|---|---|---|---|---|---|
 | 24 | `:autocmd` / `:augroup` / `:doautocmd` subset: `BufRead BufNewFile BufWritePre BufWritePost BufEnter BufLeave InsertEnter InsertLeave FileType VimEnter VimLeavePre TextYankPost DirChanged`, pattern globs, `++once`, commands are ex lines | nvim | corpus for the ex semantics; unit for events | | M | The smallest thing that replaces most of what people write Lua for (format on save, per-filetype settings). Still ex lines, no scripting |
 | 25 | `:command` user commands (`:command! -nargs=* Name ex-line with <args>`) and `:function`-less `:if/:else/:endif` in sourced files | nvim | corpus | | M | Conditions are needed to share one `keymap.vim` between machines (`has('mac')`, `executable(...)`, `exists(...)`) |
-| 26 | External-process JSON-RPC extension protocol | LSP-shaped | | all of the above | L | **Post-1.0**, designed in `docs/EXTENSIONS.md` when the first real need appears |
+| 26 | ~~External-process JSON-RPC extension protocol~~ replaced by compiled-in m31 extension modules (D2) | docs/EXTENSIONS.md | `t_ext`, `ext_pty.py` | | L | API 0.1.0 done behind a build switch; the JSON-RPC protocol is not built |
 
 ### 0.15.0 Polish, packaging and docs
 
@@ -164,3 +164,5 @@ Tree-sitter or any parse-tree feature (G3); an embedded scripting language (Lua,
 | D2 | Extension story after 1.0 | **Not external-process JSON-RPC.** The recommendation was declined and no alternative was named: a bundled scripting language or no extension story are what is left. Nothing in the queue depends on it before 1.0, so it stays open until the owner picks |
 | D3 | `m3` depends on `m31git` (item 12) | **Yes**, as a pinned git dependency. Measure binary size and build time as the work lands, and report them |
 | D4 | Public name | **`m3`**. The binary is `m3`; README, man page and the Homebrew formula say `m3`; DESIGN's `medit` becomes `m3` in 0.15.0. Whether the `m3dit` repo is renamed is a separate ask |
+
+D2 follow-up (extapi branch): the owner's pick is m31 modules compiled into the binary; the design is `docs/EXTENSIONS.md` and API 0.1.0 is implemented in `ext/`, off by default (it replaces item 26).
