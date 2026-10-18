@@ -1,0 +1,223 @@
+// Unit checks for the extension API (MED_ext): registration rules, dispatch, error isolation, edits through
+// the editor's own primitive, and the App's hooks (write events, `:Name`, statusline segment).
+
+import fs;
+import io;
+import os;
+import term;
+import timer;
+import tests.MED_check;
+import ui.MED_app;
+import ui.MED_picker;
+import engine.MED_buffer;
+import engine.MED_editor;
+import ext.MED_ext;
+import ext.MED_ext_enabled;
+import ext.MEDX_trim_whitespace;
+
+/// Counts how often it ran and what it saw.
+type Probe {
+    pub int runs = 0;
+    pub str last_file = "";
+}
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+MED_ext.Registry api = MED_ext.Registry();
+// version and compatibility
+check.eq_str("version", MED_ext.version(), "0.1.0");
+check.ok("same version is compatible", MED_ext.is_compatible(0, 1));
+check.ok("0.x: another minor is not", !MED_ext.is_compatible(0, 2) && !MED_ext.is_compatible(0, 0));
+check.ok("another major is not", !MED_ext.is_compatible(1, 0));
+// the default build has no extension
+MED_ext.Registry none = MED_ext.Registry();
+MED_ext_enabled.install(none);
+check.ok("default install registers nothing", none.is_empty());
+check.ok("no handler for any event", !none.has_handler(MED_ext.Event.BufWritePre) && !none.is_tick_wanted());
+// registration rules
+check.ok("handler before declare is refused", !api.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => Result<bool, str>.Ok(true)));
+check.ok("bad name refused", !api.did_declare("lower", "x", 0, 1));
+check.ok("wrong api refused", !api.did_declare("Wrong", "x", 0, 9));
+check.ok("declare", api.did_declare("First", "one", MED_ext.API_MAJOR, MED_ext.API_MINOR));
+check.ok("declare twice refused", !api.did_declare("First", "one", MED_ext.API_MAJOR, MED_ext.API_MINOR));
+check.ok("a failed declare leaves no current extension", !api.has_current());
+check.ok("redeclare under a new name", api.did_declare("Alpha", "one", MED_ext.API_MAJOR, MED_ext.API_MINOR));
+check.eq_int("problems recorded", api.problems.size(), 4);
+api.take_problems();
+check.eq_int("problems taken", api.problems.size(), 0);
+Probe first = Probe();
+Probe second = Probe();
+check.ok("on_event", api.did_hook(MED_ext.Event.BufWritePre, (MED_ext.Ctx context, MED_ext.Info info) => hit(first, info)));
+check.ok("command", api.did_command("Hello", "say hello", (MED_ext.Ctx context, str arguments, bool is_bang) => hello(context, arguments)));
+check.ok("command twice by one owner refused", !api.did_command("Hello", "again", (MED_ext.Ctx context, str arguments, bool is_bang) => hello(context, arguments)));
+check.ok("built-in name refused", !api.did_command("Files", "x", (MED_ext.Ctx context, str arguments, bool is_bang) => hello(context, arguments)));
+check.ok("lowercase command refused", !api.did_command("hello2", "x", (MED_ext.Ctx context, str arguments, bool is_bang) => hello(context, arguments)));
+check.ok("map", api.did_map("n", "<leader>zh", "Hello", "hello"));
+check.ok("map mode i refused", !api.did_map("i", "jj", "Hello", "x"));
+check.ok("second extension", api.did_declare("Beta", "two", MED_ext.API_MAJOR, MED_ext.API_MINOR));
+check.ok("command taken by the first owner", !api.did_command("Hello", "mine", (MED_ext.Ctx context, str arguments, bool is_bang) => hello(context, arguments)));
+check.ok("same keys: first wins", !api.did_map("n", "<leader>zh", "Hello", "mine"));
+check.ok("other keys", api.did_map("x", "<leader>zb", "Hello", "mine"));
+check.ok("second handler", api.did_hook(MED_ext.Event.BufWritePre, (MED_ext.Ctx context, MED_ext.Info info) => hit(second, info)));
+check.eq_str("map lines", api.map_lines().join("|"), "nnoremap <leader>zh :Hello<CR>|xnoremap <leader>zb :<C-u>Hello<CR>");
+MED_editor.Editor editor = MED_editor.new("abc  \ndef\n");
+MED_ext.Ctx main_context = MED_ext.context(api, editor, "/tmp/x.txt");
+check.eq_int("fire runs both in order", api.fire(MED_ext.Event.BufWritePre, main_context, MED_ext.Info(file: "/tmp/x.txt")), 2);
+check.eq_int("first ran", first.runs, 1);
+check.eq_str("info reaches the handler", second.last_file, "/tmp/x.txt");
+check.eq_int("an event nobody listens to", api.fire(MED_ext.Event.Shutdown, main_context, MED_ext.Info()), 0);
+check.ok("command runs", api.did_run_command("Hello", main_context, "world", false));
+check.eq_str("command saw arguments", main_context.notice, "hello world");
+check.ok("unknown command", !api.did_run_command("Nope", main_context, "", false));
+// consumption: Ok(false) stops later handlers
+MED_ext.Registry stop = MED_ext.Registry();
+stop.did_declare("Gate", "x", 0, 1);
+Probe after = Probe();
+stop.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => Result<bool, str>.Ok(false));
+stop.did_declare("Late", "x", 0, 1);
+stop.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => hit(after, info));
+check.eq_int("consumed event stops dispatch", stop.fire(MED_ext.Event.Tick, MED_ext.context(stop, editor, ""), MED_ext.Info()), 1);
+check.eq_int("later handler did not run", after.runs, 0);
+// error isolation: Err is reported, three in a row switch the extension off, others keep running
+MED_ext.Registry broken = MED_ext.Registry();
+broken.did_declare("Bad", "x", 0, 1);
+broken.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => Result<bool, str>.Err("boom"));
+broken.did_declare("Good", "x", 0, 1);
+Probe good = Probe();
+broken.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => hit(good, info));
+MED_ext.Ctx bad_context = MED_ext.context(broken, editor, "");
+for (int round in 0 .. 4) {
+    broken.fire(MED_ext.Event.Tick, bad_context, MED_ext.Info());
+}
+check.eq_int("good handler ran every round", good.runs, 4);
+check.ok("bad extension is off", broken.extensions[0].is_off);
+check.ok("good extension is on", !broken.extensions[1].is_off);
+check.ok("error text kept", broken.extensions[0].last_error == "boom");
+check.ok("problems name the extension", broken.take_problems()[0] == "ext Bad: boom");
+// edits go through editor.change, one undo step per handler, bounds are checked
+MED_editor.Editor text = MED_editor.new("abc  \ndef  \n");
+MED_ext.Registry edits = MED_ext.Registry();
+edits.did_declare("Edit", "x", 0, 1);
+edits.did_hook(MED_ext.Event.BufWritePre, (MED_ext.Ctx context, MED_ext.Info info) => MEDX_trim_whitespace.trim_all(context));
+MED_ext.Ctx edit_context = MED_ext.context(edits, text, "");
+check.ok("can edit when no block is open", edit_context.can_edit());
+edits.fire(MED_ext.Event.BufWritePre, edit_context, MED_ext.Info());
+check.eq_str("trimmed", text.buffer.dump(), "abc\ndef\n");
+check.ok("block closed after the handler", !text.is_block_open);
+check.eq_int("one undo node for both lines", text.nodes.size(), 2);
+check.ok("undo restores both", text.did_undo() && text.buffer.dump() == "abc  \ndef  \n");
+check.ok("out of range edit refused", !edit_context.did_replace(MED_buffer.Pos(5, 0), MED_buffer.Pos(5, 0), "x"));
+check.ok("reversed range refused", !edit_context.did_replace(MED_buffer.Pos(1, 2), MED_buffer.Pos(0, 0), "x"));
+text.open_block();
+check.ok("no edit while a block is open", !edit_context.did_replace(MED_buffer.Pos(0, 0), MED_buffer.Pos(0, 0), "x"));
+text.end_block();
+check.eq_str("register read", edit_context.register("a"), "");
+check.ok("register write", edit_context.did_set_register("a", "one\ntwo"));
+check.eq_str("register read back", edit_context.register("a"), "one\ntwo");
+check.ok("bad register", !edit_context.did_set_register("!", "x"));
+// segments
+api.put_segment("Alpha.git", "main");
+api.put_segment("Alpha.todo", "3 todo");
+check.eq_str("segments", api.segments(), "main  3 todo");
+api.put_segment("Alpha.git", "");
+check.eq_str("segment removed", api.segments(), "3 todo");
+// a job that ends: lines reach the JobFn
+MED_ext.Registry jobs = MED_ext.Registry();
+jobs.did_declare("Jobs", "x", 0, 1);
+Probe job_probe = Probe();
+jobs.did_job("echo", (MED_ext.Ctx context, str job, List<str> lines) => job_done(job_probe, lines));
+MED_ext.Ctx job_context = MED_ext.context(jobs, text, "");
+job_context.background("echo", ["echo", "hi"]);
+check.ok("a job makes the registry want ticks", jobs.is_tick_wanted());
+int waited = 0;
+while (waited < 100 && jobs.is_tick_wanted()) {
+    jobs.did_poll_jobs(job_context);
+    waited = waited + 1;
+    if (jobs.is_tick_wanted()) {
+        timer.sleep_ms(20);
+    }
+}
+check.eq_int("job handler ran once", job_probe.runs, 1);
+check.eq_str("job handler saw the output", job_probe.last_file, "hi");
+MED_ext.Ran ran = job_context.run(["echo", "blocking"], 500);
+check.ok("run answers", ran.code == 0 && ran.text == "blocking\n");
+// the App: write events, :Name, segment, no effect without extensions
+str directory = os.env("M3_TEST_TMP").or("/tmp");
+str file = directory + "/ext_app.txt";
+match (io.write(file, "keep  \nme\t\n")) {
+    case Ok(int count): {
+    }
+    case Err(io.Error error): {
+        print("cannot write " + file);
+    }
+}
+match (MED_app.open(file)) {
+    case Ok(MED_app.App app): {
+        type_text(app, ":w\r");
+        check.eq_str("no extension: write leaves blanks", read(file), "keep  \nme\t\n");
+        MEDX_trim_whitespace.register(app.ext);
+        app.ext_install();
+        check.ok("registered", !app.ext.is_empty());
+        type_text(app, ":TrimTrailing\r");
+        check.eq_str("command trims the buffer", app.editor.buffer.dump(), "keep\nme\n");
+        type_text(app, "u");
+        check.eq_str("one undo step", app.editor.buffer.dump(), "keep  \nme\t\n");
+        type_text(app, ":w\r");
+        check.eq_str("write event trims the file", read(file), "keep\nme\n");
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+remove(file);
+check.finish("t_ext");
+
+Result<bool, str> hit(Probe probe, MED_ext.Info info) {
+    probe.runs = probe.runs + 1;
+    probe.last_file = info.file;
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> hello(MED_ext.Ctx context, str arguments) {
+    context.say("hello " + arguments);
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> job_done(Probe probe, List<str> lines) {
+    probe.runs = probe.runs + 1;
+    probe.last_file = lines.join("|");
+    return Result<bool, str>.Ok(true);
+}
+
+str read(str file) {
+    match (io.read(file)) {
+        case Ok(str text): {
+            return text;
+        }
+        case Err(io.Error error): {
+            return "";
+        }
+    }
+}
+
+void remove(str file) {
+    match (fs.remove(file)) {
+        case Ok(bool did_remove): {
+        }
+        case Err(io.Error error): {
+        }
+    }
+}
