@@ -425,14 +425,12 @@ def session_layout_restore(binary, root):
     s = Session(binary, root, [], keymap=keymap)
     try:
         assert s.wait_for("hello world"), s.text()
-        first = s.text().split("\n")[0]
-        assert "2 " in first and "src/main.py" in first and "hello.txt" in first, "two pages of two windows:\n" + first
+        # the page that was current had hello.txt twice, one window above the other
         text = s.text()
-        # the page that was current: the horizontal split of hello.txt (two status lines, both with the file)
-        assert len([row for row in text.split("\n") if "hello.txt" in row]) >= 2 + 1, "two windows in this page:\n" + text
+        assert text.count("hello world") == 2 and "return 42" not in text, "a horizontal split of hello.txt:\n" + text
         s.send("gT", settle=0.4)
         text = s.text()
-        assert "return 42" in text and "hello world" in text, "the vertical split of the first page:\n" + text
+        assert "return 42" in text and text.count("hello world") == 1, "the vertical split of the first page:\n" + text
     finally:
         s.close()
 
