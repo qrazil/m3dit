@@ -54,7 +54,7 @@ bool is_visual(MED_editor.Editor editor) {
 
 // The column of the cursor line that `want` selects.
 pub int col_by_want(MED_editor.Editor editor, int row, int want) {
-    return MED_motion.col_for_want(editor.buffer.line(row), want, editor.tab, is_visual(editor));
+    return editor.col_for_want(row, want, is_visual(editor));
 }
 
 // Vim's `beginline(BL_WHITE | BL_FIX)`: the first non-blank, but never the NUL.
@@ -361,6 +361,25 @@ MED_motion.Motion goto_line(MED_editor.Editor editor, int count, int default_row
     return motion;
 }
 
+// nvim's coladvance() leaves the column it was asked for as the cursor's virtual column unless the cursor is on a
+// Tab, so after g0, gm and gM the wanted column is that request, even when the cursor landed to the right of it
+// (inside a head, past the end of a short line).
+int wanted_after_coladvance(MED_editor.Editor editor, int col, int requested) {
+    str line = editor.buffer.line(editor.row);
+    if (col < line.size() && line.byte_at(col) == 9) {
+        return -2;
+    }
+    // coladvance() fails when the line is shorter than the request; the column is then the cursor's own
+    int total = MED_text.line_width(line, editor.tab);
+    if (editor.is_wrap_special()) {
+        total = editor.wrap_layout(line).total();
+    }
+    if (requested >= total) {
+        return -2;
+    }
+    return requested;
+}
+
 // g0 g^ g$ gm on a wrapped line: the screen row the cursor is on.
 MED_motion.Motion screen_line_motion(MED_editor.Editor editor, int second, int count) {
     MED_motion.Motion motion = motion_at(editor);
@@ -386,13 +405,13 @@ MED_motion.Motion screen_line_motion(MED_editor.Editor editor, int second, int c
         } else if (vcol >= width) {
             target = target + ((vcol - width) / width + 1) * width;
         }
-        int col = MED_motion.col_for_want(line, target, editor.tab, is_visual(editor));
-        if (col > 0 && MED_text.display_col(line, col, editor.tab) > target) {
+        int col = editor.col_for_want(editor.row, target, is_visual(editor));
+        if (col > 0 && editor.vcol_at(editor.row, col) > target) {
             col = MED_text.previous_col(line, col);
         }
         motion.col = col;
         // "stick in this column" (update_curswant_force)
-        motion.want = MED_text.display_col(line, col, editor.tab);
+        motion.want = editor.vcol_at(editor.row, col);
         if (col < line.size() && line.byte_at(col) == 9) {
             motion.want = motion.want + MED_text.cell_width(line, col, motion.want, editor.tab) - 1;
         }
@@ -408,14 +427,18 @@ MED_motion.Motion screen_line_motion(MED_editor.Editor editor, int second, int c
     if (second == 109) {
         start = start + width / 2;
     }
-    int col = MED_motion.col_for_want(line, start, editor.tab, is_visual(editor));
+    int col = editor.col_for_want(editor.row, start, is_visual(editor));
     if (second == 94) {
         while (col < line.size() && (line.byte_at(col) == 32 || line.byte_at(col) == 9) && MED_text.next_col(line, col) < line.size()) {
             col = MED_text.next_col(line, col);
         }
     }
     motion.col = col;
-    motion.want = -2;
+    if (second == 94) {
+        motion.want = -2;
+    } else {
+        motion.want = wanted_after_coladvance(editor, col, start);
+    }
     return motion;
 }
 
@@ -1223,14 +1246,21 @@ MED_motion.Motion run_motion_raw(MED_editor.Editor editor, List<int> keys, int c
             int target = editor.view_width / 2;
             if (second == 77) {
                 int total = MED_text.line_width(line, editor.tab);
+                if (editor.is_wrap_special()) {
+                    total = editor.wrap_layout(line).total();
+                }
                 if (count > 0 && count <= 100) {
                     target = total * count / 100;
                 } else {
                     target = total / 2;
                 }
             }
-            motion.col = MED_text.col_at_display(line, target, editor.tab);
-            motion.want = -2;
+            if (editor.is_wrap_special()) {
+                motion.col = editor.col_for_want(editor.row, target, false);
+            } else {
+                motion.col = MED_text.col_at_display(line, target, editor.tab);
+            }
+            motion.want = wanted_after_coladvance(editor, motion.col, target);
             return motion;
         }
         if (second == 111) {

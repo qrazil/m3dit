@@ -17,6 +17,7 @@
 import engine.MED_buffer;
 import engine.MED_register;
 import engine.MED_text;
+import engine.MED_wrapmap;
 import engine.MED_num;
 import engine.MED_motion;
 import engine.MED_map;
@@ -985,7 +986,7 @@ void Editor.land(Node node, List<Landing> landings, bool is_undoing, int old_lin
         } else if (is_startofline) {
             col = MED_text.first_nonblank(buffer.line(row));
         } else {
-            col = MED_motion.col_for_want(buffer.line(row), want, tab, false);
+            col = col_for_want(row, want, false);
         }
     } else {
         row = buffer.line_count() - 1;
@@ -1108,10 +1109,69 @@ pub bool Editor.did_undo_to(int target) {
     return true;
 }
 
+/// True when 'wrap' is on and 'linebreak', 'showbreak' or 'breakindent' changes where text lands (MED_wrapmap).
+pub bool Editor.is_wrap_special() {
+    if (view_width < 1 || !is_option_on("wrap", true)) {
+        return false;
+    }
+    if (is_option_on("linebreak", false) || is_option_on("breakindent", false)) {
+        return true;
+    }
+    str text = opts.get("showbreak").or("");
+    return text.size() > 0;
+}
+
+/// The window and the options a MED_wrapmap layout depends on.
+pub MED_wrapmap.Settings Editor.wrap_settings() {
+    MED_wrapmap.Settings settings = MED_wrapmap.Settings();
+    settings.width = view_width;
+    settings.tab = tab;
+    settings.is_linebreak = is_option_on("linebreak", false);
+    settings.is_breakindent = is_option_on("breakindent", false);
+    settings.breakat = opts.get("breakat").or(" \t!@*-+;:,./?");
+    settings.showbreak = opts.get("showbreak").or("");
+    settings.breakindentopt = opts.get("breakindentopt").or("");
+    return settings;
+}
+
+/// How `line` lies in the window under 'linebreak', 'showbreak' and 'breakindent'.
+pub MED_wrapmap.Layout Editor.wrap_layout(str line) {
+    return MED_wrapmap.build(wrap_settings(), line);
+}
+
+/// The vcol where the cluster at byte `line_col` of line `line_row` starts.
+pub int Editor.vcol_at(int line_row, int line_col) {
+    if (is_wrap_special()) {
+        return wrap_layout(buffer.line(line_row)).vcol_at(line_col);
+    }
+    return MED_text.display_col(buffer.line(line_row), line_col, tab);
+}
+
+/// The column of line `line_row` covering vcol `want` (Vim's coladvance); `want` -1 is the end of the line.
+pub int Editor.col_for_want(int line_row, int want, bool is_one_more) {
+    if (is_wrap_special()) {
+        return wrap_layout(buffer.line(line_row)).col_for_vcol(want, is_one_more);
+    }
+    return MED_motion.col_for_want(buffer.line(line_row), want, tab, is_one_more);
+}
+
 /// The display column the cursor is drawn at (the end cell of a Tab in
 /// normal mode, as Vim does).
 pub int Editor.cursor_vcol() {
     str line = buffer.line(row);
+    if (is_wrap_special()) {
+        MED_wrapmap.Layout layout = wrap_layout(line);
+        if (col < line.size() && line.byte_at(col) == 9 && mode != INSERT && mode != REPLACE) {
+            bool is_at_end = true;
+            if (mode == VISUAL) {
+                is_at_end = row > vrow || (row == vrow && col > vcol);
+            }
+            if (is_at_end) {
+                return layout.end_vcol_at(col);
+            }
+        }
+        return layout.vcol_at(col);
+    }
     int start = MED_text.display_col(line, col, tab);
     if (col < line.size() && line.byte_at(col) == 9 && mode != INSERT && mode != REPLACE) {
         bool is_at_end = true;

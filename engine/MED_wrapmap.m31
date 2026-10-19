@@ -1,0 +1,258 @@
+// How a line is laid out in a wrapping window when 'linebreak', 'showbreak' or 'breakindent' is on: the virtual
+// column of every character and the offsets where each screen row starts. A port of the parts of nvim's
+// charsize_regular() that deal with these options (the blank that grows to the end of the row, the head that
+// 'showbreak' and 'breakindent' put before a continuation row). With none of the three options on the editor does
+// not call this module, and a row is 'view_width' plain cells as before.
+//
+// Virtual columns are linear over the rows and include the heads, as nvim's virtcol() does, so a row is always
+// `view_width` cells of vcol: row k covers [k * width, (k + 1) * width).
+//
+// API
+// ---
+//   MED_wrapmap.Settings                         the window and options a layout depends on (Editor.wrap_settings() fills it)
+//   MED_wrapmap.build(settings, line)            Layout: offsets, vcols, row starts
+//   MED_wrapmap.Layout.vcol_at(col)               start vcol of the cluster at byte `col` (the end of the line past it)
+//   MED_wrapmap.Layout.end_vcol_at(col)           last vcol the cluster at `col` covers
+//   MED_wrapmap.Layout.col_for_vcol(want, is_one_more)  the cluster covering vcol `want` (Vim's coladvance)
+//   MED_wrapmap.Layout.total()                    total vcols of the line
+//   MED_wrapmap.Layout.row_of(col)                the screen row of the cluster at `col`
+
+import engine.MED_text;
+
+pub type Layout {
+    /// Start offset of every cluster, then the line size.
+    pub List<int> offsets = [];
+    /// Start vcol of every cluster, then the vcol after the last one.
+    pub List<int> vcols = [];
+    /// The vcol of the last cell of every cluster (the end entry repeats its start).
+    pub List<int> ends = [];
+    /// The offsets where a screen row starts (the first is 0).
+    pub List<int> breaks = [0];
+    /// The head (showbreak + breakindent cells) of each row after the first.
+    pub int head = 0;
+    pub int width = 0;
+}
+
+/// Start vcol of the cluster at byte `col`.
+pub int Layout.vcol_at(int col) {
+    int low = 0;
+    int high = offsets.size() - 1;
+    while (low < high) {
+        int middle = (low + high) / 2;
+        if (offsets[middle] < col) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return vcols[low];
+}
+
+/// The last vcol the cluster at byte `col` covers.
+pub int Layout.end_vcol_at(int col) {
+    int low = 0;
+    int high = offsets.size() - 1;
+    while (low < high) {
+        int middle = (low + high) / 2;
+        if (offsets[middle] < col) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return ends[low];
+}
+
+/// Total vcols of the line.
+pub int Layout.total() {
+    return vcols[vcols.size() - 1];
+}
+
+/// The screen row of the cluster at byte `col`.
+pub int Layout.row_of(int col) {
+    return vcol_at(col) / width;
+}
+
+/// The cluster covering vcol `want` (the last one when `want` is past the end; the line size when `is_one_more`).
+pub int Layout.col_for_vcol(int want, bool is_one_more) {
+    int count = offsets.size() - 1;
+    if (count == 0) {
+        return 0;
+    }
+    if (want < 0) {
+        if (is_one_more) {
+            return offsets[count];
+        }
+        return offsets[count - 1];
+    }
+    for (int index in 0 .. count) {
+        if (want <= ends[index]) {
+            return offsets[index];
+        }
+    }
+    if (is_one_more) {
+        return offsets[count];
+    }
+    return offsets[count - 1];
+}
+
+/// What a layout depends on: the text width of the window and the options.
+pub type Settings {
+    pub int width = 80;
+    pub int tab = 8;
+    pub bool is_linebreak = false;
+    pub bool is_breakindent = false;
+    pub str breakat = " \t!@*-+;:,./?";
+    pub str showbreak = "";
+    pub str breakindentopt = "";
+}
+
+bool is_break_char(str breakat, int byte) {
+    for (int index in 0 .. breakat.size()) {
+        if (breakat.byte_at(index) == byte) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// nvim's get_breakindent_win: the indent of the line (tabs by 'tabstop'), never past `width - 20`.
+int breakindent_of(Settings settings, str line, int width, int showbreak_width) {
+    int indent = 0;
+    for (int index in 0 .. line.size()) {
+        int byte = line.byte_at(index);
+        if (byte == 32) {
+            indent = indent + 1;
+        } else if (byte == 9) {
+            indent = indent + settings.tab - (indent % settings.tab);
+        } else {
+            break;
+        }
+    }
+    str opt = settings.breakindentopt;
+    int shift = 0;
+    int minimum = 20;
+    bool is_sbr = false;
+    for (str part in opt.split(",")) {
+        if (part.starts_with("shift:")) {
+            shift = part.substr(6, part.size()).parse_int().or(0);
+        } else if (part.starts_with("min:")) {
+            minimum = part.substr(4, part.size()).parse_int().or(20);
+        } else if (part == "sbr") {
+            is_sbr = true;
+        }
+    }
+    int result = indent + shift;
+    if (is_sbr) {
+        result = result - showbreak_width;
+    }
+    if (result < 0) {
+        result = 0;
+    } else if (result > width - minimum) {
+        if (width - minimum < 0) {
+            result = 0;
+        } else {
+            result = width - minimum;
+        }
+    }
+    return result;
+}
+
+// The cells of `line` from byte `from` to `to`, as plain text (the 'showbreak' string).
+int string_width(str text, int tab) {
+    return MED_text.line_width(text, tab);
+}
+
+/// Lay `line` out in the window.
+pub Layout build(Settings settings, str line) {
+    Layout map = Layout();
+    int width = settings.width;
+    map.width = width;
+    int tab = settings.tab;
+    bool is_lbr = settings.is_linebreak;
+    str breakat = settings.breakat;
+    str showbreak = settings.showbreak;
+    int showbreak_width = string_width(showbreak, tab);
+    int head = showbreak_width;
+    if (settings.is_breakindent) {
+        head = head + breakindent_of(settings, line, width, showbreak_width);
+    }
+    map.head = head;
+    List<int> offsets = MED_text.starts(line);
+    map.offsets = offsets;
+    int vcol = 0;
+    int count = offsets.size() - 1;
+    bool is_text_seen = false;
+    for (int index in 0 .. count) {
+        int offset = offsets[index];
+        int size = MED_text.cell_width(line, offset, vcol, tab);
+        bool is_wide = size == 2 && MED_text.cp_at(line, offset) >= 128;
+        // a wide character that does not fit in the last cell of a row starts the next row
+        if (is_wide && vcol % width == width - 1 && width > 1) {
+            vcol = vcol + 1;
+        }
+        // the head of a continuation row stands before its first character
+        if (head > 0 && vcol > 0 && vcol % width == 0) {
+            vcol = vcol + head;
+        }
+        // 'linebreak': a blank before a non-blank grows to the end of the row when the word after it does not fit
+        if (is_lbr && is_text_seen && is_break_char(breakat, line.byte_at(offset)) && !(index + 1 < count && is_break_char(breakat, line.byte_at(offsets[index + 1]))) && index + 1 < count) {
+            int adjust = size - 1;
+            int colmax = width - adjust;
+            if (vcol >= colmax) {
+                colmax = colmax + adjust;
+                int stride = colmax;
+                if (stride > 0) {
+                    colmax = colmax + ((vcol - colmax) / stride + 1) * stride - adjust;
+                }
+            }
+            int vcol2 = vcol;
+            int ahead = index;
+            while (true) {
+                int previous = ahead;
+                ahead = ahead + 1;
+                if (ahead >= count) {
+                    break;
+                }
+                int next_byte = line.byte_at(offsets[ahead]);
+                bool is_go = is_break_char(breakat, next_byte) || vcol2 == vcol || !is_break_char(breakat, line.byte_at(offsets[previous]));
+                if (!is_go) {
+                    break;
+                }
+                vcol2 = vcol2 + MED_text.cell_width(line, offsets[ahead], vcol2, tab);
+                if (vcol2 >= colmax) {
+                    size = colmax - vcol + adjust;
+                    break;
+                }
+            }
+        }
+        int start = vcol;
+        // a character that runs over the end of a row carries the head of the next row inside it
+        if (head > 0) {
+            int boundary = (start / width + 1) * width;
+            while (start + size > boundary) {
+                size = size + head;
+                boundary = boundary + width;
+            }
+        }
+        if (!is_break_char(breakat, line.byte_at(offset))) {
+            is_text_seen = true;
+        }
+        vcol = start;
+        map.vcols.push(vcol);
+        map.ends.push(vcol + size - 1);
+        vcol = vcol + size;
+    }
+    map.vcols.push(vcol);
+    map.ends.push(vcol);
+    // row starts: the first cluster whose start is in a new row
+    int row = 0;
+    for (int index in 0 .. count) {
+        int cluster_row = map.vcols[index] / width;
+        while (row < cluster_row) {
+            row = row + 1;
+            map.breaks.push(offsets[index]);
+        }
+    }
+    return map;
+}

@@ -28,6 +28,9 @@ pub int rows_of(MED_editor.Editor editor, int row) {
     if (!editor.is_option_on("wrap", true) || editor.view_width < 1) {
         return 1;
     }
+    if (editor.is_wrap_special()) {
+        return editor.wrap_layout(editor.buffer.line(row)).breaks.size();
+    }
     return MED_text.wrap_breaks(editor.buffer.line(row), editor.view_width, editor.tab).size();
 }
 
@@ -100,7 +103,7 @@ pub int empty_rows(MED_editor.Editor editor) {
 // Put the cursor on `row`, its column from the wanted column.
 void to_row(MED_editor.Editor editor, int row) {
     editor.row = row;
-    editor.col = MED_motion.col_for_want(editor.buffer.line(row), editor.want, editor.tab, editor.mode == MED_editor.VISUAL);
+    editor.col = editor.col_for_want(row, editor.want, editor.mode == MED_editor.VISUAL);
 }
 
 /// Vim's scroll_cursor_halfway: put the cursor line in the middle. `is_at_end`
@@ -432,7 +435,7 @@ void show_cursor_in_top(MED_editor.Editor editor) {
             target = target + width;
         }
         editor.want = target;
-        editor.col = MED_motion.col_for_want(editor.buffer.line(editor.row), target, editor.tab, editor.mode == MED_editor.VISUAL);
+        editor.col = editor.col_for_want(editor.row, target, editor.mode == MED_editor.VISUAL);
     }
 }
 

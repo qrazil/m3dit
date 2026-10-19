@@ -23,6 +23,14 @@ pub bool is_wrapping(MED_editor.Editor editor) {
     return editor.is_option_on("wrap", true) && editor.view_width > 0;
 }
 
+// The cells a line takes (with the heads and padding of 'linebreak', 'showbreak' and 'breakindent' when they are on).
+int line_length(MED_editor.Editor editor, str line) {
+    if (editor.is_wrap_special()) {
+        return editor.wrap_layout(line).total();
+    }
+    return MED_text.line_width(line, editor.tab);
+}
+
 // The screen columns a line takes, rounded up to whole rows (`n` in nvim).
 int rounded_width(int length, int width) {
     if (length > width) {
@@ -43,7 +51,7 @@ pub Outcome move(MED_editor.Editor editor, bool is_forward, int dist, bool is_en
     int row = editor.row;
     int last = editor.buffer.line_count() - 1;
     str line = editor.buffer.line(row);
-    int length = MED_text.line_width(line, editor.tab);
+    int length = line_length(editor, line);
     int want = editor.want;
     if (is_end_forced) {
         want = -1;
@@ -73,7 +81,7 @@ pub Outcome move(MED_editor.Editor editor, bool is_forward, int dist, bool is_en
                 }
                 row = row - 1;
                 line = editor.buffer.line(row);
-                length = MED_text.line_width(line, editor.tab);
+                length = line_length(editor, line);
                 if (length > width) {
                     want = want + (((length - width - 1) / width) + 1) * width;
                 }
@@ -90,16 +98,23 @@ pub Outcome move(MED_editor.Editor editor, bool is_forward, int dist, bool is_en
                 row = row + 1;
                 want = want % width;
                 line = editor.buffer.line(row);
-                length = MED_text.line_width(line, editor.tab);
+                length = line_length(editor, line);
             }
         }
     }
     bool is_one_more = editor.mode == MED_editor.VISUAL || editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE;
-    int col = MED_motion.col_for_want(line, want, editor.tab, is_one_more);
+    int col = editor.col_for_want(row, want, is_one_more);
     if (col > 0) {
         // landing on a character that got split at the end of the row: move
         // one back when most of it is on the previous row
-        int landed = MED_text.display_col(line, col, editor.tab);
+        int landed = editor.vcol_at(row, col);
+        if (line.byte_at(col) == 9 && editor.mode == MED_editor.NORMAL) {
+            // a Tab under the cursor counts by its last cell (w_virtcol)
+            landed = landed + MED_text.cell_width(line, col, landed, editor.tab) - 1;
+            if (editor.is_wrap_special()) {
+                landed = editor.wrap_layout(line).end_vcol_at(col);
+            }
+        }
         if (landed > want) {
             bool is_far = false;
             if (want < width) {

@@ -157,6 +157,8 @@ const List<str> SPECS = [
     "cursorshape::bool:true",
     "breakindent:bri:bool:false",
     "showbreak:sbr:str:",
+    "breakat:brk:str: \t!@*-+;:,./?",
+    "breakindentopt:briopt:str:",
     "undoreload:ur:num:10000",
     "iminsert:imi:num:0",
     "imsearch:ims:num:-1",

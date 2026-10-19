@@ -508,7 +508,7 @@ Helix 25.01 feature inventory and the v0.1.0 verdict. **Yes** = in the tag,
 | Formatting via external formatter, shell pipe (`!`, `\|`, `:pipe`), `:sh`-capture, `:r !cmd` | **Yes** (0.1.0) | `:!cmd`, `:{range}!cmd`, `:r !cmd`, `!{motion}` through `proc.run`; nvim oracle corpus 103. `:!cmd` captures output (no tty): use `:terminal` for interactive programs |
 | Debug adapter (DAP) | **Later** | The pipes exist now; the UI does not |
 | Embedded terminal | **Partial** (0.1.0) | `:terminal` over `proc.start_pty`; a line-oriented screen model (`ui/MED_vt.m31`), not a full VT emulator |
-| Soft wrap, rulers, indent guides, whitespace rendering | Partial | Soft wrap (with nvim's scrolling), `list` + `listchars`, `number`, `relativenumber`, `colorcolumn`, `cursorline`, `cursorcolumn`, `scrolloff`, `sidescroll(off)` and `nowrap` scrolling, indent guides (0.1.0, `:set noindentguides`) done; `linebreak` later |
+| Soft wrap, rulers, indent guides, whitespace rendering | Partial | Soft wrap (with nvim's scrolling), `list` + `listchars`, `number`, `relativenumber`, `colorcolumn`, `cursorline`, `cursorcolumn`, `scrolloff`, `sidescroll(off)` and `nowrap` scrolling, indent guides (0.1.0, `:set noindentguides`), `linebreak`, `breakat`, `showbreak`, `breakindent` and `breakindentopt` (`shift`, `min`, `sbr`; `list` is not done) done |
 | Snippets | Later | 0.8.0 in the roadmap |
 | Auto-reload on external change, auto-save | Partial | Poll `fs.stat` mtimes on idle tick; auto-save later |
 | Persistent undo, session restore | Yes (0.7.0) | Undo files under the state directory, buffers and cursors of a project restored (layout not yet) |

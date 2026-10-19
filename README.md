@@ -22,8 +22,8 @@ Options that change behaviour are checked against nvim one by one: `scrolloff`, 
 with `formatoptions` (auto-wrap, `gq`, comment leaders), `tabstop`, `shiftwidth`,
 `softtabstop`, `expandtab`, `smarttab`, `autoindent`, `ignorecase`, `smartcase`,
 `wrapscan`, `startofline`, `smartindent`, `list`/`listchars`, `cursorline`,
-`cursorcolumn`, `colorcolumn`. Known limits: no command-line window, fold methods manual, indent and marker only,
-a reduced `=` indent (`cindent` is not implemented; `smartindent` is), `formatoptions` `a` and `n`, `linebreak`, many
+`cursorcolumn`, `colorcolumn`, `linebreak`/`breakat`/`showbreak`/`breakindent`/`breakindentopt`. Known limits: no command-line window, fold methods manual, indent and marker only,
+a reduced `=` indent (`cindent` is not implemented; `smartindent` is), `formatoptions` `a` and `n`, many
 options are stored but do not change behaviour yet, no tree-sitter, and the terminal pane is
 line oriented (no full-screen programs). `m3 --version` prints the version.
 

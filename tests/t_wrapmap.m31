@@ -1,0 +1,172 @@
+// Layout of a wrapping line under 'linebreak', 'breakat', 'showbreak' and 'breakindent' (engine/MED_wrapmap.m31), and what the
+// window draws for it. The expected values are nvim's: virtcol() of every character, and the text of the screen rows
+// (screenstring() after :redraw in `nvim --headless -u NONE`), so the test needs no nvim itself.
+//
+// nvim's own tests of the same thing are the corpus 112 in tests/oracles (the engine against nvim, 500 cases).
+
+import io;
+import term;
+import tests.MED_check;
+import tui.core.TUI_buffer;
+import engine.MED_editor;
+import engine.MED_shell;
+import engine.MED_wrapmap;
+import ui.MED_app;
+
+// "start-end" of every cluster, as `virtcol([line, col], 1)` shows them (1-based)
+str vcols_of(MED_wrapmap.Settings settings, str text) {
+    MED_wrapmap.Layout layout = MED_wrapmap.build(settings, text);
+    List<str> parts = [];
+    for (int index in 0 .. layout.offsets.size() - 1) {
+        parts.push((layout.vcols[index] + 1).to_str() + "-" + (layout.ends[index] + 1).to_str());
+    }
+    return parts.join(" ");
+}
+
+MED_wrapmap.Settings settings_of(bool is_linebreak, str showbreak, bool is_breakindent, str breakat, int width, str breakindentopt) {
+    MED_wrapmap.Settings settings = MED_wrapmap.Settings();
+    settings.is_linebreak = is_linebreak;
+    settings.showbreak = showbreak;
+    settings.is_breakindent = is_breakindent;
+    settings.breakat = breakat;
+    settings.width = width;
+    settings.breakindentopt = breakindentopt;
+    return settings;
+}
+
+// a screen row without its trailing blanks
+str rtrim(str text) {
+    int end = text.size();
+    while (end > 0 && text.byte_at(end - 1) == 32) {
+        end = end - 1;
+    }
+    return text.substr(0, end);
+}
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int code_point in text.chars()) {
+        if (code_point == 10) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(code_point));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+check.eq_str("blank grows to the end of the row", vcols_of(settings_of(true, "", false, " \t!@*-+;:,./?", 30, ""), "aaaa bbbbbbbbbb cccc dddddddddddd eeee ffffffffffffffff gggg hhhhh"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 10-10 11-11 12-12 13-13 14-14 15-15 16-16 17-17 18-18 19-19 20-20 21-30 31-31 32-32 33-33 34-34 35-35 36-36 37-37 38-38 39-39 40-40 41-41 42-42 43-43 44-44 45-45 46-46 47-47 48-60 61-61 62-62 63-63 64-64 65-65 66-66 67-67 68-68 69-69 70-70 71-71 72-72 73-73 74-74 75-75 76-76 77-77 78-78 79-79 80-80 81-81 82-82 83-83 84-84 85-85 86-86 87-87");
+check.eq_str("leading blanks never grow", vcols_of(settings_of(true, "", false, " \t!@*-+;:,./?", 30, ""), "  - yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 10-10 11-11 12-12 13-13 14-14 15-15 16-16 17-17 18-18 19-19 20-20 21-21 22-22 23-23 24-24 25-25 26-26 27-27 28-28 29-29 30-30 31-31 32-32 33-33 34-34 35-35 36-36 37-37 38-38 39-39");
+check.eq_str("word longer than a row", vcols_of(settings_of(true, "", false, " \t!@*-+;:,./?", 30, ""), "x yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy z"), "1-1 2-30 31-31 32-32 33-33 34-34 35-35 36-36 37-37 38-38 39-39 40-40 41-41 42-42 43-43 44-44 45-45 46-46 47-47 48-48 49-49 50-50 51-51 52-52 53-53 54-54 55-55 56-56 57-57 58-58 59-59 60-60 61-61 62-62 63-63 64-64 65-65 66-66 67-67");
+check.eq_str("tab grows too", vcols_of(settings_of(true, "", false, " \t!@*-+;:,./?", 25, ""), "abc\tdefghijklmnopqrstu vwxyz\tmore words here"), "1-1 2-2 3-3 4-25 26-26 27-27 28-28 29-29 30-30 31-31 32-32 33-33 34-34 35-35 36-36 37-37 38-38 39-39 40-40 41-41 42-42 43-43 44-50 51-51 52-52 53-53 54-54 55-55 56-56 57-57 58-58 59-59 60-60 61-61 62-62 63-63 64-64 65-65 66-66 67-67 68-68 69-69 70-70 71-71");
+check.eq_str("breakat set", vcols_of(settings_of(true, "", false, ".,", 30, ""), "abc.def,ghi.jklmnopqrstuvwxyz,abcdefghijklm.nopqrs"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 10-10 11-11 12-12 13-13 14-14 15-15 16-16 17-17 18-18 19-19 20-20 21-21 22-22 23-23 24-24 25-25 26-26 27-27 28-28 29-29 30-30 31-31 32-32 33-33 34-34 35-35 36-36 37-37 38-38 39-39 40-40 41-41 42-42 43-43 44-44 45-45 46-46 47-47 48-48 49-49 50-50");
+check.eq_str("showbreak", vcols_of(settings_of(false, ">> ", false, " \t!@*-+;:,./?", 20, ""), "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz0123456789"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 10-10 11-11 12-12 13-13 14-14 15-15 16-16 17-17 18-18 19-19 20-20 24-24 25-25 26-26 27-27 28-28 29-29 30-30 31-31 32-32 33-33 34-34 35-35 36-36 37-37 38-38 39-39 40-40 44-44 45-45 46-46 47-47 48-48 49-49 50-50 51-51 52-52 53-53 54-54 55-55 56-56 57-57 58-58 59-59 60-60 64-64 65-65 66-66 67-67 68-68 69-69 70-70 71-71");
+check.eq_str("breakindent", vcols_of(settings_of(false, "", true, " \t!@*-+;:,./?", 30, ""), "    abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz0123456789"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 10-10 11-11 12-12 13-13 14-14 15-15 16-16 17-17 18-18 19-19 20-20 21-21 22-22 23-23 24-24 25-25 26-26 27-27 28-28 29-29 30-30 35-35 36-36 37-37 38-38 39-39 40-40 41-41 42-42 43-43 44-44 45-45 46-46 47-47 48-48 49-49 50-50 51-51 52-52 53-53 54-54 55-55 56-56 57-57 58-58 59-59 60-60 65-65 66-66 67-67 68-68 69-69 70-70 71-71 72-72 73-73 74-74");
+check.eq_str("breakindent shift and showbreak", vcols_of(settings_of(true, "+", true, " \t!@*-+;:,./?", 30, "shift:2"), "  one two three four five six seven eight nine ten eleven twelve thirteen"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 10-10 11-11 12-12 13-13 14-14 15-15 16-16 17-17 18-18 19-19 20-20 21-21 22-22 23-23 24-24 25-25 26-26 27-27 28-28 29-29 30-30 36-36 37-37 38-38 39-39 40-40 41-41 42-42 43-43 44-44 45-45 46-46 47-47 48-48 49-49 50-50 51-51 52-52 53-53 54-54 55-55 56-60 66-66 67-67 68-68 69-69 70-70 71-71 72-72 73-73 74-74 75-75 76-76 77-77 78-78 79-79 80-80 81-81 82-82 83-83 84-84 85-85 86-86 87-87");
+check.eq_str("tab runs over the end of a row", vcols_of(settings_of(false, ">>", false, " \t!@*-+;:,./?", 20, ""), "abcdefghijklmnopq\trst\tuvwxyz abcdefghijklmnop"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 10-10 11-11 12-12 13-13 14-14 15-15 16-16 17-17 18-26 27-27 28-28 29-29 30-32 33-33 34-34 35-35 36-36 37-37 38-38 39-39 40-40 43-43 44-44 45-45 46-46 47-47 48-48 49-49 50-50 51-51 52-52 53-53 54-54 55-55 56-56 57-57");
+check.eq_str("wide character at the end of a row", vcols_of(settings_of(false, "", false, " \t!@*-+;:,./?", 10, ""), "abcdefghi日本語xyz"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 11-12 13-14 15-16 17-17 18-18 19-19");
+check.eq_str("wide character at the end of a row with a head", vcols_of(settings_of(false, ">", true, " \t!@*-+;:,./?", 10, ""), " abcdefgh日本語xyzabcdefgh日"), "1-1 2-2 3-3 4-4 5-5 6-6 7-7 8-8 9-9 12-13 14-15 16-17 18-18 19-19 20-20 22-22 23-23 24-24 25-25 26-26 27-27 28-28 29-29 32-33");
+Option<str> made = MED_shell.output(["sh", "-c", "cd \"${TMPDIR:-/tmp}\" && d=$(mktemp -d m3wrap.XXXXXX) && cd \"$d\" && pwd -P"], "");
+if (made.is_some()) {
+    str directory = made.or("").trim();
+    str file = directory + "/text.txt";
+    match (io.write(file, "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega alpha beta gamma delta\nshort\n")) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+            check.ok("write", false);
+        }
+    }
+    match (MED_app.open(file)) {
+        case Err(str message): {
+            check.ok("open: " + message, false);
+        }
+        case Ok(MED_app.App app): {
+            type_text(app, ":set nonu noindentguides\n:set lbr\n");
+            TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 24);
+            app.render(screen, screen.area());
+            check.eq_str("linebreak row 0", rtrim(screen.row_text(0)), "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi");
+            check.eq_str("linebreak row 1", rtrim(screen.row_text(1)), "omicron pi rho sigma tau upsilon phi chi psi omega alpha beta gamma delta");
+            check.eq_str("linebreak row 2", rtrim(screen.row_text(2)), "short");
+            check.eq_str("linebreak row 3", rtrim(screen.row_text(3)), "~");
+            check.eq_str("linebreak row 4", rtrim(screen.row_text(4)), "~");
+            check.eq_str("linebreak row 5", rtrim(screen.row_text(5)), "~");
+        }
+    }
+    match (io.write(file, "    indented text that wraps and wraps and wraps and wraps and wraps over the line limit of eighty columns for sure, and then some more words to fill a third row of the window\nx\n")) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+            check.ok("write", false);
+        }
+    }
+    match (MED_app.open(file)) {
+        case Err(str message): {
+            check.ok("open: " + message, false);
+        }
+        case Ok(MED_app.App app): {
+            type_text(app, ":set nonu noindentguides\n:set bri sbr=+\n");
+            TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 24);
+            app.render(screen, screen.area());
+            check.eq_str("showbreak and breakindent row 0", rtrim(screen.row_text(0)), "    indented text that wraps and wraps and wraps and wraps and wraps over the li");
+            check.eq_str("showbreak and breakindent row 1", rtrim(screen.row_text(1)), "    +ne limit of eighty columns for sure, and then some more words to fill a thi");
+            check.eq_str("showbreak and breakindent row 2", rtrim(screen.row_text(2)), "    +rd row of the window");
+            check.eq_str("showbreak and breakindent row 3", rtrim(screen.row_text(3)), "x");
+            check.eq_str("showbreak and breakindent row 4", rtrim(screen.row_text(4)), "~");
+            check.eq_str("showbreak and breakindent row 5", rtrim(screen.row_text(5)), "~");
+        }
+    }
+    match (io.write(file, "  one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree\nend\n")) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+            check.ok("write", false);
+        }
+    }
+    match (MED_app.open(file)) {
+        case Err(str message): {
+            check.ok("open: " + message, false);
+        }
+        case Ok(MED_app.App app): {
+            type_text(app, ":set nonu noindentguides\n:set lbr bri sbr=->\\ \n");
+            TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 24);
+            app.render(screen, screen.area());
+            check.eq_str("all three row 0", rtrim(screen.row_text(0)), "  one two three four five six seven eight nine ten eleven twelve thirteen");
+            check.eq_str("all three row 1", rtrim(screen.row_text(1)), "  -> fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone");
+            check.eq_str("all three row 2", rtrim(screen.row_text(2)), "  -> twentytwo twentythree");
+            check.eq_str("all three row 3", rtrim(screen.row_text(3)), "end");
+            check.eq_str("all three row 4", rtrim(screen.row_text(4)), "~");
+            check.eq_str("all three row 5", rtrim(screen.row_text(5)), "~");
+        }
+    }
+    match (io.write(file, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx日本語 and more text here\n")) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+            check.ok("write", false);
+        }
+    }
+    match (MED_app.open(file)) {
+        case Err(str message): {
+            check.ok("open: " + message, false);
+        }
+        case Ok(MED_app.App app): {
+            type_text(app, ":set nonu noindentguides\n:set nolbr\n");
+            TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 24);
+            app.render(screen, screen.area());
+            check.eq_str("wide character at the end of a row row 0", rtrim(screen.row_text(0)), "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx>");
+            check.eq_str("wide character at the end of a row row 1", rtrim(screen.row_text(1)), "日本語 and more text here");
+            check.eq_str("wide character at the end of a row row 2", rtrim(screen.row_text(2)), "~");
+            check.eq_str("wide character at the end of a row row 3", rtrim(screen.row_text(3)), "~");
+            check.eq_str("wide character at the end of a row row 4", rtrim(screen.row_text(4)), "~");
+            check.eq_str("wide character at the end of a row row 5", rtrim(screen.row_text(5)), "~");
+        }
+    }
+    MED_shell.output(["rm", "-rf", directory], "");
+} else {
+    check.ok("mktemp", false);
+}
+check.finish("t_wrapmap");

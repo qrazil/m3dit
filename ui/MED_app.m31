@@ -63,6 +63,7 @@ import ui.MED_theme;
 import ui.MED_tree;
 import ui.MED_window;
 import engine.MED_view;
+import engine.MED_wrapmap;
 import ext.MED_ext;
 import ext.MED_ext_enabled;
 
@@ -3970,10 +3971,14 @@ bool App.did_place_cursor(int screen_x, int screen_y) {
     int part = 0;
     int text_width = here.width - gutter_width();
     bool is_wrap = editor.is_option_on("wrap", true);
+    bool is_laid = editor.is_wrap_special();
     while (true) {
         int parts = 1;
         if (is_wrap && text_width > 0) {
             parts = MED_text.wrap_breaks(editor.buffer.line(row), text_width, editor.tab).size();
+            if (is_laid) {
+                parts = editor.wrap_layout(editor.buffer.line(row)).breaks.size();
+            }
         }
         int skipped = 0;
         if (row == editor.view_top && is_wrap) {
@@ -3992,6 +3997,18 @@ bool App.did_place_cursor(int screen_x, int screen_y) {
         }
         remaining = remaining - visible;
         row = row + 1;
+    }
+    if (is_laid && is_wrap && text_width > 0) {
+        // 'linebreak' / 'showbreak' / 'breakindent': the pointer is over a virtual column of the laid-out line
+        int cell = 0;
+        if (x_cell > gutter_width()) {
+            cell = x_cell - gutter_width();
+        }
+        editor.row = row;
+        editor.col = editor.wrap_layout(editor.buffer.line(row)).col_for_vcol(part * text_width + cell, false);
+        editor.clamp();
+        editor.want_from_cursor();
+        return true;
     }
     int spot = left_column;
     if (is_wrap && text_width > 0) {
@@ -4518,8 +4535,20 @@ void App.draw_line(TUI_buffer.Buffer buffer, MED_editor.Editor subject, int left
         spot = left;
     }
     int offset = from;
+    bool is_laid = subject.is_wrap_special();
+    MED_wrapmap.Layout laid = MED_wrapmap.Layout();
+    int line_end_spot = MED_text.line_width(line, subject.tab);
+    if (is_laid) {
+        laid = subject.wrap_layout(line);
+        line_end_spot = laid.total();
+    }
     while (offset < line.size() && offset < stop_at) {
         int width = MED_text.cell_width(line, offset, spot, subject.tab);
+        if (is_laid) {
+            // virtual columns of the laid-out line: the heads of continuation rows and grown blanks are in them
+            spot = laid.vcol_at(offset);
+            width = laid.end_vcol_at(offset) - spot + 1;
+        }
         int next = MED_text.next_col(line, offset);
         if (spot >= left && spot + width <= left + text_width) {
             int variant = MED_theme.PLAIN;
@@ -4599,8 +4628,12 @@ void App.draw_line(TUI_buffer.Buffer buffer, MED_editor.Editor subject, int left
             break;
         }
     }
+    if (stop_at < line.size() && subject.is_option_on("wrap", true) && MED_text.cp_at(line, stop_at) >= 128 && spot - left == text_width - 1 && MED_text.cell_width(line, stop_at, spot, subject.tab) == 2) {
+        // a double-width character that does not fit in the last cell goes to the next row, a '>' marks the gap
+        buffer.set_str(x_start + text_width - 1, y, ">", theme.look("ui.virtual.whitespace"));
+    }
     if (is_list && list_chars.eol.size() > 0 && stop_at >= line.size()) {
-        int end_spot = MED_text.line_width(line, subject.tab);
+        int end_spot = line_end_spot;
         if (end_spot >= left && end_spot < left + text_width) {
             buffer.set_str(x_start + end_spot - left, y, list_chars.eol, special);
         }
@@ -4876,6 +4909,9 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
     bool is_motion = is_active && motion.did_shift(subject, current_win * 100003 + current_id, rows);
     bool is_wrap = subject.is_option_on("wrap", true);
     int cursor_spot = MED_text.display_col(subject.buffer.line(subject.row), subject.col, subject.tab);
+    if (is_wrap && subject.is_wrap_special()) {
+        cursor_spot = subject.wrap_layout(subject.buffer.line(subject.row)).vcol_at(subject.col);
+    }
     left = subject.view_left;
     TUI_style.Style dim = theme.look("ui.linenr");
     TUI_style.Style filler = theme.look("ui.virtual.whitespace");
@@ -4954,7 +4990,19 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
         int total = breaks.size();
         List<int> break_spots = [0];
         int line_cells = 0;
-        if (is_wrap) {
+        bool is_laid = is_wrap && subject.is_wrap_special();
+        MED_wrapmap.Layout laid = MED_wrapmap.Layout();
+        if (is_laid) {
+            // 'linebreak' / 'showbreak' / 'breakindent': rows start at multiples of the width in virtual columns
+            laid = subject.wrap_layout(line);
+            breaks = laid.breaks;
+            total = breaks.size();
+            line_cells = laid.total();
+            break_spots = [];
+            for (int part in 0 .. total) {
+                break_spots.push(part * text_width);
+            }
+        } else if (is_wrap) {
             List<int> wanted = breaks.slice(0, breaks.size());
             wanted.push(line.size());
             List<int> found_spots = MED_text.spots_of(line, wanted, subject.tab);
@@ -5026,6 +5074,15 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
                     from = line.size();
                     base = line_cells;
                 }
+            }
+            if (is_laid && part > 0 && part < breaks.size() && laid.head > 0) {
+                // the head of a continuation row: the 'breakindent' blanks, then the 'showbreak' string
+                str mark = subject.wrap_settings().showbreak;
+                int mark_at = laid.head - MED_text.line_width(mark, subject.tab);
+                if (mark_at < 0) {
+                    mark_at = 0;
+                }
+                buffer.set_str(frame.x + gutter + mark_at, part_y, mark, filler);
             }
             draw_line(buffer, subject, base, is_active, row, frame.x + gutter, part_y, text_width, from, stop_at, spans);
             if (shown_part == 0 && first_part > 0) {
@@ -6747,7 +6804,7 @@ void App.lsp_request(str method, str purpose, json.Value parameters) {
     lsp_pending.set(servers[found].name + "#" + id.to_str(), purpose + "|" + absolute_of(path));
 }
 
-/// The cursor as a TextDocumentPositionParams value.
+/// The cursor as a TextDocumentPositionSettings value.
 json.Value App.lsp_position_parameters() {
     int units = MED_lsp.units_of(editor.buffer.line(editor.row), editor.col);
     return MED_lsp.object(["textDocument", "position"], [MED_lsp.object(["uri"], [MED_lsp.text(MED_lsp.uri_of(absolute_of(path)))]), MED_lsp.position_value(editor.row, units)]);
