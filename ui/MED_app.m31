@@ -33,6 +33,7 @@ import ui.MED_clip;
 import ui.MED_frecency;
 import ui.MED_files;
 import ui.MED_git;
+import ui.MED_gitcmd;
 import ui.MED_grep;
 import engine.MED_key;
 import engine.MED_listing;
@@ -1197,6 +1198,8 @@ void App.run_request(str request) {
         }
     } else if (name == "source") {
         source_file(arg.trim());
+    } else if (name == "Git") {
+        run_git_read(arg);
     } else if (name == "Recent") {
         open_picker("recent", arg);
     } else if (name == "Symbols") {
@@ -3207,7 +3210,7 @@ void App.update_preview() {
             }
             if (picker.kind == MED_picker.KIND_LIST && entry.detail.size() > 0) {
                 if (preview_path != "commit:" + entry.detail) {
-                    preview_lines = preview_ready(MED_shell.lines(["git", "show", "--stat", "--format=fuller", "--no-color", "-n", "1", entry.detail], root).or([]));
+                    preview_lines = preview_ready(MED_git.show_lines(root, entry.detail));
                     preview_path = "commit:" + entry.detail;
                 }
                 preview = MED_picker_view.Preview(title: entry.detail, lines: preview_lines, focus: -1);
@@ -4079,7 +4082,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -6208,6 +6211,35 @@ void App.run_git_action(str action) {
     }
 }
 
+// ---- :Git read commands over the m31git library (begin) ----
+
+/// `:Git log|show|diff|blame ...`: a list in the finder or a scratch buffer (ui/MED_gitcmd.m31).
+void App.run_git_read(str arg) {
+    MED_gitcmd.Out out = MED_gitcmd.run(arg, path, editor.buffer.lines, editor.row);
+    if (out.error.size() > 0) {
+        notice = out.error;
+        return;
+    }
+    if (!out.is_list) {
+        open_scratch(out.title, out.lines);
+        return;
+    }
+    picker = MED_picker.make(MED_picker.KIND_LIST, out.title);
+    picker.set_entries(out.entries);
+    if (out.selected_line >= 0) {
+        for (int rank in 0 .. picker.shown.size()) {
+            if (picker.entries[picker.shown[rank]].line == out.selected_line) {
+                picker.selected = rank;
+            }
+        }
+    }
+    has_picker = true;
+    picker.is_deferred = true;
+    update_preview();
+}
+
+// ---- :Git read commands (end) ----
+
 /// `git:checkout BRANCH`, `git:checkout_remote REMOTE/BRANCH`, `git:show HASH`.
 void App.run_git_command(str spec) {
     int space = spec.index_of(" ").or(spec.size());
@@ -6229,13 +6261,11 @@ void App.run_git_command(str spec) {
             notice = first_line(ran.errors);
         }
     } else if (action == "show") {
-        match (MED_shell.lines(["git", "show", "--no-color", "--stat", "--patch", arg], root)) {
-            case Some(List<str> lines): {
-                open_scratch("git-" + arg, lines);
-            }
-            case None: {
-                notice = "git show failed";
-            }
+        List<str> patch_lines = MED_git.show_lines(root, arg);
+        if (patch_lines.size() > 0) {
+            open_scratch("git-" + arg, patch_lines);
+        } else {
+            notice = "git show failed";
         }
     }
 }

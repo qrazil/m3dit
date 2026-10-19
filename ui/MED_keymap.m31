@@ -117,6 +117,9 @@ pub List<Binding> defaults() {
     rows.push(leaf_row("m3", "git", "gs", "Stage hunk", "app:hunk_stage"));
     rows.push(leaf_row("m3", "git", "gr", "Reset hunk", "app:hunk_reset"));
     rows.push(leaf_row("m3", "git", "gp", "Preview hunk", "app:hunk_preview"));
+    rows.push(leaf_row("m3", "git", "gl", "Git log of this file", "ex:Git log %"));
+    rows.push(leaf_row("m3", "git", "gd", "Git diff (working tree)", "ex:Git diff"));
+    rows.push(leaf_row("m3", "git", "gm", "Git blame list", "ex:Git blame"));
     rows.push(leaf_row("m3", "git", "gB", "Blame line", "app:blame"));
     rows.push(leaf_row("m3", "git", "gt", "Toggle git signs", "app:signs"));
     // harpoon

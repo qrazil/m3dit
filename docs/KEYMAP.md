@@ -72,6 +72,9 @@ A plugin can be switched off with `:PluginDisable NAME`; its rows then disappear
 | `<Space>gs` | Normal | Stage hunk | git | m3 |
 | `<Space>gr` | Normal | Reset hunk | git | m3 |
 | `<Space>gp` | Normal | Preview hunk | git | m3 |
+| `<Space>gl` | Normal | Git log of this file | git | m3 |
+| `<Space>gd` | Normal | Git diff (working tree) | git | m3 |
+| `<Space>gm` | Normal | Git blame list | git | m3 |
 | `<Space>gB` | Normal | Blame line | git | m3 |
 | `<Space>gt` | Normal | Toggle git signs | git | m3 |
 | `<Space>h` | Normal | +harpoon | harpoon | config |

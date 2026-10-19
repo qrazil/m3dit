@@ -533,3 +533,15 @@ pub Option<str> blame_row(str path, List<str> buffer, int row) {
         }
     }
 }
+
+/// `git show REV` for the preview and `git:show`: through the library, else `git`. Empty when neither can.
+pub List<str> show_lines(str directory, str rev) {
+    match (MED_gitlib.show_lines(directory, rev)) {
+        case Some(List<str> lines): {
+            return lines;
+        }
+        case None: {
+        }
+    }
+    return MED_shell.lines(["git", "show", "--no-color", "--stat", "--patch", rev], directory).or([]);
+}

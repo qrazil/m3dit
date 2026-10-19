@@ -1,0 +1,372 @@
+// `:Git` read commands: log (project, file, line range), show, diff (working tree, index, HEAD) and blame as
+// a list. They read through the m31git library (`MED_gitlib`) and fall back to the `git` binary when the
+// library cannot read the repository. Nothing here writes: staging and resetting stay hunk commands.
+//
+// API
+// ---
+//   MED_gitcmd.run(arg, path, buffer, row)   Out: what `:Git ARG` shows
+//
+// `Out` is a message (`error`), a list for the picker (`entries`, with a commit in `detail` so the preview shows
+// `git show`) or text for a scratch buffer (`lines`). The App opens them with the facilities it has: the
+// finder list and `open_scratch`.
+//
+//   :Git log [FILE | %]        commits of the project, of FILE, or of the current file (`%`)
+//   :Git log -L A,B [FILE]     commits that touched lines A to B of FILE (default the current file)
+//   :Git show [REV]            a commit's message and patch (default HEAD)
+//   :Git diff [working|index|head]   index against the work tree (default), HEAD against the index, HEAD against
+//                              the work tree; `cached` and `staged` mean `index`
+//   :Git blame                 the current file, one entry per line, `Enter` jumps to the line
+
+import date;
+import fs;
+import engine.MED_shell;
+import ui.MED_git;
+import ui.MED_gitlib;
+import ui.MED_picker;
+import m31git.core.GIT_log;
+
+pub type Out {
+    pub str error = "";
+    pub str title = "";
+    pub bool is_list = false;
+    pub List<str> lines = [];
+    pub List<MED_picker.Entry> entries = [];
+    /// The row to start on in a list.
+    pub int selected_line = -1;
+}
+
+const int LOG_LIMIT = 500;
+
+Out failed(str message) {
+    Out out = Out();
+    out.error = message;
+    return out;
+}
+
+/// `log` entries for the finder list: `abcdef0 subject  (Author, 3 days ago)`.
+pub List<MED_picker.Entry> commit_entries(List<GIT_log.Entry> commits) {
+    List<MED_picker.Entry> out = [];
+    int now = date.now();
+    for (GIT_log.Entry one in commits) {
+        str text = one.id.substr(0, 7) + " " + MED_gitlib.first_line_of(one.commit.message) + "  (" + MED_gitlib.text_of(one.commit.author.name) + ", " + MED_gitlib.ago(now, one.commit.author.when) + ")";
+        out.push(MED_picker.Entry(text, detail: one.id, action: "git:show " + one.id));
+    }
+    return out;
+}
+
+/// "10,20" as the pair 10 and 20 (a single number is a range of one line); 0, 0 when it is not one.
+pub List<int> parse_range(str text) {
+    List<str> parts = text.split(",");
+    if (parts.size() == 0 || parts.size() > 2) {
+        return [0, 0];
+    }
+    int first_line = parts[0].parse_int().or(0);
+    int last_line = first_line;
+    if (parts.size() == 2) {
+        last_line = parts[1].parse_int().or(0);
+    }
+    if (first_line < 1 || last_line < first_line) {
+        return [0, 0];
+    }
+    return [first_line, last_line];
+}
+
+Out log_command(List<str> words, str path) {
+    str file = "";
+    int first_line = 0;
+    int last_line = 0;
+    int slot = 1;
+    while (slot < words.size()) {
+        str word = words[slot];
+        if (word == "-L" && slot + 1 < words.size()) {
+            List<int> range = parse_range(words[slot + 1]);
+            first_line = range[0];
+            last_line = range[1];
+            if (first_line == 0) {
+                return failed("Git log -L: use -L START,END with START >= 1");
+            }
+            slot = slot + 2;
+            continue;
+        }
+        if (word == "%") {
+            file = path;
+        } else {
+            file = word;
+        }
+        slot = slot + 1;
+    }
+    if (first_line > 0 && file == "") {
+        file = path;
+    }
+    if (first_line > 0 && file == "") {
+        return failed("Git log -L needs a file");
+    }
+    str directory = ".";
+    str relative = "";
+    if (file != "") {
+        directory = MED_git.directory_of(file);
+        relative = MED_git.name_of(file);
+    } else if (path != "") {
+        directory = MED_git.directory_of(path);
+    }
+    Out out = Out();
+    out.is_list = true;
+    out.title = "Git log";
+    if (file != "") {
+        out.title = "Git log " + relative;
+    }
+    if (first_line > 0) {
+        out.title = out.title + " -L " + first_line.to_str() + "," + last_line.to_str();
+    }
+    match (MED_gitlib.open(directory)) {
+        case Some(MED_gitlib.Repo repo): {
+            Option<List<GIT_log.Entry>> found = Option<List<GIT_log.Entry>>.None;
+            if (file == "") {
+                match (GIT_log.walk(repo.gitdir, "HEAD", LOG_LIMIT)) {
+                    case Ok(List<GIT_log.Entry> walked): {
+                        found = Option<List<GIT_log.Entry>>.Some(walked);
+                    }
+                    case Err(GIT_log.Error error): {
+                    }
+                }
+            } else {
+                found = MED_gitlib.log_of(repo, MED_gitlib.relative_to(repo, directory, relative), first_line, last_line, LOG_LIMIT);
+            }
+            match (found) {
+                case Some(List<GIT_log.Entry> commits): {
+                    out.entries = commit_entries(commits);
+                    return out;
+                }
+                case None: {
+                }
+            }
+        }
+        case None: {
+        }
+    }
+    // the library could not answer: `git log`
+    List<str> argv = ["git", "log", "--no-color", "--pretty=format:%h%x09%s%x09%an%x09%ar", "-n", LOG_LIMIT.to_str()];
+    if (first_line > 0) {
+        argv.push("--no-patch");
+        argv.push("-L" + first_line.to_str() + "," + last_line.to_str() + ":" + relative);
+    } else if (file != "") {
+        argv.push("--");
+        argv.push(relative);
+    }
+    match (MED_shell.lines(argv, directory)) {
+        case Some(List<str> lines): {
+            List<str> kept = [];
+            for (str line in lines) {
+                if (line.index_of("\t").is_some()) {
+                    kept.push(line);
+                }
+            }
+            out.entries = parse_log_lines(kept);
+            return out;
+        }
+        case None: {
+            return failed("Git log: not a git repository (or git is not installed)");
+        }
+    }
+}
+
+/// Subprocess `git log` lines (hash, subject, author, date separated by tabs) as list entries.
+pub List<MED_picker.Entry> parse_log_lines(List<str> lines) {
+    List<MED_picker.Entry> out = [];
+    for (str line in lines) {
+        List<str> parts = line.split("\t");
+        if (parts.size() >= 4) {
+            out.push(MED_picker.Entry(parts[0] + " " + parts[1] + "  (" + parts[2] + ", " + parts[3] + ")", detail: parts[0], action: "git:show " + parts[0]));
+        }
+    }
+    return out;
+}
+
+Out show_command(List<str> words, str path) {
+    str rev = "HEAD";
+    if (words.size() > 1) {
+        rev = words[1];
+    }
+    str directory = ".";
+    if (path != "") {
+        directory = MED_git.directory_of(path);
+    }
+    Out out = Out();
+    out.title = "git-show-" + rev;
+    match (MED_gitlib.show_lines(directory, rev)) {
+        case Some(List<str> lines): {
+            out.lines = lines;
+            return out;
+        }
+        case None: {
+        }
+    }
+    match (MED_shell.lines(["git", "show", "--no-color", "--patch", rev], directory)) {
+        case Some(List<str> lines): {
+            out.lines = lines;
+            return out;
+        }
+        case None: {
+            return failed("Git show: no such revision (or not a git repository)");
+        }
+    }
+}
+
+Out diff_command(List<str> words, str path) {
+    str what = "working";
+    if (words.size() > 1) {
+        what = words[1];
+    }
+    if (what == "cached" || what == "staged") {
+        what = "index";
+    }
+    if (what == "HEAD") {
+        what = "head";
+    }
+    if (what != "working" && what != "index" && what != "head") {
+        return failed("Git diff: working, index or head");
+    }
+    str directory = ".";
+    if (path != "") {
+        directory = MED_git.directory_of(path);
+    }
+    Out out = Out();
+    out.title = "git-diff-" + what;
+    match (MED_gitlib.diff_lines(directory, what)) {
+        case Some(List<str> lines): {
+            out.lines = lines;
+            if (lines.size() == 0) {
+                return failed("Git diff " + what + ": no changes");
+            }
+            return out;
+        }
+        case None: {
+        }
+    }
+    List<str> argv = ["git", "diff", "--no-color"];
+    if (what == "index") {
+        argv.push("--cached");
+    } else if (what == "head") {
+        argv.push("HEAD");
+    }
+    match (MED_shell.lines(argv, directory)) {
+        case Some(List<str> lines): {
+            out.lines = lines;
+            if (lines.size() == 0) {
+                return failed("Git diff " + what + ": no changes");
+            }
+            return out;
+        }
+        case None: {
+            return failed("Git diff: not a git repository (or git is not installed)");
+        }
+    }
+}
+
+Out blame_command(str path, List<str> buffer, int row) {
+    if (path == "") {
+        return failed("Git blame: no file");
+    }
+    str directory = MED_git.directory_of(path);
+    str name = MED_git.name_of(path);
+    str full = path;
+    match (fs.realpath(directory)) {
+        case Ok(str real): {
+            full = real + "/" + name;
+        }
+        case Err(_): {
+        }
+    }
+    Out out = Out();
+    out.is_list = true;
+    out.title = "Git blame " + name;
+    out.selected_line = row;
+    List<str> head = [];
+    match (MED_gitlib.head_lines_of(directory, name)) {
+        case Lines(List<str> lines): {
+            head = lines;
+        }
+        case Untracked: {
+            return failed("Git blame: not committed yet");
+        }
+        case Failed: {
+            return blame_by_git(directory, name, full, out);
+        }
+    }
+    match (MED_gitlib.blame_of(directory, name)) {
+        case Some(List<MED_gitlib.BlameLine> blamed): {
+            if (blamed.size() != head.size()) {
+                return blame_by_git(directory, name, full, out);
+            }
+            MED_git.Hunks hunks = MED_git.diff(head, buffer);
+            int now = date.now();
+            for (int slot in 0 .. buffer.size()) {
+                int source = MED_git.head_row_of(hunks, slot);
+                str shown = "00000000 Not Committed Yet";
+                str commit = "";
+                if (source >= 0 && source < blamed.size()) {
+                    MED_gitlib.BlameLine line = blamed[source];
+                    commit = line.commit;
+                    if (commit != "") {
+                        shown = commit.substr(0, 8) + " " + line.author + ", " + MED_gitlib.ago(now, line.when);
+                    }
+                }
+                out.entries.push(MED_picker.Entry((slot + 1).to_str() + " " + shown + " | " + buffer[slot], path: full, line: slot, detail: commit));
+            }
+            return out;
+        }
+        case None: {
+            return blame_by_git(directory, name, full, out);
+        }
+    }
+}
+
+// `git blame --porcelain` for the cases the library cannot answer.
+Out blame_by_git(str directory, str name, str full, Out out) {
+    match (MED_shell.lines(["git", "blame", "--date=relative", "--", name], directory)) {
+        case Some(List<str> lines): {
+            for (int slot in 0 .. lines.size()) {
+                str commit = "";
+                int space = lines[slot].index_of(" ").or(0);
+                if (space > 0) {
+                    commit = lines[slot].substr(0, space).trim();
+                    if (commit.starts_with("^")) {
+                        commit = commit.substr(1, commit.size());
+                    }
+                }
+                out.entries.push(MED_picker.Entry((slot + 1).to_str() + " " + lines[slot], path: full, line: slot, detail: commit));
+            }
+            return out;
+        }
+        case None: {
+            return failed("Git blame: not committed yet (or not a git repository)");
+        }
+    }
+}
+
+/// What `:Git ARG` shows. `path` is the current file ("" for none), `buffer` its lines, `row` the cursor row.
+pub Out run(str arg, str path, List<str> buffer, int row) {
+    List<str> words = [];
+    for (str word in arg.trim().split(" ")) {
+        if (word.size() > 0) {
+            words.push(word);
+        }
+    }
+    if (words.size() == 0) {
+        return failed("Git: log, show, diff or blame");
+    }
+    str sub = words[0];
+    if (sub == "log") {
+        return log_command(words, path);
+    }
+    if (sub == "show") {
+        return show_command(words, path);
+    }
+    if (sub == "diff") {
+        return diff_command(words, path);
+    }
+    if (sub == "blame") {
+        return blame_command(path, buffer, row);
+    }
+    return failed("Git: unknown command " + sub + " (log, show, diff, blame)");
+}
