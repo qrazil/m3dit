@@ -509,7 +509,7 @@ Helix 25.01 feature inventory and the v0.1.0 verdict. **Yes** = in the tag,
 | Debug adapter (DAP) | **Later** | The pipes exist now; the UI does not |
 | Embedded terminal | **Partial** (0.1.0) | `:terminal` over `proc.start_pty`; a line-oriented screen model (`ui/MED_vt.m31`), not a full VT emulator |
 | Soft wrap, rulers, indent guides, whitespace rendering | Partial | Soft wrap (with nvim's scrolling), `list` + `listchars`, `number`, `relativenumber`, `colorcolumn`, `cursorline`, `cursorcolumn`, `scrolloff`, `sidescroll(off)` and `nowrap` scrolling, indent guides (0.1.0, `:set noindentguides`), `linebreak`, `breakat`, `showbreak`, `breakindent` and `breakindentopt` (`shift`, `min`, `sbr`; `list` is not done) done |
-| Snippets | Later | 0.8.0 in the roadmap |
+| Snippets | **Done** (0.8.0) | `engine/MED_snippet.m31` (grammar, expansion, transforms, tabstop ranges with extmark gravity), `engine/MED_snipops.m31` (session on an Editor), Select mode in `MED_vim`; user snippets in `snippets.json`; LSP snippet completions use it. Checked against nvim's `vim.snippet` where that can parse the snippet |
 | Auto-reload on external change, auto-save | Partial | Poll `fs.stat` mtimes on idle tick; auto-save later |
 | Persistent undo, session restore | Yes (0.7.0) | Undo files under the state directory, buffers and cursors of a project restored (layout not yet) |
 | Increment/decrement (`<C-a>`/`<C-x>`) | Yes | Engine feature, oracle-tested |

@@ -21,6 +21,8 @@ else
     for seed in 1 2 3; do
         oracle_run t_regex_run tests/t_regex_run.m31 python3 tests/oracles/oracle_regex.py --fuzz --seed "$seed" --cases 2000
     done
+    # snippets: expansion, tabstops, mirrors and Select mode against nvim's vim.snippet
+    oracle_run t_snippet_run tests/t_snippet_run.m31 python3 tests/oracles/oracle_snippet.py
     # window layouts: :split, CTRL-W commands, :resize, tab pages, terminal size
     oracle_run t_split_run tests/t_split_run.m31 python3 tests/oracles/oracle_windows.py
     oracle_run t_split_run tests/t_split_run.m31 python3 tests/oracles/oracle_windows.py --fuzz 150 --seed 1

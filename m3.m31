@@ -205,6 +205,7 @@ match (MED_app.open_all(files)) {
             // --keymap NONE is a clean run: no state files either
             app.state_directory = MED_state.default_directory();
             app.apply_project_all();
+            app.load_snippets(keymap);
             app.restore_position();
             app.restore_undo();
             app.apply_session_cursors(saved);

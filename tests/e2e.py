@@ -928,6 +928,39 @@ def session_restore(binary, root):
         s.close()
 
 
+@scenario
+def snippets_tab_select(binary, root):
+    import json
+    config = os.path.join(root, "cfg")
+    os.makedirs(config)
+    keymap = os.path.join(config, "keymap.vim")
+    open(keymap, "w").close()
+    with open(os.path.join(config, "snippets.json"), "w") as f:
+        json.dump({"for": {"prefix": "for", "body": ["for ${1:item} in ${2:items} do", "\t$0", "end"]}}, f)
+    s = Session(binary, root, ["new.txt"], keymap=keymap)
+    try:
+        assert s.wait_for("new.txt"), s.text()
+        s.send("ifor\t", settle=0.4)
+        assert "for item in items do" in s.text(), "the prefix did not expand:\n" + s.text()
+        assert "SELECT" in s.text(), "first placeholder is selected:\n" + s.text()
+        s.send("x", settle=0.3)
+        assert "for x in items do" in s.text() and "INSERT" in s.text(), s.text()
+        s.send("\t", settle=0.3)
+        assert "SELECT" in s.text(), "Tab selects the next placeholder:\n" + s.text()
+        s.send("list", settle=0.3)
+        assert "for x in list do" in s.text(), s.text()
+        s.send("\t", settle=0.3)
+        s.send("body", settle=0.3)
+        assert "body" in s.text() and "for x in list do" in s.text(), s.text()
+        s.send("\x1b[Z", settle=0.3)
+        assert "SELECT" in s.text() or "INSERT" in s.text(), s.text()
+        assert "for x in list do" in s.text(), s.text()
+        s.send("\x1b", settle=0.3)
+        assert "NORMAL" in s.text(), s.text()
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = None

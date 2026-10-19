@@ -105,6 +105,13 @@ On Alpine (musl) the installer picks the `-musl` Linux asset built by `scripts/c
   `:unabbreviate` `:iunabbrev` `:cunabbrev`, `:abclear` `:iabclear` `:cabclear`, listed as nvim does. Full-id,
   end-id and non-id forms; expansion on a non-keyword character, `<Esc>`, `<CR>` or `CTRL-]`, repeated by `.` and counts
   as in Vim; in the command line (also `/` and `?`) on a non-keyword character, `<CR>` or `CTRL-]`.
+- Snippets (LSP / VS Code grammar): `$1`, `${1:default}`, mirrors, nested placeholders, `${1|a,b|}` choices (the first
+  is the text), `${1/re/fmt/opts}` transforms, variables (`TM_FILENAME`, `TM_LINE_INDEX`, `TM_SELECTED_TEXT`, `CLIPBOARD`,
+  `CURRENT_YEAR` ...; an unknown name is a tabstop that holds it). `<Tab>` / `<S-Tab>` jump while one is active, a
+  placeholder is selected in Select mode (typing replaces it). Your own: `snippets.json` (VS Code format) and
+  `snippets/LANGUAGE.json` next to the keymap file, expanded with `<Tab>` after the prefix; LSP completion items that
+  are snippets use the same engine. Expansion and jumping follow nvim's `vim.snippet` and are checked against it by
+  `tests/oracles/oracle_snippet.py`.
 - Variables: `:let x = 1`, `g:x`, `+= -= *= .=`, read by `\=` in `:s` and shown by `:echo`.
 - Syntax: all 25 token classes of the `syntax` library are drawn (properties, tags, attributes, calls, links, emphasis,
   strong, raw text, diff added / removed, builtin variables).

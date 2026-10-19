@@ -1,0 +1,1464 @@
+// Snippets: the LSP / VS Code snippet grammar, its expansion into text with tabstop ranges, and the session that
+// follows the tabstops through edits. Pure: nothing here knows the editor (engine/MED_snipops.m31 does).
+//
+// Grammar (https://microsoft.github.io/language-server-protocol/specification/#snippet_syntax):
+//   $1  ${1}  ${1:default}  ${1|one,two|}  $0       tabstops, placeholders (they nest), choices, the final stop
+//   $NAME  ${NAME}  ${NAME:default}                 variables; an unknown one becomes a tabstop that holds its name (nvim)
+//   ${1/regex/format/options}  ${NAME/regex/format/options}   transforms ($n ${n:/upcase} ${n:+if} ${n:?if:else} ${n:-else})
+//   \$ \} \\                                        escapes (and \, \| inside a choice)
+// A construct that does not parse stays text, as in VS Code (nvim gives an error instead).
+//
+// The expansion follows nvim's vim.snippet (runtime/lua/vim/snippet.lua) where that can parse the snippet: the lines
+// after the first get the indent of the line the snippet starts in, tabs become spaces under 'expandtab', the first
+// placeholder of an index gives the text of every stop with that index, and $0 is the end of the snippet unless given.
+//
+// API
+// ---
+//   MED_snippet.parse(body)                       List<Node>
+//   MED_snippet.expand(body, context)             Built: text, stops
+//   MED_snippet.Session                           tabstops that follow edits (gravity as nvim's extmarks)
+//   MED_snippet.Session.adjust(from, to, text)    keep every range in step with a splice
+//   MED_snippet.Session.dest_index(direction)     the index a jump goes to (-1: none)
+//   MED_snippet.transform_text(transform, text)   apply `/regex/format/options` to `text`
+//   MED_snippet.parse_user_file(json_text)        the snippets of a VS Code snippets file
+
+import encoding.json;
+import engine.MED_buffer;
+import engine.MED_regex;
+import engine.MED_text;
+
+const int NODE_TEXT = 0;
+const int NODE_TABSTOP = 1;
+const int NODE_PLACEHOLDER = 2;
+const int NODE_CHOICE = 3;
+const int NODE_VARIABLE = 4;
+
+/// A transform: `regex` (JavaScript flavoured, as written in the snippet), the format and the flags.
+pub type Transform {
+    pub bool is_set = false;
+    pub str regex = "";
+    pub List<Format> format = [];
+    pub str options = "";
+}
+
+/// A piece of a transform's format: text, `$n`, `${n:/upcase}`, `${n:+if}`, `${n:?if:else}`, `${n:-else}`.
+pub type Format {
+    pub bool is_text = true;
+    pub str text = "";
+    pub int capture = 0;
+    pub str modifier = "";
+    /// 0 plain, 1 `+if`, 2 `?if:else`, 3 `-else` or `:else`
+    pub int kind = 0;
+    pub str if_text = "";
+    pub str else_text = "";
+}
+
+pub type Node {
+    pub int kind = 0;
+    pub str text = "";
+    pub int index = 0;
+    pub str name = "";
+    pub List<Node> children = [];
+    pub List<str> choices = [];
+    pub Transform transform = Transform();
+}
+
+// ------------------------------------------------------------------------------------------------ parser
+
+type Parser {
+    str text = "";
+    int position = 0;
+    bool is_ok = true;
+}
+
+int Parser.peek(int ahead) {
+    if (position + ahead >= text.size()) {
+        return -1;
+    }
+    return text.byte_at(position + ahead);
+}
+
+// The digits at the cursor as a number, -1 when there are none.
+int Parser.take_int() {
+    int start = position;
+    int value = 0;
+    while (position < text.size() && is_digit(text.byte_at(position)) && position - start < 9) {
+        value = value * 10 + text.byte_at(position) - 48;
+        position = position + 1;
+    }
+    if (position == start) {
+        return -1;
+    }
+    return value;
+}
+
+str Parser.take_name() {
+    int start = position;
+    if (position < text.size() && is_name_start(text.byte_at(position))) {
+        position = position + 1;
+        while (position < text.size() && is_name_char(text.byte_at(position))) {
+            position = position + 1;
+        }
+    }
+    return text.substr(start, position);
+}
+
+// Text up to an unescaped stop byte (not consumed), with the escapes undone. `extra` are more escapable bytes.
+str Parser.take_text(List<int> stops, List<int> extra) {
+    str out = "";
+    while (position < text.size()) {
+        int byte = text.byte_at(position);
+        if (byte == 92 && position + 1 < text.size()) {
+            int next = text.byte_at(position + 1);
+            if (next == 36 || next == 125 || next == 92 || extra.contains(next)) {
+                out = out + text.substr(position + 1, position + 2);
+                position = position + 2;
+                continue;
+            }
+        }
+        if (stops.contains(byte)) {
+            break;
+        }
+        out = out + text.substr(position, position + 1);
+        position = position + 1;
+    }
+    return out;
+}
+
+// Nodes up to an unescaped `}` (not consumed), or the end of the text when `is_top`.
+List<Node> Parser.take_sequence(bool is_top) {
+    List<Node> nodes = [];
+    List<int> stops = [36];
+    if (!is_top) {
+        stops = [36, 125];
+    }
+    while (position < text.size()) {
+        int byte = text.byte_at(position);
+        if (!is_top && byte == 125) {
+            break;
+        }
+        if (byte == 36) {
+            int saved = position;
+            Option<Node> found = take_dollar();
+            match (found) {
+                case Some(Node node): {
+                    nodes.push(node);
+                }
+                case None: {
+                    // a `$` that starts nothing is text
+                    position = saved + 1;
+                    nodes.push(text_node("$"));
+                }
+            }
+            continue;
+        }
+        str piece = take_text(stops, []);
+        if (piece.size() == 0) {
+            // a lone backslash at the end, or a stop byte that is not handled: take it as text
+            piece = text.substr(position, position + 1);
+            position = position + 1;
+        }
+        nodes.push(text_node(piece));
+    }
+    return nodes;
+}
+
+// At a `$`: a tabstop, placeholder, choice or variable; None leaves the cursor anywhere.
+Option<Node> Parser.take_dollar() {
+    position = position + 1;
+    int byte = peek(0);
+    Node node = Node();
+    if (is_digit(byte)) {
+        node.kind = NODE_TABSTOP;
+        node.index = take_int();
+        return Option<Node>.Some(node);
+    }
+    if (is_name_start(byte)) {
+        node.kind = NODE_VARIABLE;
+        node.name = take_name();
+        return Option<Node>.Some(node);
+    }
+    if (byte != 123) {
+        return Option<Node>.None;
+    }
+    position = position + 1;
+    byte = peek(0);
+    if (is_digit(byte)) {
+        node.index = take_int();
+        int next = peek(0);
+        if (next == 125) {
+            position = position + 1;
+            node.kind = NODE_TABSTOP;
+            return Option<Node>.Some(node);
+        }
+        if (next == 58) {
+            position = position + 1;
+            node.kind = NODE_PLACEHOLDER;
+            node.children = take_sequence(false);
+            if (peek(0) != 125) {
+                return Option<Node>.None;
+            }
+            position = position + 1;
+            return Option<Node>.Some(node);
+        }
+        if (next == 124) {
+            position = position + 1;
+            node.kind = NODE_CHOICE;
+            while (true) {
+                str choice = take_text([44, 124], [44, 124]);
+                node.choices.push(choice);
+                if (peek(0) == 44) {
+                    position = position + 1;
+                    continue;
+                }
+                break;
+            }
+            if (peek(0) != 124 || peek(1) != 125) {
+                return Option<Node>.None;
+            }
+            position = position + 2;
+            return Option<Node>.Some(node);
+        }
+        if (next == 47) {
+            position = position + 1;
+            node.kind = NODE_TABSTOP;
+            if (!did_take_transform(node.transform)) {
+                return Option<Node>.None;
+            }
+            return Option<Node>.Some(node);
+        }
+        return Option<Node>.None;
+    }
+    if (is_name_start(byte)) {
+        node.kind = NODE_VARIABLE;
+        node.name = take_name();
+        int next = peek(0);
+        if (next == 125) {
+            position = position + 1;
+            return Option<Node>.Some(node);
+        }
+        if (next == 58) {
+            position = position + 1;
+            node.children = take_sequence(false);
+            if (peek(0) != 125) {
+                return Option<Node>.None;
+            }
+            position = position + 1;
+            return Option<Node>.Some(node);
+        }
+        if (next == 47) {
+            position = position + 1;
+            if (!did_take_transform(node.transform)) {
+                return Option<Node>.None;
+            }
+            return Option<Node>.Some(node);
+        }
+    }
+    return Option<Node>.None;
+}
+
+// After `${name/` or `${1/`: `regex/format/options}`.
+bool Parser.did_take_transform(Transform out) {
+    str regex = "";
+    while (position < text.size()) {
+        int byte = text.byte_at(position);
+        if (byte == 92 && position + 1 < text.size()) {
+            if (text.byte_at(position + 1) == 47) {
+                regex = regex + "/";
+            } else {
+                regex = regex + text.substr(position, position + 2);
+            }
+            position = position + 2;
+            continue;
+        }
+        if (byte == 47) {
+            break;
+        }
+        regex = regex + text.substr(position, position + 1);
+        position = position + 1;
+    }
+    if (peek(0) != 47) {
+        return false;
+    }
+    position = position + 1;
+    List<Format> format = [];
+    while (position < text.size()) {
+        int byte = text.byte_at(position);
+        if (byte == 47) {
+            break;
+        }
+        if (byte == 36) {
+            int saved = position;
+            Option<Format> piece = take_format();
+            match (piece) {
+                case Some(Format part): {
+                    format.push(part);
+                }
+                case None: {
+                    position = saved + 1;
+                    format.push(text_format("$"));
+                }
+            }
+            continue;
+        }
+        str piece = take_text([36, 47], []);
+        if (piece.size() == 0) {
+            piece = text.substr(position, position + 1);
+            position = position + 1;
+        }
+        format.push(text_format(piece));
+    }
+    if (peek(0) != 47) {
+        return false;
+    }
+    position = position + 1;
+    int start = position;
+    while (position < text.size() && text.byte_at(position) != 125) {
+        position = position + 1;
+    }
+    if (peek(0) != 125) {
+        return false;
+    }
+    out.is_set = true;
+    out.regex = regex;
+    out.format = format;
+    out.options = text.substr(start, position);
+    position = position + 1;
+    return true;
+}
+
+// At a `$` inside a transform's format: `$1`, `${1}`, `${1:/upcase}`, `${1:+if}`, `${1:?if:else}`, `${1:-else}`.
+Option<Format> Parser.take_format() {
+    position = position + 1;
+    Format part = Format();
+    part.is_text = false;
+    if (is_digit(peek(0))) {
+        part.capture = take_int();
+        return Option<Format>.Some(part);
+    }
+    if (peek(0) != 123) {
+        return Option<Format>.None;
+    }
+    position = position + 1;
+    if (!is_digit(peek(0))) {
+        return Option<Format>.None;
+    }
+    part.capture = take_int();
+    if (peek(0) == 125) {
+        position = position + 1;
+        return Option<Format>.Some(part);
+    }
+    if (peek(0) != 58) {
+        return Option<Format>.None;
+    }
+    position = position + 1;
+    int next = peek(0);
+    if (next == 47) {
+        position = position + 1;
+        str name = take_name();
+        if (peek(0) != 125) {
+            return Option<Format>.None;
+        }
+        position = position + 1;
+        part.modifier = name;
+        return Option<Format>.Some(part);
+    }
+    if (next == 43) {
+        position = position + 1;
+        part.kind = 1;
+        part.if_text = take_text([125], []);
+    } else if (next == 63) {
+        position = position + 1;
+        part.kind = 2;
+        part.if_text = take_text([58, 125], []);
+        if (peek(0) != 58) {
+            return Option<Format>.None;
+        }
+        position = position + 1;
+        part.else_text = take_text([125], []);
+    } else if (next == 45) {
+        position = position + 1;
+        part.kind = 3;
+        part.else_text = take_text([125], []);
+    } else {
+        part.kind = 3;
+        part.else_text = take_text([125], []);
+    }
+    if (peek(0) != 125) {
+        return Option<Format>.None;
+    }
+    position = position + 1;
+    return Option<Format>.Some(part);
+}
+
+bool is_digit(int byte) {
+    return byte >= 48 && byte <= 57;
+}
+
+bool is_name_start(int byte) {
+    return (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+}
+
+bool is_name_char(int byte) {
+    return is_name_start(byte) || is_digit(byte);
+}
+
+Node text_node(str value) {
+    Node node = Node();
+    node.kind = NODE_TEXT;
+    node.text = value;
+    return node;
+}
+
+Format text_format(str value) {
+    Format part = Format();
+    part.is_text = true;
+    part.text = value;
+    return part;
+}
+
+/// The nodes of a snippet body.
+pub List<Node> parse(str body) {
+    Parser parser = Parser();
+    parser.text = body;
+    return parser.take_sequence(true);
+}
+
+// ------------------------------------------------------------------------------------------------ transforms
+
+// The JavaScript regular expression `pattern` as a Vim one (MED_regex): groups, alternation, quantifiers, lazy
+// quantifiers, look-ahead and look-behind, \d \w \s, and the classes inside [].
+pub str vim_regex_of(str pattern) {
+    str out = "";
+    List<str> closers = [];
+    int index = 0;
+    int size = pattern.size();
+    while (index < size) {
+        int byte = pattern.byte_at(index);
+        if (byte == 92 && index + 1 < size) {
+            int next = pattern.byte_at(index + 1);
+            index = index + 2;
+            if (next == 100 || next == 68 || next == 119 || next == 87 || next == 115 || next == 83) {
+                out = out + "\\" + str.from_chars([next]);
+            } else if (next == 110) {
+                out = out + "\\n";
+            } else if (next == 116) {
+                out = out + "\\t";
+            } else if (next == 98) {
+                out = out + "\\%(\\<\\|\\>\\)";
+            } else if (is_digit(next)) {
+                out = out + "\\" + str.from_chars([next]);
+            } else if (next == 46 || next == 42 || next == 91 || next == 93 || next == 94 || next == 36 || next == 92 || next == 126 || next == 47) {
+                if (next == 47) {
+                    out = out + "/";
+                } else {
+                    out = out + "\\" + str.from_chars([next]);
+                }
+            } else {
+                // \( \) \{ \} \| \+ \? and the rest are the character itself
+                out = out + str.from_chars([next]);
+            }
+            continue;
+        }
+        if (byte == 40) {
+            if (index + 2 < size && pattern.byte_at(index + 1) == 63) {
+                int kind = pattern.byte_at(index + 2);
+                if (kind == 58) {
+                    out = out + "\\%(";
+                    closers.push("\\)");
+                    index = index + 3;
+                    continue;
+                }
+                if (kind == 61 || kind == 33) {
+                    out = out + "\\%(";
+                    if (kind == 61) {
+                        closers.push("\\)\\@=");
+                    } else {
+                        closers.push("\\)\\@!");
+                    }
+                    index = index + 3;
+                    continue;
+                }
+                if (kind == 60 && index + 3 < size && (pattern.byte_at(index + 3) == 61 || pattern.byte_at(index + 3) == 33)) {
+                    out = out + "\\%(";
+                    if (pattern.byte_at(index + 3) == 61) {
+                        closers.push("\\)\\@<=");
+                    } else {
+                        closers.push("\\)\\@<!");
+                    }
+                    index = index + 4;
+                    continue;
+                }
+            }
+            out = out + "\\(";
+            closers.push("\\)");
+            index = index + 1;
+            continue;
+        }
+        if (byte == 41) {
+            if (closers.size() > 0) {
+                out = out + closers.pop();
+            } else {
+                out = out + ")";
+            }
+            index = index + 1;
+            continue;
+        }
+        if (byte == 124) {
+            out = out + "\\|";
+            index = index + 1;
+            continue;
+        }
+        if (byte == 43 || byte == 63 || byte == 42) {
+            index = index + 1;
+            bool is_lazy = index < size && pattern.byte_at(index) == 63;
+            if (is_lazy) {
+                index = index + 1;
+                if (byte == 42) {
+                    out = out + "\\{-}";
+                } else if (byte == 43) {
+                    out = out + "\\{-1,}";
+                } else {
+                    out = out + "\\{-0,1}";
+                }
+            } else if (byte == 42) {
+                out = out + "*";
+            } else {
+                out = out + "\\" + str.from_chars([byte]);
+            }
+            continue;
+        }
+        if (byte == 123) {
+            int brace_at = index + 1;
+            while (brace_at < size && (is_digit(pattern.byte_at(brace_at)) || pattern.byte_at(brace_at) == 44)) {
+                brace_at = brace_at + 1;
+            }
+            if (brace_at < size && pattern.byte_at(brace_at) == 125 && brace_at > index + 1 && is_digit(pattern.byte_at(index + 1))) {
+                str counts = pattern.substr(index + 1, brace_at);
+                index = brace_at + 1;
+                if (index < size && pattern.byte_at(index) == 63) {
+                    index = index + 1;
+                    out = out + "\\{-" + counts + "}";
+                } else {
+                    out = out + "\\{" + counts + "}";
+                }
+                continue;
+            }
+            out = out + "{";
+            index = index + 1;
+            continue;
+        }
+        if (byte == 91) {
+            // a class: copy to the closing ], with \d \w \s spelled out
+            int scan = index + 1;
+            str cls = "[";
+            if (scan < size && pattern.byte_at(scan) == 94) {
+                cls = cls + "^";
+                scan = scan + 1;
+            }
+            if (scan < size && pattern.byte_at(scan) == 93) {
+                cls = cls + "\\]";
+                scan = scan + 1;
+            }
+            bool is_closed = false;
+            while (scan < size) {
+                int inner = pattern.byte_at(scan);
+                if (inner == 93) {
+                    is_closed = true;
+                    scan = scan + 1;
+                    break;
+                }
+                if (inner == 92 && scan + 1 < size) {
+                    int escaped = pattern.byte_at(scan + 1);
+                    scan = scan + 2;
+                    if (escaped == 100) {
+                        cls = cls + "0-9";
+                    } else if (escaped == 119) {
+                        cls = cls + "a-zA-Z0-9_";
+                    } else if (escaped == 115) {
+                        cls = cls + " \\t";
+                    } else if (escaped == 110) {
+                        cls = cls + "\\n";
+                    } else if (escaped == 116) {
+                        cls = cls + "\\t";
+                    } else if (escaped == 93 || escaped == 92 || escaped == 94 || escaped == 45) {
+                        cls = cls + "\\" + str.from_chars([escaped]);
+                    } else {
+                        cls = cls + str.from_chars([escaped]);
+                    }
+                    continue;
+                }
+                cls = cls + pattern.substr(scan, scan + 1);
+                scan = scan + 1;
+            }
+            if (is_closed) {
+                out = out + cls + "]";
+                index = scan;
+            } else {
+                out = out + "\\[";
+                index = index + 1;
+            }
+            continue;
+        }
+        if (byte == 126) {
+            out = out + "\\~";
+            index = index + 1;
+            continue;
+        }
+        out = out + pattern.substr(index, index + 1);
+        index = index + 1;
+    }
+    return out;
+}
+
+str capitalize_text(str value) {
+    if (value.size() == 0) {
+        return value;
+    }
+    int first = MED_text.next_col(value, 0);
+    return value.substr(0, first).to_upper() + value.substr(first, value.size());
+}
+
+// `my-file_name x` as `MyFileNameX`.
+str pascal_text(str value) {
+    str out = "";
+    bool is_start = true;
+    for (int index in 0 .. value.size()) {
+        int byte = value.byte_at(index);
+        if (is_name_char(byte) && byte != 95) {
+            str one = value.substr(index, index + 1);
+            if (is_start) {
+                out = out + one.to_upper();
+            } else {
+                out = out + one;
+            }
+            is_start = false;
+        } else if (byte >= 128) {
+            out = out + value.substr(index, index + 1);
+            is_start = false;
+        } else {
+            is_start = true;
+        }
+    }
+    return out;
+}
+
+str modify_text(str value, str modifier) {
+    if (modifier == "upcase") {
+        return value.to_upper();
+    }
+    if (modifier == "downcase") {
+        return value.to_lower();
+    }
+    if (modifier == "capitalize") {
+        return capitalize_text(value);
+    }
+    if (modifier == "pascalcase") {
+        return pascal_text(value);
+    }
+    return value;
+}
+
+// The replacement text of one match (`groups[0]` is the whole match).
+str format_text(List<Format> format, List<str> groups) {
+    str out = "";
+    for (Format part in format) {
+        if (part.is_text) {
+            out = out + part.text;
+            continue;
+        }
+        str value = "";
+        if (part.capture < groups.size()) {
+            value = groups[part.capture];
+        }
+        if (part.modifier.size() > 0) {
+            out = out + modify_text(value, part.modifier);
+        } else if (part.kind == 0) {
+            out = out + value;
+        } else if (part.kind == 1) {
+            if (value.size() > 0) {
+                out = out + part.if_text;
+            }
+        } else if (part.kind == 2) {
+            if (value.size() > 0) {
+                out = out + part.if_text;
+            } else {
+                out = out + part.else_text;
+            }
+        } else if (value.size() > 0) {
+            out = out + value;
+        } else {
+            out = out + part.else_text;
+        }
+    }
+    return out;
+}
+
+/// `text` through a transform: the first match (every match with the `g` flag) is replaced by the format.
+pub str transform_text(Transform transform, str source) {
+    if (!transform.is_set) {
+        return source;
+    }
+    bool is_global = transform.options.contains("g");
+    bool is_icase = transform.options.contains("i");
+    MED_regex.Regex regex = MED_regex.compile(vim_regex_of(transform.regex), is_icase, false, "");
+    if (!regex.is_ok) {
+        return source;
+    }
+    MED_buffer.Buffer buffer = MED_buffer.Buffer();
+    buffer.lines = source.split("\n");
+    str out = "";
+    int row = 0;
+    int col = 0;
+    int done_row = 0;
+    int done_col = 0;
+    bool is_matched = false;
+    int guard = 0;
+    while (guard < 10000) {
+        guard = guard + 1;
+        MED_regex.Match found = regex.search_line(buffer, row, col);
+        if (!found.is_ok || found.srow != row) {
+            break;
+        }
+        is_matched = true;
+        out = out + slice_text(buffer, done_row, done_col, found.srow, found.scol) + format_text(transform.format, found.groups);
+        done_row = found.erow;
+        done_col = found.ecol;
+        row = found.erow;
+        col = found.ecol;
+        if (found.erow == found.srow && found.ecol == found.scol) {
+            // an empty match: step over one character
+            if (col >= buffer.line_size(row)) {
+                break;
+            }
+            str line = buffer.line(row);
+            int next = MED_text.next_col(line, col);
+            out = out + line.substr(col, next);
+            col = next;
+            done_col = next;
+        }
+        if (!is_global) {
+            break;
+        }
+    }
+    if (!is_matched) {
+        return source;
+    }
+    out = out + slice_text(buffer, done_row, done_col, buffer.line_count() - 1, buffer.line_size(buffer.line_count() - 1));
+    return out;
+}
+
+// The text of `buffer` between two positions.
+str slice_text(MED_buffer.Buffer buffer, int from_row, int from_col, int to_row, int to_col) {
+    return buffer.text(MED_buffer.Pos(from_row, from_col), MED_buffer.Pos(to_row, to_col));
+}
+
+// ------------------------------------------------------------------------------------------------ expansion
+
+/// What a snippet needs to know about where it is expanded.
+pub type Context {
+    /// The leading blanks of the line the snippet starts in; lines after the first get them.
+    pub str base_indent = "";
+    pub bool is_expandtab = false;
+    /// The width a Tab becomes under 'expandtab' (vim.fn.shiftwidth()).
+    pub int shiftwidth = 8;
+    pub int line_index = 0;
+    pub str current_line = "";
+    pub str current_word = "";
+    pub str selected_text = "";
+    pub str file_path = "";
+    pub str relative_path = "";
+    pub str clipboard = "";
+    pub str workspace = "";
+    /// Seconds since the epoch (UTC) for CURRENT_*; 0 leaves them at the epoch.
+    pub int now = 0;
+    pub str line_comment = "";
+    pub str block_comment_start = "";
+    pub str block_comment_end = "";
+    /// A random number source for RANDOM, RANDOM_HEX and UUID.
+    pub int seed = 12345;
+}
+
+/// A tabstop of an expanded snippet: its range in the text, as byte offsets.
+pub type Stop {
+    pub int index = 0;
+    pub int start = 0;
+    pub int end = 0;
+    pub List<str> choices = [];
+    pub Transform transform = Transform();
+}
+
+pub type Built {
+    pub str text = "";
+    pub List<Stop> stops = [];
+}
+
+// The offset of the last `byte` in `text`, -1 when there is none.
+int last_byte(str text, int byte) {
+    int index = text.size() - 1;
+    while (index >= 0) {
+        if (text.byte_at(index) == byte) {
+            return index;
+        }
+        index = index - 1;
+    }
+    return -1;
+}
+
+str tail_of(str path) {
+    int position = last_byte(path, 47);
+    if (position < 0) {
+        return path;
+    }
+    return path.substr(position + 1, path.size());
+}
+
+str stem_of(str name) {
+    int position = last_byte(name, 46);
+    if (position > 0) {
+        return name.substr(0, position);
+    }
+    return name;
+}
+
+str directory_of(str path) {
+    int position = last_byte(path, 47);
+    if (position < 0) {
+        return "";
+    }
+    return path.substr(0, position);
+}
+
+const List<str> MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const List<str> DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+str two_digits(int value) {
+    if (value < 10) {
+        return "0" + value.to_str();
+    }
+    return value.to_str();
+}
+
+// days since 1970-01-01 to (year, month 1-12, day 1-31) (Howard Hinnant's civil_from_days)
+List<int> civil_of(int days) {
+    int shifted = days + 719468;
+    int era = shifted / 146097;
+    if (shifted < 0) {
+        era = (shifted - 146096) / 146097;
+    }
+    int doe = shifted - era * 146097;
+    int yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    int year = yoe + era * 400;
+    int doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    int month_part = (5 * doy + 2) / 153;
+    int day = doy - (153 * month_part + 2) / 5 + 1;
+    int month = month_part + 3;
+    if (month_part >= 10) {
+        month = month_part - 9;
+    }
+    if (month <= 2) {
+        year = year + 1;
+    }
+    return [year, month, day];
+}
+
+// The value of variable `name`; None for a name that is not a snippet variable.
+Option<str> variable_value(str name, Context context) {
+    if (name == "TM_SELECTED_TEXT") {
+        return Option<str>.Some(context.selected_text);
+    }
+    if (name == "TM_CURRENT_LINE") {
+        return Option<str>.Some(context.current_line);
+    }
+    if (name == "TM_CURRENT_WORD") {
+        return Option<str>.Some(context.current_word);
+    }
+    if (name == "TM_LINE_INDEX") {
+        return Option<str>.Some(context.line_index.to_str());
+    }
+    if (name == "TM_LINE_NUMBER") {
+        return Option<str>.Some((context.line_index + 1).to_str());
+    }
+    if (name == "TM_FILENAME") {
+        return Option<str>.Some(tail_of(context.file_path));
+    }
+    if (name == "TM_FILENAME_BASE") {
+        return Option<str>.Some(stem_of(tail_of(context.file_path)));
+    }
+    if (name == "TM_DIRECTORY") {
+        return Option<str>.Some(tail_of(directory_of(context.file_path)));
+    }
+    if (name == "TM_FILEPATH") {
+        return Option<str>.Some(context.file_path);
+    }
+    if (name == "RELATIVE_FILEPATH") {
+        return Option<str>.Some(context.relative_path);
+    }
+    if (name == "CLIPBOARD") {
+        return Option<str>.Some(context.clipboard);
+    }
+    if (name == "WORKSPACE_NAME") {
+        return Option<str>.Some(tail_of(context.workspace));
+    }
+    if (name == "WORKSPACE_FOLDER") {
+        return Option<str>.Some(context.workspace);
+    }
+    if (name == "LINE_COMMENT") {
+        return Option<str>.Some(context.line_comment);
+    }
+    if (name == "BLOCK_COMMENT_START") {
+        return Option<str>.Some(context.block_comment_start);
+    }
+    if (name == "BLOCK_COMMENT_END") {
+        return Option<str>.Some(context.block_comment_end);
+    }
+    int days = context.now / 86400;
+    if (context.now < 0 && context.now % 86400 != 0) {
+        days = days - 1;
+    }
+    int seconds_of_day = context.now - days * 86400;
+    List<int> civil = civil_of(days);
+    if (name == "CURRENT_YEAR") {
+        return Option<str>.Some(civil[0].to_str());
+    }
+    if (name == "CURRENT_YEAR_SHORT") {
+        return Option<str>.Some(two_digits(civil[0] % 100));
+    }
+    if (name == "CURRENT_MONTH") {
+        return Option<str>.Some(two_digits(civil[1]));
+    }
+    if (name == "CURRENT_MONTH_NAME") {
+        return Option<str>.Some(MONTHS[civil[1] - 1]);
+    }
+    if (name == "CURRENT_MONTH_NAME_SHORT") {
+        return Option<str>.Some(MONTHS[civil[1] - 1].substr(0, 3));
+    }
+    if (name == "CURRENT_DATE") {
+        return Option<str>.Some(two_digits(civil[2]));
+    }
+    int weekday = ((days % 7) + 11) % 7;
+    if (name == "CURRENT_DAY_NAME") {
+        return Option<str>.Some(DAYS[weekday]);
+    }
+    if (name == "CURRENT_DAY_NAME_SHORT") {
+        return Option<str>.Some(DAYS[weekday].substr(0, 3));
+    }
+    if (name == "CURRENT_HOUR") {
+        return Option<str>.Some(two_digits(seconds_of_day / 3600));
+    }
+    if (name == "CURRENT_MINUTE") {
+        return Option<str>.Some(two_digits((seconds_of_day % 3600) / 60));
+    }
+    if (name == "CURRENT_SECOND") {
+        return Option<str>.Some(two_digits(seconds_of_day % 60));
+    }
+    if (name == "CURRENT_SECONDS_UNIX") {
+        return Option<str>.Some(context.now.to_str());
+    }
+    if (name == "RANDOM" || name == "RANDOM_HEX" || name == "UUID") {
+        int state = context.seed;
+        str digits = "";
+        int want = 6;
+        if (name == "UUID") {
+            want = 32;
+        }
+        for (int step in 0 .. want) {
+            state = (state * 1103515245 + 12345) % 2147483648;
+            int nibble = (state / 65536) % 16;
+            if (name == "RANDOM") {
+                digits = digits + (nibble % 10).to_str();
+            } else {
+                digits = digits + "0123456789abcdef".substr(nibble, nibble + 1);
+            }
+        }
+        if (name == "UUID") {
+            digits = digits.substr(0, 8) + "-" + digits.substr(8, 12) + "-4" + digits.substr(13, 16) + "-a" + digits.substr(17, 20) + "-" + digits.substr(20, 32);
+        }
+        return Option<str>.Some(digits);
+    }
+    return Option<str>.None;
+}
+
+type Expander {
+    Context context = Context();
+    str out = "";
+    List<Stop> stops = [];
+    Map<int, str> defaults = {};
+    List<int> seen_placeholder = [];
+    int variable_next = 0;
+}
+
+// Add `value` to the text, the way nvim does: tabs become spaces under 'expandtab', lines after the first get the
+// base indent.
+void Expander.append(str value) {
+    List<str> lines = value.split("\n");
+    for (int index in 0 .. lines.size()) {
+        str line = lines[index];
+        if (context.is_expandtab) {
+            line = line.split("\t").join(" ".repeat(context.shiftwidth));
+        }
+        if (index > 0) {
+            out = out + "\n" + context.base_indent;
+        }
+        out = out + line;
+    }
+}
+
+// What a list of nodes comes to as plain text (nested stops give their defaults), without recording anything.
+str Expander.plain_of(List<Node> nodes) {
+    str text = "";
+    for (Node node in nodes) {
+        if (node.kind == NODE_TEXT) {
+            text = text + node.text;
+        } else if (node.kind == NODE_TABSTOP) {
+            text = text + defaults.get(node.index).or("");
+        } else if (node.kind == NODE_PLACEHOLDER) {
+            text = text + plain_of(node.children);
+        } else if (node.kind == NODE_CHOICE) {
+            if (node.choices.size() > 0) {
+                text = text + node.choices[0];
+            }
+        } else {
+            Option<str> value = variable_value(node.name, context);
+            match (value) {
+                case Some(str known): {
+                    str value_text = known;
+                    if (value_text.size() == 0) {
+                        value_text = plain_of(node.children);
+                    }
+                    text = text + transform_text(node.transform, value_text);
+                }
+                case None: {
+                    text = text + node.name;
+                }
+            }
+        }
+    }
+    return text;
+}
+
+// First pass: the default text of every index (the first placeholder with that index, else the first choice).
+void Expander.collect_defaults(List<Node> nodes) {
+    for (Node node in nodes) {
+        if (node.kind == NODE_PLACEHOLDER) {
+            if (!defaults.get(node.index).is_some()) {
+                defaults.set(node.index, "");
+                defaults.set(node.index, plain_of(node.children));
+            }
+            collect_defaults(node.children);
+        } else if (node.kind == NODE_CHOICE) {
+            if (!defaults.get(node.index).is_some() && node.choices.size() > 0) {
+                defaults.set(node.index, node.choices[0]);
+            }
+        } else if (node.kind == NODE_VARIABLE) {
+            collect_defaults(node.children);
+        }
+    }
+}
+
+void Expander.record(int index, int start, List<str> choices, Transform transform) {
+    Stop stop = Stop();
+    stop.index = index;
+    stop.start = start;
+    stop.end = out.size();
+    stop.choices = choices;
+    stop.transform = transform;
+    stops.push(stop);
+}
+
+int Expander.largest_index() {
+    int largest = 0;
+    for (Stop stop in stops) {
+        if (stop.index > largest) {
+            largest = stop.index;
+        }
+    }
+    return largest;
+}
+
+void Expander.emit(List<Node> nodes) {
+    for (Node node in nodes) {
+        if (node.kind == NODE_TEXT) {
+            append(node.text);
+        } else if (node.kind == NODE_TABSTOP) {
+            int start = out.size();
+            append(transform_text(node.transform, defaults.get(node.index).or("")));
+            record(node.index, start, [], node.transform);
+        } else if (node.kind == NODE_PLACEHOLDER) {
+            int start = out.size();
+            if (seen_placeholder.contains(node.index)) {
+                append(defaults.get(node.index).or(""));
+            } else {
+                seen_placeholder.push(node.index);
+                emit(node.children);
+            }
+            record(node.index, start, [], Transform());
+        } else if (node.kind == NODE_CHOICE) {
+            int start = out.size();
+            append(defaults.get(node.index).or(""));
+            record(node.index, start, node.choices, Transform());
+        } else {
+            Option<str> value = variable_value(node.name, context);
+            match (value) {
+                case Some(str known): {
+                    str value_text = known;
+                    if (value_text.size() == 0) {
+                        value_text = plain_of(node.children);
+                    }
+                    append(transform_text(node.transform, value_text));
+                }
+                case None: {
+                    // an unknown variable is a tabstop that holds its name (nvim)
+                    int start = out.size();
+                    append(node.name);
+                    record(largest_index() + 1, start, [], Transform());
+                }
+            }
+        }
+    }
+}
+
+/// Expand a snippet body.
+pub Built expand(str body, Context context) {
+    List<Node> nodes = parse(body);
+    Expander expander = Expander();
+    expander.context = context;
+    expander.collect_defaults(nodes);
+    expander.emit(nodes);
+    bool has_final = false;
+    for (Stop stop in expander.stops) {
+        if (stop.index == 0) {
+            has_final = true;
+        }
+    }
+    if (!has_final) {
+        expander.record(0, expander.out.size(), [], Transform());
+    }
+    Built built = Built();
+    built.text = expander.out;
+    built.stops = expander.stops;
+    return built;
+}
+
+/// The text of a snippet with no tabstop in it (what a completion item inserts when snippets are off).
+pub str plain_text(str body, Context context) {
+    return expand(body, context).text;
+}
+
+// ------------------------------------------------------------------------------------------------ session
+
+/// A range that follows the text like an nvim extmark: `is_start_right` / `is_end_right` are its gravities.
+pub type Tabstop {
+    pub int index = 0;
+    pub int srow = 0;
+    pub int scol = 0;
+    pub int erow = 0;
+    pub int ecol = 0;
+    pub bool is_start_right = true;
+    pub bool is_end_right = false;
+    pub List<str> choices = [];
+    pub Transform transform = Transform();
+}
+
+pub type Session {
+    pub bool is_active = false;
+    pub List<Tabstop> stops = [];
+    /// The tabstop the user is on (its position in `stops`); -1 before the first jump.
+    pub int current = -1;
+    /// The whole snippet (start gravity left, end gravity right).
+    pub int region_srow = 0;
+    pub int region_scol = 0;
+    pub int region_erow = 0;
+    pub int region_ecol = 0;
+    /// The cursor when the stop check last ran (CursorMoved fires only when it moved).
+    pub int last_row = -1;
+    pub int last_col = -1;
+    /// The buffer tick the mirrors were last brought up to date for.
+    pub int tick = -1;
+}
+
+/// Keep every range in step with a splice: [from, to) replaced by `text`.
+pub void Session.adjust(int from_row, int from_col, int to_row, int to_col, str text) {
+    List<int> end = position_after(from_row, from_col, text);
+    for (int position in 0 .. stops.size()) {
+        Tabstop stop = stops[position];
+        List<int> start = mark_moved(stop.srow, stop.scol, from_row, from_col, to_row, to_col, end, stop.is_start_right);
+        List<int> finish = mark_moved(stop.erow, stop.ecol, from_row, from_col, to_row, to_col, end, stop.is_end_right);
+        stop.srow = start[0];
+        stop.scol = start[1];
+        stop.erow = finish[0];
+        stop.ecol = finish[1];
+    }
+    List<int> region_start = mark_moved(region_srow, region_scol, from_row, from_col, to_row, to_col, end, false);
+    List<int> region_end = mark_moved(region_erow, region_ecol, from_row, from_col, to_row, to_col, end, true);
+    region_srow = region_start[0];
+    region_scol = region_start[1];
+    region_erow = region_end[0];
+    region_ecol = region_end[1];
+}
+
+/// nvim's set_group_gravity: the group `index` takes text typed at either edge (`is_active`) or not.
+pub void Session.set_group_gravity(int index, bool is_active) {
+    for (int position in 0 .. stops.size()) {
+        Tabstop stop = stops[position];
+        if (stop.index == index) {
+            stop.is_start_right = !is_active;
+            stop.is_end_right = is_active;
+        }
+    }
+}
+
+/// The tabstop index a jump goes to (nvim's get_dest_index), or -1. Before the first jump the session stands on $0.
+pub int Session.dest_index(int direction) {
+    List<int> indexes = [];
+    for (Tabstop stop in stops) {
+        if (!indexes.contains(stop.index)) {
+            indexes.push(stop.index);
+        }
+    }
+    // sorted ascending: $0 first, as nvim's sorted table keys
+    List<int> sorted_indexes = [];
+    while (indexes.size() > 0) {
+        int best = 0;
+        for (int index in 1 .. indexes.size()) {
+            if (indexes[index] < indexes[best]) {
+                best = index;
+            }
+        }
+        sorted_indexes.push(indexes[best]);
+        indexes.remove_at(best);
+    }
+    int now = 0;
+    if (current >= 0) {
+        now = stops[current].index;
+    }
+    for (int position in 0 .. sorted_indexes.size()) {
+        if (sorted_indexes[position] == now) {
+            int target = position + direction;
+            int destination = -1;
+            bool is_found = false;
+            if (target >= 0 && target < sorted_indexes.size()) {
+                destination = sorted_indexes[target];
+                is_found = true;
+            }
+            if (!is_found && direction == 1) {
+                destination = 0;
+                is_found = true;
+            }
+            if (destination == 0 && direction == -1) {
+                return -1;
+            }
+            if (!is_found) {
+                return -1;
+            }
+            return destination;
+        }
+    }
+    return -1;
+}
+
+/// Where the end of `text` lands when it is inserted at (row, col): [row, col].
+pub List<int> position_after(int row, int col, str text) {
+    int newlines = 0;
+    int last = -1;
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 10) {
+            newlines = newlines + 1;
+            last = index;
+        }
+    }
+    if (newlines == 0) {
+        return [row, col + text.size()];
+    }
+    return [row + newlines, text.size() - last - 1];
+}
+
+/// A mark at (row, col) after the splice that replaced [from, to) by text ending at `end` (see position_after);
+/// `is_right` is its gravity. Returns [row, col].
+pub List<int> mark_moved(int row, int col, int from_row, int from_col, int to_row, int to_col, List<int> end, bool is_right) {
+    bool is_before_from = row < from_row || (row == from_row && col < from_col);
+    if (is_before_from) {
+        return [row, col];
+    }
+    bool is_at_from = row == from_row && col == from_col;
+    if (is_at_from) {
+        // right gravity takes the mark after what replaced the text at its position (nvim: also when text is removed)
+        if (is_right) {
+            return [end[0], end[1]];
+        }
+        return [row, col];
+    }
+    bool is_after_to = row > to_row || (row == to_row && col >= to_col);
+    if (is_after_to) {
+        if (row == to_row) {
+            return [end[0], end[1] + col - to_col];
+        }
+        return [row + end[0] - to_row, col];
+    }
+    // inside the replaced text
+    if (is_right) {
+        return [end[0], end[1]];
+    }
+    return [from_row, from_col];
+}
+
+// ------------------------------------------------------------------------------------------------ user snippets
+
+/// One entry of a snippets file: the words that trigger it and its body.
+pub type Entry {
+    pub str name = "";
+    pub List<str> prefixes = [];
+    pub str body = "";
+    pub str description = "";
+    /// Languages it applies to (empty: all).
+    pub List<str> scopes = [];
+}
+
+str json_text(json.Value value) {
+    match (value) {
+        case Str(str words): {
+            return words;
+        }
+        case Array(List<json.Value> items): {
+            List<str> lines = [];
+            for (json.Value item in items) {
+                match (item) {
+                    case Str(str line): {
+                        lines.push(line);
+                    }
+                    case Null: {
+                    }
+                    case Bool(bool flag): {
+                    }
+                    case Int(int whole): {
+                    }
+                    case Float(float real): {
+                    }
+                    case Array(List<json.Value> inner): {
+                    }
+                    case Object(Map<str, json.Value> members): {
+                    }
+                }
+            }
+            return lines.join("\n");
+        }
+        case Null: {
+            return "";
+        }
+        case Bool(bool flag): {
+            return "";
+        }
+        case Int(int whole): {
+            return "";
+        }
+        case Float(float real): {
+            return "";
+        }
+        case Object(Map<str, json.Value> members): {
+            return "";
+        }
+    }
+}
+
+List<str> json_words(json.Value value) {
+    List<str> words = [];
+    match (value) {
+        case Str(str one): {
+            words.push(one);
+        }
+        case Array(List<json.Value> items): {
+            for (json.Value item in items) {
+                match (item) {
+                    case Str(str word): {
+                        words.push(word);
+                    }
+                    case Null: {
+                    }
+                    case Bool(bool flag): {
+                    }
+                    case Int(int whole): {
+                    }
+                    case Float(float real): {
+                    }
+                    case Array(List<json.Value> inner): {
+                    }
+                    case Object(Map<str, json.Value> members): {
+                    }
+                }
+            }
+        }
+        case Null: {
+        }
+        case Bool(bool flag): {
+        }
+        case Int(int whole): {
+        }
+        case Float(float real): {
+        }
+        case Object(Map<str, json.Value> members): {
+        }
+    }
+    return words;
+}
+
+/// The entries of a VS Code snippets file ({"name": {"prefix": ..., "body": ..., "scope": "a,b"}}); a file that is not
+/// that gives none.
+pub List<Entry> parse_user_file(str source) {
+    List<Entry> entries = [];
+    match (json.parse(source)) {
+        case Ok(json.Value root): {
+            match (root) {
+                case Object(Map<str, json.Value> members): {
+                    for (str name in members.keys()) {
+                        json.Value one = members.get(name).or(json.Value.Null);
+                        match (one) {
+                            case Object(Map<str, json.Value> fields): {
+                                Entry entry = Entry();
+                                entry.name = name;
+                                entry.prefixes = json_words(fields.get("prefix").or(json.Value.Null));
+                                entry.body = json_text(fields.get("body").or(json.Value.Null));
+                                entry.description = json_text(fields.get("description").or(json.Value.Null));
+                                for (str scope in json_text(fields.get("scope").or(json.Value.Null)).split(",")) {
+                                    str trimmed = scope.trim();
+                                    if (trimmed.size() > 0) {
+                                        entry.scopes.push(trimmed);
+                                    }
+                                }
+                                if (entry.prefixes.size() > 0 && entry.body.size() > 0) {
+                                    entries.push(entry);
+                                }
+                            }
+                            case Null: {
+                            }
+                            case Bool(bool flag): {
+                            }
+                            case Int(int whole): {
+                            }
+                            case Float(float real): {
+                            }
+                            case Str(str words): {
+                            }
+                            case Array(List<json.Value> items): {
+                            }
+                        }
+                    }
+                }
+                case Null: {
+                }
+                case Bool(bool flag): {
+                }
+                case Int(int whole): {
+                }
+                case Float(float real): {
+                }
+                case Str(str words): {
+                }
+                case Array(List<json.Value> items): {
+                }
+            }
+        }
+        case Err(json.Error error): {
+        }
+    }
+    return entries;
+}

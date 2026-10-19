@@ -18,6 +18,7 @@ import engine.MED_buffer;
 import engine.MED_register;
 import engine.MED_text;
 import engine.MED_wrapmap;
+import engine.MED_snippet;
 import engine.MED_num;
 import engine.MED_motion;
 import engine.MED_map;
@@ -454,6 +455,16 @@ pub type Editor {
     /// `O` above a line starting with `}` gave the new line one level more.
     pub bool has_si_extra = false;
     pub int si_hash_indent = 0;
+    /// The snippet being filled in (MED_snippet, driven by MED_snipops), whether the Visual selection is Select mode (a
+    /// typed key replaces it), the snippets the user defined and the language they are filtered by, and the time the
+    /// CURRENT_* variables read.
+    pub MED_snippet.Session snip = MED_snippet.Session();
+    pub bool is_select = false;
+    pub List<MED_snippet.Entry> snippets = [];
+    pub str snip_language = "";
+    pub int snip_now = 0;
+    /// The absolute path of the file, for $TM_FILEPATH and $TM_DIRECTORY.
+    pub str snip_path = "";
     /// Manual folds, and whether folding is on at all (zn / zN / zi).
     pub List<Fold> folds = [];
     pub bool is_fold_off = false;
@@ -591,6 +602,9 @@ pub MED_buffer.Edit Editor.change(MED_buffer.Pos from, MED_buffer.Pos position, 
     block.push(edit);
     if (!is_adjust_off) {
         adjust_lines(from, position, replacement);
+    }
+    if (snip.is_active) {
+        snip.adjust(from.row, from.col, position.row, position.col, replacement);
     }
     return edit;
 }
@@ -1031,6 +1045,7 @@ void Editor.swap_named(Node node, Map<str, MED_buffer.Pos> before) {
 /// Undo one block. False when already at the oldest change.
 pub bool Editor.did_undo() {
     close_block();
+    snip = MED_snippet.Session();
     if (current == 0) {
         return false;
     }
@@ -1053,6 +1068,7 @@ pub bool Editor.did_undo() {
 /// Redo along the branch last undone. False when there is nothing to redo.
 pub bool Editor.did_redo() {
     close_block();
+    snip = MED_snippet.Session();
     int child = nodes[current].redo_child;
     if (child < 0) {
         return false;

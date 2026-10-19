@@ -1,0 +1,230 @@
+// Snippets: the grammar, the expansion, transforms, the session's ranges and the editor flow (Tab, Select mode,
+// mirrors, user snippets). What nvim can answer is checked against nvim by tests/oracles/oracle_snippet.py; this
+// covers the rest (nested placeholders, transforms, choices, the variables nvim lacks, user snippet files) and
+// everything that must run without nvim.
+
+import engine.MED_editor;
+import engine.MED_ex;
+import engine.MED_snippet;
+import engine.MED_snipops;
+import engine.MED_vim;
+import engine.MED_key;
+import tests.MED_check;
+
+// "index:start-end" of every stop, in the order the expansion made them
+str stops_of(MED_snippet.Built built) {
+    List<str> parts = [];
+    for (MED_snippet.Stop stop in built.stops) {
+        parts.push(stop.index.to_str() + ":" + stop.start.to_str() + "-" + stop.end.to_str());
+    }
+    return parts.join(" ");
+}
+
+MED_snippet.Context blank() {
+    return MED_snippet.Context();
+}
+
+str expanded(str body) {
+    return MED_snippet.expand(body, blank()).text;
+}
+
+MED_snippet.Transform parse_transform(str source) {
+    // "/regex/format/options" as it follows `${1` in a snippet
+    List<MED_snippet.Node> nodes = MED_snippet.parse("${1" + source + "}");
+    return nodes[0].transform;
+}
+
+MED_check.Check check = MED_check.Check();
+// --- expansion (the first lines are what nvim's vim.snippet gives)
+MED_snippet.Built loop = MED_snippet.expand("for $1 in ${2:items} do\n\t$0\nend", blank());
+check.eq_str("for: text", loop.text, "for  in items do\n\t\nend");
+check.eq_str("for: stops", stops_of(loop), "1:4-4 2:8-13 0:18-18");
+check.eq_str("mirrors take the placeholder", expanded("$1 $1 ${1:x}"), "x x x");
+check.eq_str("the first placeholder wins", expanded("${1:a} ${1:b}"), "a a");
+check.eq_str("no $0: one at the end", stops_of(MED_snippet.expand("ab$1c", blank())), "1:2-2 0:3-3");
+check.eq_str("only text", stops_of(MED_snippet.expand("abc", blank())), "0:3-3");
+check.eq_str("escapes", expanded("\\$1 \\} \\\\ a"), "$1 } \\ a");
+check.eq_str("a $ that starts nothing", expanded("a $ b $% ${ c"), "a $ b $% ${ c");
+check.eq_str("unknown variable is a tabstop", stops_of(MED_snippet.expand("$FOO ${BAR:x}", blank())), "1:0-3 2:4-7 0:7-7");
+check.eq_str("unknown variable text", expanded("$FOO"), "FOO");
+MED_snippet.Context indented = MED_snippet.Context();
+indented.base_indent = "  ";
+check.eq_str("later lines take the indent", MED_snippet.expand("a\n\tb\nc", indented).text, "a\n  \tb\n  c");
+indented.is_expandtab = true;
+indented.shiftwidth = 4;
+check.eq_str("tabs become spaces under expandtab", MED_snippet.expand("a\n\tb", indented).text, "a\n      b");
+// --- beyond nvim: nested placeholders, choices
+MED_snippet.Built nested = MED_snippet.expand("${1:foo ${2:bar} baz}!$0", blank());
+check.eq_str("nested: text", nested.text, "foo bar baz!");
+check.eq_str("nested: stops", stops_of(nested), "2:4-7 1:0-11 0:12-12");
+MED_snippet.Built choice = MED_snippet.expand("x${1|one,two,three|}y", blank());
+check.eq_str("choice: first one is the text", choice.text, "xoney");
+check.eq_int("choice: all of them kept", choice.stops[0].choices.size(), 3);
+check.eq_str("choice: escaped comma", MED_snippet.expand("${1|a\\,b,c|}", blank()).stops[0].choices[0], "a,b");
+check.eq_str("an unclosed placeholder is text", expanded("${1:abc"), "${1:abc");
+// --- variables
+MED_snippet.Context where = MED_snippet.Context();
+where.file_path = "/home/me/proj/src/main.test.m31";
+where.line_index = 6;
+where.current_line = "let x";
+where.current_word = "x";
+where.selected_text = "sel";
+where.clipboard = "clip";
+where.now = 1700000000;
+check.eq_str("TM_FILENAME", MED_snippet.expand("$TM_FILENAME", where).text, "main.test.m31");
+check.eq_str("TM_FILENAME_BASE", MED_snippet.expand("$TM_FILENAME_BASE", where).text, "main.test");
+check.eq_str("TM_DIRECTORY", MED_snippet.expand("$TM_DIRECTORY", where).text, "src");
+check.eq_str("TM_FILEPATH", MED_snippet.expand("$TM_FILEPATH", where).text, "/home/me/proj/src/main.test.m31");
+check.eq_str("line index and number", MED_snippet.expand("$TM_LINE_INDEX/$TM_LINE_NUMBER", where).text, "6/7");
+check.eq_str("current line and word", MED_snippet.expand("${TM_CURRENT_LINE}|$TM_CURRENT_WORD", where).text, "let x|x");
+check.eq_str("selected text and clipboard", MED_snippet.expand("$TM_SELECTED_TEXT $CLIPBOARD", where).text, "sel clip");
+check.eq_str("a variable that is empty takes its default", MED_snippet.expand("${TM_SELECTED_TEXT:none} ${CLIPBOARD:c}", blank()).text, "none c");
+check.eq_str("date", MED_snippet.expand("$CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE $CURRENT_HOUR:$CURRENT_MINUTE:$CURRENT_SECOND", where).text, "2023-11-14 22:13:20");
+check.eq_str("date names", MED_snippet.expand("$CURRENT_DAY_NAME $CURRENT_DAY_NAME_SHORT $CURRENT_MONTH_NAME $CURRENT_MONTH_NAME_SHORT $CURRENT_YEAR_SHORT", where).text, "Tuesday Tue November Nov 23");
+check.eq_str("unix seconds", MED_snippet.expand("$CURRENT_SECONDS_UNIX", where).text, "1700000000");
+check.eq_int("UUID has its shape", MED_snippet.expand("$UUID", where).text.size(), 36);
+check.eq_int("RANDOM_HEX", MED_snippet.expand("$RANDOM_HEX", where).text.size(), 6);
+// --- transforms
+check.eq_str("variable transform (greedy, as in JavaScript)", MED_snippet.expand("${TM_FILENAME/(.*)\\..+$/$1/}", where).text, "main.test");
+check.eq_str("variable transform with a global flag", MED_snippet.expand("${TM_FILENAME/\\./_/g}", where).text, "main_test_m31");
+check.eq_str("tabstop transform", MED_snippet.expand("${1:hello} ${1/(.)(.*)/${2}${1:/upcase}/}", blank()).text, "hello elloH");
+check.eq_str("upcase", MED_snippet.expand("${1:abc} ${1/(.*)/${1:/upcase}/}", blank()).text, "abc ABC");
+check.eq_str("capitalize and downcase", MED_snippet.expand("${1:aBc dEf} ${1/(.*)/${1:/capitalize}/} ${1/(.*)/${1:/downcase}/}", blank()).text, "aBc dEf ABc dEf abc def");
+check.eq_str("pascalcase", MED_snippet.expand("${1:my-file_name} ${1/(.*)/${1:/pascalcase}/}", blank()).text, "my-file_name MyFileName");
+check.eq_str("if, else", MED_snippet.expand("${1:ab} ${1/(a)(x)?/${2:?has x:no x}-${1:+has a}/}", blank()).text, "ab no x-has ab");
+check.eq_str("else only", MED_snippet.expand("${1:ab} ${1/(x)?b/${1:-none}/}", blank()).text, "ab anone");
+check.eq_str("lazy and classes", MED_snippet.transform_text(parse_transform("/(\\d+?)-([a-z]+)/$2:$1/"), "x 12-ab y"), "x ab:12 y");
+check.eq_str("alternation and options i", MED_snippet.transform_text(parse_transform("/FOO|bar/<$0>/gi"), "foo Bar baz"), "<foo> <Bar> baz");
+check.eq_str("escaped slash in the regex", MED_snippet.transform_text(parse_transform("/a\\/b/-/"), "a/b"), "-");
+check.eq_str("no match leaves the text", MED_snippet.transform_text(parse_transform("/x/y/"), "abc"), "abc");
+check.eq_str("empty matches", MED_snippet.transform_text(parse_transform("/x*/-/g"), "ab"), "-a-b-");
+check.eq_str("lookahead", MED_snippet.transform_text(parse_transform("/a(?=b)/X/g"), "ab ac"), "Xb ac");
+check.eq_str("vim regex of a group", MED_snippet.vim_regex_of("(a|b)+c{2,3}?"), "\\(a\\|b\\)\\+c\\{-2,3}");
+check.eq_str("vim regex of a class", MED_snippet.vim_regex_of("[\\d\\s]+~"), "[0-9 \\t]\\+\\~");
+// --- the session: gravity and jumps
+MED_snippet.Session session = MED_snippet.Session();
+MED_snippet.Tabstop one = MED_snippet.Tabstop();
+one.index = 1;
+one.srow = 0;
+one.scol = 2;
+one.erow = 0;
+one.ecol = 4;
+MED_snippet.Tabstop zero = MED_snippet.Tabstop();
+zero.index = 0;
+zero.srow = 0;
+zero.scol = 6;
+zero.erow = 0;
+zero.ecol = 6;
+session.stops = [one, zero];
+session.is_active = true;
+check.eq_int("the first jump goes to $1", session.dest_index(1), 1);
+check.eq_int("nothing before the first jump backwards", session.dest_index(-1), -1);
+session.current = 0;
+check.eq_int("then to $0", session.dest_index(1), 0);
+check.eq_int("$1 has nothing before it", session.dest_index(-1), -1);
+session.current = 1;
+check.eq_int("$0 jumps on to $1", session.dest_index(1), 1);
+check.eq_int("and not back", session.dest_index(-1), -1);
+session.set_group_gravity(1, true);
+session.adjust(0, 4, 0, 4, "xy");
+check.eq_int("typing at the end of the active tabstop grows it", session.stops[0].ecol, 6);
+check.eq_int("$0 moved with the text", session.stops[1].scol, 8);
+session.adjust(0, 2, 0, 2, "ab");
+check.eq_int("typing at its start grows it too", session.stops[0].scol, 2);
+check.eq_int("and its end moved", session.stops[0].ecol, 8);
+session.set_group_gravity(1, false);
+session.adjust(0, 2, 0, 2, "Q");
+check.eq_int("an inactive tabstop is pushed by text at its start", session.stops[0].scol, 3);
+session.adjust(0, 3, 0, 5, "");
+check.eq_int("a deletion at its start keeps the start", session.stops[0].scol, 3);
+check.eq_int("and takes the end in", session.stops[0].ecol, 7);
+// --- user snippet files
+List<MED_snippet.Entry> entries = MED_snippet.parse_user_file("{\"fn\": {\"prefix\": [\"fn\", \"func\"], \"body\": [\"fn ${1:name}() {\", \"\\t$0\", \"}\"], \"description\": \"a function\"}, \"lg\": {\"prefix\": \"lg\", \"body\": \"log($1)\", \"scope\": \"m31, rust\"}, \"bad\": {\"body\": \"x\"}, \"also bad\": 3}");
+check.eq_int("entries", entries.size(), 2);
+check.eq_str("name", entries[0].name, "fn");
+check.eq_str("prefixes", entries[0].prefixes.join(","), "fn,func");
+check.eq_str("body lines are joined", entries[0].body, "fn ${1:name}() {\n\t$0\n}");
+check.eq_str("scopes", entries[1].scopes.join(","), "m31,rust");
+check.eq_int("not JSON", MED_snippet.parse_user_file("not json").size(), 0);
+check.eq_int("not an object", MED_snippet.parse_user_file("[1, 2]").size(), 0);
+// --- the editor: Insert mode, Tab, Select mode, mirrors
+MED_editor.Editor editor = MED_editor.new("start");
+editor.opts.set("surround", "false");
+editor.opts.set("autopairs", "false");
+editor.col = 5;
+MED_ex.feed_keys(editor, [97]);
+check.eq_int("in insert mode", editor.mode, MED_editor.INSERT);
+MED_vim.expand_snippet(editor, "<${1:div}>$2</${1:div}>$0");
+check.eq_str("expanded", editor.buffer.line(0), "start<div></div>");
+check.ok("select mode over the placeholder", editor.mode == MED_editor.VISUAL && editor.is_select);
+check.eq_int("the cursor is at its start", editor.col, 6);
+MED_ex.feed_keys(editor, [112]);
+check.eq_str("a typed key replaces it, the mirror follows", editor.buffer.line(0), "start<p></p>");
+check.eq_int("insert mode again", editor.mode, MED_editor.INSERT);
+MED_ex.feed_keys(editor, [114, 101]);
+check.eq_str("typing goes on in both", editor.buffer.line(0), "start<pre></pre>");
+MED_ex.feed_keys(editor, [MED_key.TAB]);
+check.eq_int("Tab went to $2 (an empty stop: Insert mode)", editor.col, 10);
+check.ok("still a session", editor.snip.is_active);
+MED_ex.feed_keys(editor, [120]);
+check.eq_str("typed in $2", editor.buffer.line(0), "start<pre>x</pre>");
+MED_ex.feed_keys(editor, [MED_key.MOD_SHIFT | MED_key.TAB]);
+check.ok("Shift-Tab is back on $1 selected", editor.mode == MED_editor.VISUAL && editor.is_select);
+check.eq_int("at the start of $1", editor.col, 6);
+MED_ex.feed_keys(editor, [MED_key.TAB, MED_key.TAB]);
+check.eq_int("Tab, Tab: on $0 after the closing tag", editor.col, 17);
+MED_ex.feed_keys(editor, [33]);
+check.ok("typing at $0 ends the snippet", !editor.snip.is_active);
+MED_ex.feed_keys(editor, [MED_key.TAB]);
+check.eq_str("and Tab is a Tab again", editor.buffer.line(0), "start<pre>x</pre>!\t");
+MED_ex.feed_keys(editor, [27]);
+// Select mode: Backspace removes the selection and leaves Select mode, Esc keeps the cursor at the start
+MED_editor.Editor second = MED_editor.new("");
+second.opts.set("surround", "false");
+second.opts.set("autopairs", "false");
+MED_ex.feed_keys(second, [105]);
+MED_vim.expand_snippet(second, "a ${1:word} b");
+MED_ex.feed_keys(second, [127]);
+check.eq_str("Backspace deletes the selected placeholder", second.buffer.line(0), "a  b");
+check.eq_int("into Normal mode", second.mode, MED_editor.NORMAL);
+// Esc in Select mode, then the session is still there and Tab does not jump in Normal mode
+MED_editor.Editor third = MED_editor.new("");
+third.opts.set("surround", "false");
+third.opts.set("autopairs", "false");
+MED_ex.feed_keys(third, [105]);
+MED_vim.expand_snippet(third, "${1:one} ${2:two}");
+MED_ex.feed_keys(third, [27]);
+check.eq_int("Esc leaves Select mode", third.mode, MED_editor.NORMAL);
+check.eq_int("the cursor stays at its start", third.col, 0);
+// user snippets: the word before the cursor is a prefix, Tab expands it
+MED_editor.Editor fourth = MED_editor.new("");
+fourth.opts.set("surround", "false");
+fourth.opts.set("autopairs", "false");
+fourth.snippets = entries;
+fourth.snip_language = "m31";
+MED_ex.feed_keys(fourth, [105, 102, 110]);
+MED_ex.feed_keys(fourth, [MED_key.TAB]);
+check.eq_str("fn expanded", fourth.buffer.line(0), "fn name() {");
+check.ok("name selected", fourth.mode == MED_editor.VISUAL && fourth.is_select);
+MED_ex.feed_keys(fourth, [102, 111, 111]);
+check.eq_str("typed a name", fourth.buffer.line(0), "fn foo() {");
+MED_ex.feed_keys(fourth, [MED_key.TAB]);
+check.eq_int("Tab to $0 on the next line", fourth.row, 1);
+check.eq_str("the body is indented", fourth.buffer.line(1), "\t");
+MED_ex.feed_keys(fourth, [27]);
+// a prefix inside a word is not one, a scope that does not match is skipped
+MED_editor.Editor fifth = MED_editor.new("");
+fifth.opts.set("surround", "false");
+fifth.opts.set("autopairs", "false");
+fifth.snippets = entries;
+fifth.snip_language = "python";
+MED_ex.feed_keys(fifth, [105, 120, 108, 103]);
+MED_ex.feed_keys(fifth, [MED_key.TAB]);
+check.eq_str("lg is for m31 and rust only; Tab types a Tab", fifth.buffer.line(0), "xlg\t");
+fifth.snip_language = "m31";
+MED_ex.feed_keys(fifth, [27, 83, 120, 108, 103]);
+MED_ex.feed_keys(fifth, [MED_key.TAB]);
+check.eq_str("a prefix after a word character is not one", fifth.buffer.line(0), "xlg\t");
+MED_ex.feed_keys(fifth, [32, 108, 103, MED_key.TAB]);
+check.eq_str("after a blank it is", fifth.buffer.line(0), "xlg\t log()");
+check.finish("t_snippet");

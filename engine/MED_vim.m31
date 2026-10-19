@@ -29,6 +29,8 @@ import engine.MED_expr;
 import engine.MED_digraph;
 import engine.MED_screen;
 import engine.MED_autopair;
+import engine.MED_snipops;
+import engine.MED_snippet;
 
 void fail(MED_editor.Editor editor) {
     editor.is_failed = true;
@@ -6016,6 +6018,9 @@ pub void feed(MED_editor.Editor editor, int key) {
     int tick_before = editor.buffer.tick;
     feed_key(editor, key);
     try_restart(editor);
+    if (editor.snip.is_active) {
+        MED_snipops.after_key(editor);
+    }
     if (editor.buffer.tick != tick_before && editor.mode == MED_editor.NORMAL && editor.folds.size() > 0 && editor.row == editor.buffer.line_count() - 1) {
         // lines were deleted below the cursor: nvim's check_cursor_lnum() puts the cursor on the first line of a
         // closed fold that ends the buffer
@@ -6026,6 +6031,151 @@ pub void feed(MED_editor.Editor editor, int key) {
         }
     }
     MED_view.update(editor);
+}
+
+// ------------------------------------------------------------------------------------------------ snippets
+// engine/MED_snippet.m31 and MED_snipops.m31 hold the snippets; this is the part that needs the modes.
+
+/// Expand snippet `body` at the cursor (the insertion point in Insert mode, before the character in Normal mode) and
+/// jump to its first tabstop.
+pub void expand_snippet(MED_editor.Editor editor, str body) {
+    MED_snipops.Plan plan = MED_snipops.expand_at(editor, editor.row, editor.col, body);
+    apply_snippet_plan(editor, plan);
+    MED_snipops.after_key(editor);
+}
+
+// Put the cursor and the mode where a jump says: Insert at an empty or final tabstop, Select mode over a placeholder.
+void apply_snippet_plan(MED_editor.Editor editor, MED_snipops.Plan plan) {
+    if (plan.kind == MED_snipops.PLAN_NONE) {
+        return;
+    }
+    if (plan.kind == MED_snipops.PLAN_INSERT) {
+        if (editor.mode == MED_editor.VISUAL) {
+            editor.is_select = false;
+            leave_visual(editor);
+        }
+        if (editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE) {
+            editor.row = plan.row;
+            editor.col = plan.col;
+            editor.want_from_cursor();
+        } else {
+            editor.row = plan.row;
+            editor.col = plan.col;
+            if (plan.is_append) {
+                editor.col = editor.buffer.line_size(plan.row);
+                start_insert(editor, 65, 1, false);
+            } else {
+                start_insert(editor, 105, 1, false);
+            }
+        }
+    } else {
+        if (editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE) {
+            // nvim moves the cursor to the tabstop before the <Esc> it feeds runs, so an autoindent is tidied up there
+            editor.row = plan.row;
+            editor.col = plan.col;
+            finish_insert(editor);
+        } else if (editor.mode == MED_editor.VISUAL) {
+            leave_visual(editor);
+        }
+        editor.row = plan.end_row;
+        editor.col = plan.end_col;
+        enter_visual(editor, 118);
+        editor.is_select = true;
+        editor.row = plan.row;
+        editor.col = plan.col;
+        editor.want_from_cursor();
+    }
+    // nvim's CursorMoved handler does not see this move as the user's
+    editor.snip.last_row = editor.row;
+    editor.snip.last_col = editor.col;
+}
+
+// Keys the snippet code takes over: Tab and Shift-Tab in Insert mode (jump, or expand the word before the cursor as a
+// user snippet) and everything in Select mode. False passes the key on.
+bool did_handle_snippet_key(MED_editor.Editor editor, int key) {
+    if (editor.mode != MED_editor.VISUAL) {
+        editor.is_select = false;
+    }
+    if (editor.mode == MED_editor.VISUAL && editor.is_select) {
+        return did_handle_select_key(editor, key);
+    }
+    if (editor.mode != MED_editor.INSERT) {
+        return false;
+    }
+    bool is_tab = key == MED_key.TAB;
+    bool is_back_tab = key == (MED_key.MOD_SHIFT | MED_key.TAB);
+    if (!is_tab && !is_back_tab) {
+        return false;
+    }
+    if (editor.snip.is_active) {
+        int direction = 1;
+        if (is_back_tab) {
+            direction = -1;
+        }
+        if (editor.snip.dest_index(direction) >= 0) {
+            apply_snippet_plan(editor, MED_snipops.jump(editor, direction));
+            return true;
+        }
+    }
+    if (is_back_tab) {
+        // nvim types a Tab for Shift-Tab where nothing maps it
+        insert_key(editor, MED_key.TAB);
+        return true;
+    }
+    if (is_tab && editor.snippets.size() > 0) {
+        List<int> found = MED_snipops.find_prefix(editor);
+        if (found.size() == 2) {
+            MED_snippet.Entry entry = editor.snippets[found[0]];
+            MED_buffer.Pos start = MED_buffer.Pos(editor.row, found[1]);
+            editor.change(start, MED_buffer.Pos(editor.row, editor.col), "");
+            editor.col = found[1];
+            expand_snippet(editor, entry.body);
+            return true;
+        }
+    }
+    return false;
+}
+
+// A key in Select mode (a Visual selection a tabstop's placeholder left): Tab and Shift-Tab jump, a character or Enter
+// replaces the selection, Backspace and Delete remove it, Esc leaves; movement keys extend it like Visual mode.
+bool did_handle_select_key(MED_editor.Editor editor, int key) {
+    if (key == 27) {
+        editor.is_select = false;
+        return false;
+    }
+    if (key == 7) {
+        editor.is_select = false;
+        return true;
+    }
+    if (key == MED_key.TAB && editor.snip.is_active && editor.snip.dest_index(1) >= 0) {
+        apply_snippet_plan(editor, MED_snipops.jump(editor, 1));
+        return true;
+    }
+    if (key == (MED_key.MOD_SHIFT | MED_key.TAB)) {
+        if (editor.snip.is_active && editor.snip.dest_index(-1) >= 0) {
+            apply_snippet_plan(editor, MED_snipops.jump(editor, -1));
+        }
+        return true;
+    }
+    bool is_text = (key >= 32 && key < 127) || key == 13 || key == 10 || key == MED_key.TAB || (key >= 128 && key < 63232);
+    bool is_delete = key == 127 || key == 8 || key == 63240;
+    if (!is_text && !is_delete) {
+        return false;
+    }
+    editor.is_select = false;
+    // the keys run as typed: not recorded again by a macro, the selection goes to the black hole register
+    str recording = editor.macro_reg;
+    editor.macro_reg = "";
+    feed_key(editor, 34);
+    feed_key(editor, 95);
+    if (is_delete) {
+        feed_key(editor, 100);
+    } else {
+        feed_key(editor, 99);
+        feed_key(editor, key);
+    }
+    editor.macro_reg = recording;
+    return true;
 }
 
 // Back to Insert mode after the Normal command that CTRL-O allowed (Vim's
@@ -6086,6 +6236,9 @@ void feed_key(MED_editor.Editor editor, int key) {
         editor.macro_keys.push(key);
     }
     editor.is_char_done = false;
+    if (did_handle_snippet_key(editor, key)) {
+        return;
+    }
     if (editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE) {
         insert_key(editor, key);
         return;

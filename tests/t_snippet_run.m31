@@ -1,0 +1,122 @@
+// The engine half of the snippet oracle (tests/oracles/oracle_snippet.py).
+//
+// Usage: t_snippet_run CASES_FILE
+//
+// Each line is one case, tab separated:
+//
+//   index  hex(text)  row  col  hex(body)  key,key,key...
+//
+// It builds an Editor on the text, puts the cursor at (row, col) and types the keys; key 63300 expands the snippet body
+// at the cursor in the current mode. It prints one line: index, hex(text), row, col, mode (n i s v), the Visual anchor
+// row and column (or -), and whether a snippet is still active. The nvim driver (tests/oracles/snippet_driver.lua)
+// prints the same.
+
+import engine.MED_editor;
+import engine.MED_vim;
+import engine.MED_ex;
+import engine.MED_view;
+import encoding.hexcodec;
+import io;
+import os;
+
+const int EXPAND_KEY = 63300;
+
+str hex_of(str text) {
+    return hexcodec.encode(text.to_bytes());
+}
+
+str unhex(str digits) {
+    match (hexcodec.decode(digits)) {
+        case Ok(bytes data): {
+            match (data.utf8()) {
+                case Some(str text): {
+                    return text;
+                }
+                case None: {
+                    return "";
+                }
+            }
+        }
+        case Err(hexcodec.Error error): {
+            return "";
+        }
+    }
+}
+
+str mode_char(MED_editor.Editor editor) {
+    if (editor.mode == MED_editor.VISUAL) {
+        if (editor.is_select) {
+            return "s";
+        }
+        return "v";
+    }
+    if (editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE) {
+        return "i";
+    }
+    return "n";
+}
+
+str run_case(str line) {
+    List<str> fields = line.split("\t");
+    str text = unhex(fields[1]);
+    int row = fields[2].parse_int().or(0);
+    int col = fields[3].parse_int().or(0);
+    str body = unhex(fields[4]);
+    List<int> keys = [];
+    if (fields.size() > 5 && fields[5] != "") {
+        for (str piece in fields[5].split(",")) {
+            keys.push(piece.parse_int().or(0));
+        }
+    }
+    MED_editor.Editor editor = MED_editor.new("");
+    editor.opts.set("surround", "false");
+    editor.opts.set("autopairs", "false");
+    editor.buffer.lines = text.split("\n");
+    editor.init_marks();
+    editor.row = row;
+    editor.col = col;
+    editor.clamp();
+    editor.want_from_cursor();
+    MED_view.update(editor);
+    List<int> run = [];
+    for (int key in keys) {
+        if (key == EXPAND_KEY) {
+            MED_ex.feed_keys(editor, run);
+            run = [];
+            MED_vim.expand_snippet(editor, body);
+        } else {
+            run.push(key);
+        }
+    }
+    MED_ex.feed_keys(editor, run);
+    MED_ex.flush_maps(editor);
+    List<str> out = [fields[0], hex_of(editor.buffer.lines.join("\n")), editor.row.to_str(), editor.col.to_str(), mode_char(editor)];
+    if (editor.mode == MED_editor.VISUAL) {
+        out.push(editor.vrow.to_str());
+        out.push(editor.vcol.to_str());
+    } else {
+        out.push("-");
+        out.push("-");
+    }
+    if (editor.snip.is_active) {
+        out.push("1");
+    } else {
+        out.push("0");
+    }
+    return out.join("\t");
+}
+
+List<str> arguments = os.arguments();
+match (io.read(arguments[1])) {
+    case Ok(str content): {
+        for (str line in content.split("\n")) {
+            if (line.size() > 0) {
+                print(run_case(line));
+            }
+        }
+    }
+    case Err(io.Error error): {
+        print("error reading cases: " + error.to_str());
+        os.exit(2);
+    }
+}

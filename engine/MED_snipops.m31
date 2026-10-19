@@ -1,0 +1,309 @@
+// Snippet sessions on an Editor: expanding a snippet at a position, jumping between its tabstops, keeping the mirrors
+// of the tabstop being typed in up to date, and ending the session when the cursor leaves it. This follows nvim's
+// vim.snippet (runtime/lua/vim/snippet.lua); engine/MED_snippet.m31 has the parser and the ranges.
+//
+// What changes the mode (leaving Insert for Select mode, starting Insert at an empty tabstop) is for the caller:
+// `expand_at` and `jump` return a Plan that MED_vim applies with its own mode functions.
+//
+// API
+// ---
+//   MED_snipops.expand_at(editor, row, col, body)    Plan   insert the snippet at (row, col) and jump to its first stop
+//   MED_snipops.jump(editor, direction)               Plan   the next (1) or previous (-1) tabstop, kind NONE when there is none
+//   MED_snipops.after_key(editor)                            what nvim's CursorMoved / TextChanged handlers do
+//   MED_snipops.stop(editor)                                  end the session
+//   MED_snipops.find_prefix(editor)                   [entry, start column] of the user snippet the text before the cursor ends in, or []
+
+import engine.MED_editor;
+import engine.MED_snippet;
+import engine.MED_buffer;
+import engine.MED_text;
+import engine.MED_register;
+
+pub const int PLAN_NONE = 0;
+pub const int PLAN_INSERT = 1;
+pub const int PLAN_SELECT = 2;
+
+/// Where the cursor and the mode go after a jump.
+pub type Plan {
+    pub int kind = 0;
+    pub int row = 0;
+    pub int col = 0;
+    /// PLAN_SELECT: the far end of the selection (inclusive); the cursor is at (row, col), the start.
+    pub int end_row = 0;
+    pub int end_col = 0;
+    /// PLAN_INSERT: start Insert after the last character of the line (`A`), not before the cursor character.
+    pub bool is_append = false;
+}
+
+bool is_word_byte(int byte) {
+    return (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95 || byte >= 128;
+}
+
+// <cword>: the word under the cursor, or the next one to its right on the line.
+str word_at(str line, int col) {
+    int scan = col;
+    while (scan < line.size() && !is_word_byte(line.byte_at(scan))) {
+        scan = scan + 1;
+    }
+    if (scan >= line.size()) {
+        return "";
+    }
+    int from = scan;
+    while (from > 0 && is_word_byte(line.byte_at(from - 1))) {
+        from = from - 1;
+    }
+    int finish = scan;
+    while (finish < line.size() && is_word_byte(line.byte_at(finish))) {
+        finish = finish + 1;
+    }
+    return line.substr(from, finish);
+}
+
+/// What a snippet expanded at (row, col) of `editor` can read.
+pub MED_snippet.Context context_for(MED_editor.Editor editor, int row, int col) {
+    MED_snippet.Context context = MED_snippet.Context();
+    str line = editor.buffer.line(row);
+    int blank = MED_text.first_nonblank(line);
+    context.base_indent = line.substr(0, blank);
+    context.is_expandtab = editor.is_expandtab;
+    context.shiftwidth = editor.shift_size();
+    context.line_index = row;
+    context.current_line = line;
+    context.current_word = word_at(line, col);
+    context.file_path = editor.snip_path;
+    context.relative_path = editor.file_name;
+    context.now = editor.snip_now;
+    context.seed = editor.snip_now + row * 31 + col;
+    match (editor.regs.get("+")) {
+        case Some(MED_register.Reg reg): {
+            context.clipboard = reg.lines.join("\n");
+        }
+        case None: {
+        }
+    }
+    return context;
+}
+
+/// End the session: the tabstops stop following the text.
+pub void stop(MED_editor.Editor editor) {
+    editor.snip = MED_snippet.Session();
+}
+
+// The position the text before `offset` of `text` ends at, when the text starts at (row, col).
+List<int> offset_position(int row, int col, str text, int offset) {
+    return MED_snippet.position_after(row, col, text.substr(0, offset));
+}
+
+/// Insert snippet `body` at (row, col), make it the session (an earlier one is dropped) and jump to its first tabstop.
+pub Plan expand_at(MED_editor.Editor editor, int row, int col, str body) {
+    stop(editor);
+    MED_snippet.Context context = context_for(editor, row, col);
+    MED_snippet.Built built = MED_snippet.expand(body, context);
+    MED_buffer.Pos insertion = MED_buffer.Pos(row, col);
+    editor.change(insertion, insertion, built.text);
+    MED_snippet.Session session = MED_snippet.Session();
+    session.is_active = true;
+    session.region_srow = row;
+    session.region_scol = col;
+    List<int> end = MED_snippet.position_after(row, col, built.text);
+    session.region_erow = end[0];
+    session.region_ecol = end[1];
+    for (MED_snippet.Stop stop_item in built.stops) {
+        MED_snippet.Tabstop tabstop = MED_snippet.Tabstop();
+        tabstop.index = stop_item.index;
+        List<int> from = offset_position(row, col, built.text, stop_item.start);
+        List<int> finish = offset_position(row, col, built.text, stop_item.end);
+        tabstop.srow = from[0];
+        tabstop.scol = from[1];
+        tabstop.erow = finish[0];
+        tabstop.ecol = finish[1];
+        tabstop.choices = stop_item.choices;
+        tabstop.transform = stop_item.transform;
+        session.stops.push(tabstop);
+    }
+    // the insertion is a change nvim's TextChanged handler has not seen yet (it ends a snippet that came to nothing)
+    session.tick = editor.buffer.tick - 1;
+    editor.snip = session;
+    return jump(editor, 1);
+}
+
+/// Jump to the next (1) or previous (-1) tabstop.
+pub Plan jump(MED_editor.Editor editor, int direction) {
+    Plan plan = Plan();
+    MED_snippet.Session session = editor.snip;
+    if (!session.is_active) {
+        return plan;
+    }
+    int destination = session.dest_index(direction);
+    if (destination < 0) {
+        return plan;
+    }
+    // the tabstop of that index that comes first in the text
+    int best = -1;
+    for (int position in 0 .. session.stops.size()) {
+        MED_snippet.Tabstop stop_item = session.stops[position];
+        if (stop_item.index != destination) {
+            continue;
+        }
+        if (best < 0) {
+            best = position;
+            continue;
+        }
+        MED_snippet.Tabstop other = session.stops[best];
+        if (stop_item.srow < other.srow || (stop_item.srow == other.srow && stop_item.scol < other.scol)) {
+            best = position;
+        }
+    }
+    if (best < 0) {
+        return plan;
+    }
+    int old_index = 0;
+    if (session.current >= 0) {
+        old_index = session.stops[session.current].index;
+    }
+    session.set_group_gravity(old_index, false);
+    session.current = best;
+    MED_snippet.Tabstop target = session.stops[best];
+    bool is_empty = target.srow == target.erow && target.scol == target.ecol;
+    if (is_empty || target.index == 0) {
+        plan.kind = PLAN_INSERT;
+        plan.row = target.srow;
+        plan.col = target.scol;
+        plan.is_append = target.ecol >= editor.buffer.line_size(target.srow);
+    } else {
+        plan.kind = PLAN_SELECT;
+        plan.row = target.srow;
+        plan.col = target.scol;
+        plan.end_row = target.erow;
+        plan.end_col = target.ecol - 1;
+        if (plan.end_col < 0) {
+            plan.end_col = 0;
+        }
+    }
+    session.set_group_gravity(destination, true);
+    return plan;
+}
+
+// The text of a range.
+str range_text(MED_editor.Editor editor, MED_snippet.Tabstop stop_item) {
+    if (stop_item.erow < stop_item.srow || (stop_item.erow == stop_item.srow && stop_item.ecol < stop_item.scol)) {
+        // an empty tabstop next to the text typed in another one ends up before its own start (nvim raises an error there)
+        return "";
+    }
+    return editor.buffer.text(MED_buffer.Pos(stop_item.srow, stop_item.scol), MED_buffer.Pos(stop_item.erow, stop_item.ecol));
+}
+
+// The tabstops with the index of the current one take its text (nvim's TextChanged handler).
+void sync(MED_editor.Editor editor) {
+    MED_snippet.Session session = editor.snip;
+    if (session.current < 0) {
+        return;
+    }
+    MED_snippet.Tabstop current = session.stops[session.current];
+    str text = range_text(editor, current);
+    for (int position in 0 .. session.stops.size()) {
+        if (position == session.current || !editor.snip.is_active) {
+            continue;
+        }
+        MED_snippet.Tabstop mirror = session.stops[position];
+        if (mirror.index != current.index) {
+            continue;
+        }
+        str wanted = MED_snippet.transform_text(mirror.transform, text);
+        if (range_text(editor, mirror) == wanted) {
+            continue;
+        }
+        MED_buffer.Pos from = MED_buffer.Pos(mirror.srow, mirror.scol);
+        MED_buffer.Pos mirror_end = MED_buffer.Pos(mirror.erow, mirror.ecol);
+        if (mirror_end.row < from.row || (mirror_end.row == from.row && mirror_end.col < from.col)) {
+            mirror_end = from;
+        }
+        editor.change(from, mirror_end, wanted);
+        // the cursor follows the text like a mark
+        List<int> end = MED_snippet.position_after(from.row, from.col, wanted);
+        List<int> landed = MED_snippet.mark_moved(editor.row, editor.col, from.row, from.col, mirror_end.row, mirror_end.col, end, true);
+        editor.row = landed[0];
+        editor.col = landed[1];
+    }
+}
+
+/// What nvim's CursorMoved(I) and TextChanged(I) handlers do after a key: end the session when the cursor left the
+/// snippet or stands on no tabstop other than $0, or the snippet was deleted; else update the mirrors.
+pub void after_key(MED_editor.Editor editor) {
+    MED_snippet.Session session = editor.snip;
+    if (!session.is_active) {
+        return;
+    }
+    bool is_typing_mode = editor.mode == MED_editor.INSERT || (editor.mode == MED_editor.VISUAL && editor.is_select);
+    bool is_moved = editor.row != session.last_row || editor.col != session.last_col;
+    if (is_moved) {
+        session.last_row = editor.row;
+        session.last_col = editor.col;
+        if (is_typing_mode) {
+            bool is_before = editor.row < session.region_srow || (editor.row == session.region_srow && editor.col < session.region_scol);
+            bool is_after = editor.row > session.region_erow || (editor.row == session.region_erow && editor.col > session.region_ecol);
+            if (is_before || is_after) {
+                stop(editor);
+                return;
+            }
+            bool is_on_stop = false;
+            for (MED_snippet.Tabstop stop_item in session.stops) {
+                if (stop_item.index == 0) {
+                    continue;
+                }
+                bool is_from = editor.row > stop_item.srow || (editor.row == stop_item.srow && editor.col >= stop_item.scol);
+                bool is_to = editor.row < stop_item.erow || (editor.row == stop_item.erow && editor.col <= stop_item.ecol);
+                if (is_from && is_to) {
+                    is_on_stop = true;
+                }
+            }
+            if (!is_on_stop) {
+                stop(editor);
+                return;
+            }
+        }
+    }
+    if (editor.buffer.tick != session.tick) {
+        bool is_gone = (session.region_srow == session.region_erow && session.region_scol == session.region_ecol) || session.region_erow + 1 > editor.buffer.line_count();
+        if (is_gone) {
+            stop(editor);
+            return;
+        }
+        sync(editor);
+        if (editor.snip.is_active) {
+            editor.snip.tick = editor.buffer.tick;
+        }
+    }
+}
+
+/// The user snippet whose prefix the text before the cursor ends in (the longest one, standing alone as a word):
+/// [position in `editor.snippets`, column where the prefix starts], or [].
+pub List<int> find_prefix(MED_editor.Editor editor) {
+    str line = editor.buffer.line(editor.row);
+    str before = line.substr(0, editor.col);
+    int best_entry = -1;
+    int best_start = 0;
+    int best_size = 0;
+    for (int position in 0 .. editor.snippets.size()) {
+        MED_snippet.Entry entry = editor.snippets[position];
+        if (entry.scopes.size() > 0 && !entry.scopes.contains(editor.snip_language)) {
+            continue;
+        }
+        for (str prefix in entry.prefixes) {
+            if (prefix.size() == 0 || prefix.size() <= best_size || !before.ends_with(prefix)) {
+                continue;
+            }
+            int start = before.size() - prefix.size();
+            if (start > 0 && is_word_byte(prefix.byte_at(0)) && is_word_byte(before.byte_at(start - 1))) {
+                continue;
+            }
+            best_entry = position;
+            best_start = start;
+            best_size = prefix.size();
+        }
+    }
+    if (best_entry < 0) {
+        return [];
+    }
+    return [best_entry, best_start];
+}

@@ -307,6 +307,10 @@ A plugin can be switched off with `:PluginDisable NAME`; its rows then disappear
 | `<A-h>/<A-l>` | Normal | Normal and Visual: shift the line or selection left / right | move | m3 |
 | `<C-q>` | Normal | Picker: send the marked (or all) entries to the quickfix list | finder | m3 |
 | `<C-t>` | Normal | Picker: mark or unmark the entry | finder | m3 |
+| `<Tab>` | Insert | Insert and Select mode: jump to the next snippet tabstop (an active snippet; nvim 0.11's default) | core | vim |
+| `<S-Tab>` | Insert | Insert and Select mode: jump to the previous snippet tabstop (Insert mode types a Tab otherwise, as nvim does) | core | vim |
+| `<Tab>` | Insert | Insert mode: expand the snippet whose prefix stands before the cursor (snippets.json, VS Code format, next to the keymap file) | core | m3 |
+| `Select` | Insert | Select mode (after a jump onto a placeholder): a typed character or <CR> replaces it, <BS> and <Del> remove it, <Esc> leaves, <C-g> turns it into Visual mode | core | vim |
 
 ## Built-in plugins
 

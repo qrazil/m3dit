@@ -37,6 +37,7 @@ import ui.MED_grep;
 import engine.MED_key;
 import engine.MED_listing;
 import engine.MED_hl;
+import engine.MED_snippet;
 import engine.MED_map;
 import ui.MED_keymap;
 import encoding.json;
@@ -286,6 +287,8 @@ pub type App {
     bool is_tree_pending_g = false;
     /// The syntax language of the window being drawn ("": none).
     str syntax_lang = "";
+    /// The directory the working path of a snippet's $TM_FILEPATH is built on (read once).
+    str snip_cwd = "";
     /// Where the active window's cursor was drawn.
     pub int cursor_x = 0;
     pub int cursor_y = 0;
@@ -3893,6 +3896,7 @@ pub TUI_app.Action App.handle(term.Event event) {
     editor.view_height = current_text_rows();
     editor.file_name = path;
     editor.user_commands = ext_commands;
+    note_snippet_context();
     map_ms = 0;
     prefix_ms = 0;
     is_prefix_help = false;
@@ -4266,6 +4270,9 @@ str App.mode_name() {
         return "COMMAND";
     }
     if (editor.mode == MED_editor.VISUAL) {
+        if (editor.is_select) {
+            return "SELECT";
+        }
         if (editor.vkind == VKIND_CHAR) {
             return "VISUAL";
         }
@@ -4292,7 +4299,7 @@ str App.mode_scope() {
     if (name == "TERMINAL") {
         return "terminal";
     }
-    if (name.starts_with("V")) {
+    if (name.starts_with("V") || name == "SELECT") {
         return "visual";
     }
     return "normal";
@@ -7129,6 +7136,79 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
     }
 }
 
+// ---------------------------------------------------------------- snippets (engine/MED_snippet.m31, MED_snipops.m31)
+
+/// Read the user's snippets: `snippets.json` and `snippets/LANGUAGE.json` (entries that apply to that language) next to
+/// the keymap file `file`, in VS Code's snippet format.
+pub void App.load_snippets(str file) {
+    int slash = -1;
+    for (int index in 0 .. file.size()) {
+        if (file.byte_at(index) == 47) {
+            slash = index;
+        }
+    }
+    if (slash < 0) {
+        return;
+    }
+    str directory = file.substr(0, slash);
+    List<MED_snippet.Entry> all = [];
+    match (io.read(directory + "/snippets.json")) {
+        case Ok(str content): {
+            for (MED_snippet.Entry entry in MED_snippet.parse_user_file(content)) {
+                all.push(entry);
+            }
+        }
+        case Err(io.Error error): {
+        }
+    }
+    match (fs.listdir(directory + "/snippets")) {
+        case Ok(List<str> names): {
+            for (str name in names) {
+                if (!name.ends_with(".json")) {
+                    continue;
+                }
+                match (io.read(directory + "/snippets/" + name)) {
+                    case Ok(str content): {
+                        List<MED_snippet.Entry> found = MED_snippet.parse_user_file(content);
+                        for (int position in 0 .. found.size()) {
+                            MED_snippet.Entry entry = found[position];
+                            if (entry.scopes.size() == 0) {
+                                entry.scopes = [name.substr(0, name.size() - 5)];
+                            }
+                            all.push(entry);
+                        }
+                    }
+                    case Err(io.Error error): {
+                    }
+                }
+            }
+        }
+        case Err(io.Error error): {
+        }
+    }
+    editor.snippets = all;
+    for (Slot slot in slots) {
+        MED_editor.Editor holder = slot.editor;
+        holder.snippets = all;
+    }
+}
+
+// What a snippet reads from the world: the language, the file, the time.
+void App.note_snippet_context() {
+    if (editor.snippets.size() > 0) {
+        editor.snip_language = MED_hl.language(editor);
+    }
+    editor.snip_now = date.now();
+    if (path.size() == 0 || path.starts_with("/")) {
+        editor.snip_path = path;
+        return;
+    }
+    if (snip_cwd.size() == 0) {
+        snip_cwd = MED_projconf.absolute_path(".");
+    }
+    editor.snip_path = snip_cwd + "/" + path;
+}
+
 /// Insert completion item `which` in place of the word before the cursor
 /// (or over the item's own `textEdit` range), cursor after the text.
 void App.accept_completion(int which) {
@@ -7165,8 +7245,12 @@ void App.accept_completion(int which) {
             inserted = edited;
         }
     }
-    if (MED_lsp.int_of(MED_lsp.member(item, "insertTextFormat"), 1) == 2) {
-        inserted = MED_lsp.plain_snippet(inserted);
+    bool is_snippet = MED_lsp.int_of(MED_lsp.member(item, "insertTextFormat"), 1) == 2;
+    str snippet_body = "";
+    if (is_snippet) {
+        // the snippet engine expands it where the range was (tabstops, placeholders, mirrors)
+        snippet_body = inserted;
+        inserted = "";
     }
     List<MED_lsp.TextEdit> edits = [MED_lsp.TextEdit(row_from, from_units, row_to, to_units, inserted)];
     for (MED_lsp.TextEdit extra in MED_lsp.edits_of(MED_lsp.member(item, "additionalTextEdits"))) {
@@ -7177,6 +7261,13 @@ void App.accept_completion(int which) {
     }
     // the cursor goes after the inserted text
     int start_byte = MED_lsp.byte_of(line_text, from_units);
+    if (is_snippet) {
+        editor.row = row_from;
+        editor.col = start_byte;
+        editor.clamp();
+        MED_vim.expand_snippet(editor, snippet_body);
+        return;
+    }
     List<str> pieces = inserted.split("\n");
     editor.row = row_from + pieces.size() - 1;
     if (pieces.size() == 1) {
@@ -8028,6 +8119,7 @@ void share_state(MED_editor.Editor from, MED_editor.Editor into) {
     into.find = from.find;
     into.is_hexupper = from.is_hexupper;
     into.tab = from.tab;
+    into.snippets = from.snippets;
     into.shiftwidth = from.shiftwidth;
     into.textwidth = from.textwidth;
     into.view_width = from.view_width;
