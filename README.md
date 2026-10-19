@@ -143,6 +143,12 @@ More
 - Git gutter: `+` added, `~` changed, `_` removed lines against HEAD in a sign column, `]c` / `[c` to jump between changes
   (`:set nogitsigns` turns it off). Lower-case marks show as letters in the same column; `:marks`, `:registers`, `:jumps`,
   `:changes` list as Vim does and `<Space>fm` is a marks picker.
+- Git in process (`m31git`): the gutter's base text, `<Space>gB` blame, hunk staging and the `:Git` read commands read and
+  write the repository themselves (loose and packed objects, linked worktrees, SHA-256); a repository the library cannot
+  read (a version 4 index, a partial clone) falls back to `git`. `:Git log [FILE|%] [-L A,B]` and `:Git blame` are lists in
+  the finder with a commit preview (`Enter` on a blame row jumps to the line), `:Git show [REV]` and `:Git diff
+  [working|index|head]` open scratch buffers. `:Hunk stage|reset|undo|preview` act on the hunk under the cursor
+  (`undo` unstages it); `ih` / `ah` select the hunk (`ah` adds the blank rows after it), as in `dih`, `yah`, `vih`.
 - System clipboard: `"+` and `"*` use pbcopy / pbpaste (macOS), wl-clipboard, xclip or xsel; `:set clipboard=unnamedplus` makes
   every yank and put use it.
 - Windows: `:resize`, `:vertical resize`, `<C-w>` `+ - < > _ | =` `H J K L` `r R x T`; closing a modified buffer's last window is E37.
@@ -229,7 +235,7 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 | finder | `<Space>ff fg fr fb fd fq fh fc fk fo fm fx fs ft fw` | files, live grep, recent, buffers, lines of the buffer, quickfix, keys, commands, options, marks, diagnostics, symbols, TODOs, word under cursor; `<C-t>` marks, `<C-q>` sends to quickfix |
 | whichkey | after 400 ms of any pending prefix | `<Space>`, `g`, `z`, `[`, `]`, `<C-w>`, `"`, `'`, operators |
 | explorer | `<Space>e` | file tree sidebar (see below) |
-| git | `<Space>gg gf gb gc gC gs gr gp gB gt`, `]c [c ]h [h` | changed files, branch checkout, remote branches, commit log with preview, hunk stage / reset / preview, blame line, signs |
+| git | `<Space>gg gf gb gc gC gs gr gp gu gB gl gd gm gt`, `]c [c ]h [h`, `ih ah`, `:Git`, `:Hunk` | changed files, branch checkout, remote branches, commit log with preview, hunk stage / unstage / reset / preview, blame line and list, file log, diff, signs; the reads and the staging run in process (see below) |
 | surround | `ys ds cs`, Visual `S`, `<Space>sa sd sr` | vim-surround |
 | comment | `gc` `gcc` | language-aware toggle |
 | autopairs | insert mode | bracket and quote pairing |
@@ -363,15 +369,18 @@ Colour depth follows `COLORTERM` / `TERM`; `--no-mouse` (or `M3_NO_MOUSE=1`) lea
     bash scripts/build.sh                 # -> ./m3   (bash scripts/build.sh -o NAME to rename)
     ./m3 FILE...
 
-Needs m31 v0.4.3 or later (the `proc` module); the first compile fetches the pinned `tui` into
-`.m31-deps/` (the commit is in `deps`, recorded in `deps.lock`).
+Needs m31 v0.4.3 or later (the `proc` module); the first compile fetches the pinned `tui`, `syntax` and `m31git`
+into `.m31-deps/` (the commits are in `deps`, recorded in `deps.lock`). `m31git` (github.com/qrazil/m31git) is the
+git library the editor reads repositories with; its pinned `tui` must be the same commit as ours (m31 allows one source
+per dependency), see docs/ROADMAP.md item 12.
 
 ## Test
 
     M31_ROOT=... LANGC=... bash tests/test.sh
 
 `tests/test.sh` is the single entry point: `m31c fmt --check -r .`, `m31c lint .`,
-the unit programs (`tests/test_units.sh`), the nvim oracles
+the unit programs (`tests/test_units.sh`), the git oracle (`tests/oracles/oracle_git.py`: the in-process git against real
+`git` on twin repositories, and `tests/git_pty.py`), the nvim oracles
 (`tests/test_engine.sh`, skipped with a note when `nvim` is missing) and pty end-to-end
 runs of the real binary (`tests/e2e.py`, which needs `pyte`: `pip install pyte`; skipped with a note
 otherwise). The oracles need `nvim` 0.11 and `python3`. `bash scripts/oracle.sh --fuzz --seed 7 --cases 500`
@@ -411,8 +420,8 @@ Options: `:set treeglyphs` (Nerd Font icons), `:set treewidth=40`, `:set treehid
                        buffer text charclass case key parse num nrfmt motion textobj
                        register regex search editor ex vim view
     ui/                drawing, input and navigation
-                       app keymap plugin window picker picker_view fuzzy files grep ignore tree git clip
-                       sources state vt lsp shell theme theme_data sample
+                       app keymap plugin window picker picker_view fuzzy files grep ignore tree git gitlib gitcmd
+                       clip sources state vt lsp shell theme theme_data sample
     themes/            the built-in themes as .toml (scripts/gen_themes.sh embeds them in ui/MED_theme_data.m31)
     tests/             test.sh (entry), t_*.m31 unit programs, MED_check.m31, oracles/
     scripts/           build.sh, oracle.sh, gen_keymap.sh (docs/KEYMAP.md from the keymap table), gen_themes.sh

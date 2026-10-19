@@ -85,6 +85,14 @@ Each row: scope; reference behaviour; test; dependencies; size; decision.
 | 13 | `:Git` read commands over the library: log (file, line range), show, diff (HEAD, index, working), blame as a picker with preview | fugitive read side | pty scenario | 12 | M | Read only. Writes stay hunk stage/reset and `<Space>g` suspending into `gitui`/`mgit` for anything else (DESIGN row "fugitive: never in medit") |
 | 14 | Hunk text objects `ih` / `ah`, `:Gitsigns`-style `:Hunk stage|reset|undo|preview` | gitsigns | unit | 12 | S | Cheap once hunks are in-process |
 
+Status of items 12 to 14 (branch `git-lib`, Unreleased in CHANGELOG.md): done. Decision D3 numbers: the library adds 17.6
+percent to the binary and about 6.5 s to a clean build (inside the 30 percent and 40 s limits), so it is the default and
+there is no build switch. Open: `m31git` v0.27.0 pins `tui` v0.8.0 and m3 needs v0.9.1 or later; m31 refuses two sources
+for one dependency, so a clean fetch-and-build needs an m31git release whose `deps` names the same `tui` as ours. Until
+then the build uses an `.m31-deps/m31git` whose `deps` and `deps.lock` name our `tui` commit (the only difference from the
+v0.27.0 tag). Item 13's `-L` follows first parents; the library has no merge-aware line history. Item 14 uses `:Hunk
+stage|reset|undo|preview` (`undo` unstages) and the objects `ih` / `ah`.
+
 ### 0.10.0 Language intelligence completion
 
 | # | Item | Reference | Test | Deps | Size | Decision and reason |

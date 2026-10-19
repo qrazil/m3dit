@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+Git in process: docs/ROADMAP.md items 12 to 14, decision D3 (m3 depends on `m31git`, github.com/qrazil/m31git, as a
+pinned git dependency, v0.27.0). The git gutter, blame, hunk staging and the new `:Git` read commands no longer start a
+`git` process; a repository the library cannot read goes to `git` as before.
+
+- Dependency: `deps` and `deps.lock` pin `m31git` v0.27.0 (`f40dc27`). Build cost, measured on this machine with m31
+  v0.6.0 (clean `scripts/build.sh`, two runs each): binary 3,185,296 to 3,744,784 bytes (+17.6 percent; stripped
+  2,682,048 to 3,152,960), build 61.3 / 65.6 s to 69.3 / 70.7 s (+6.5 s, +10 percent; nearly all of it is the C
+  compiler, `m31c` itself takes about one second). Under the thresholds set with D3 (30 percent size, 40 s), so the
+  library is the default and there is no build switch. **A clean build needs m31git to pin the same `tui` as m3**: v0.27.0
+  pins `tui` v0.8.0 and m3 needs v0.9.1 or later, and m31 refuses two sources for one dependency; see the roadmap note.
+- Gutter and `<Space>gB`: the base text (index, else HEAD) and the blame of a line are read from the object store
+  (`ui/MED_gitlib.m31`: loose and packed objects, linked worktrees, SHA-256 repositories). A version 4 index, a missing
+  object (partial clone) or a non-UTF-8 file falls back to `git show` / `git blame`. A line the buffer changed says
+  "Not committed yet".
+- `:Git log [FILE|%] [-L A,B]`, `:Git show [REV]`, `:Git diff [working|index|head]`, `:Git blame`: lists in the finder
+  (with a `git show` preview from the library) for log and blame, scratch buffers for show and diff. `-L` follows first
+  parents (`git log --first-parent -L`). Read only; the preview of every commit list, and `git:show`, use the library too.
+  Keys: `<Space>gl` (log of the file), `gd`, `gm` (blame list), `gu` (unstage hunk).
+- `:Hunk stage|reset|undo|preview`: `stage` writes the index in process (a new blob and an index entry with zeroed stat
+  fields, so `git status` compares content), `undo` unstages the staged hunk under the cursor, `reset` and `preview` are
+  the `<Space>gr` / `gp` actions. Staging no longer uses `git apply --unidiff-zero`, which put a pure addition in the wrong
+  place when an earlier hunk had changed the line count (the patch's new-side line numbers are only a hint to git).
+- Text objects `ih` (the rows of the hunk) and `ah` (the same plus the blank rows after it) in operator-pending and
+  Visual mode. A removal-only hunk has no rows, so there is nothing to select.
+- Fixed: resetting a hunk of lines appended at the end of the file trapped (`index out of range`) with the cursor past
+  the last row.
+- Tests: `tests/t_gitlib.m31` (60 checks of the pure parts), `tests/oracles/oracle_git.py` over `tests/t_gitlib_run.m31`
+  (329 checks against real `git`: gutter base, blame, `log`, `log -L`, `show`, `diff` in three forms, twin repositories
+  for hunk stage / reset / undo compared with `git add|restore|reset -p` on index, work tree, refs and status, `fsck`,
+  a linked worktree, SHA-256, a version 4 index, a 100,000-line timing check), `tests/git_pty.py` (the commands in the
+  real binary).
+- Known limits: the index is rewritten without its extensions (`TREE`, `UNTR`, `link`), as the library writes it, and
+  without `index.lock` (the call refuses when one exists); a hunk is staged from the buffer, so a buffer that dropped
+  its final newline stages the file's line ends as the index had them; `:Git show` of a merge shows the first-parent
+  diff, not git's combined diff.
+
 ## 0.11.0
 
 Editing depth: the 0.8.0 group of docs/ROADMAP.md (items 7 to 11) and the part of item 6 that 0.7.0 left, each checked
