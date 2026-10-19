@@ -150,4 +150,131 @@ check.ok("an all-commit character", waiting.is_commit_character(json.Value.Null,
 check.ok("not a commit character", !waiting.is_commit_character(json.Value.Null, ","));
 check.ok("an item's own commit characters win", !waiting.is_commit_character(MED_lsp.object(["commitCharacters"], [json.Value.Array([MED_lsp.text("(")])]), ";"));
 waiting.stop();
+
+// incremental changes: the one change event turns the old document into the new one
+json.Value parsed_json(str body) {
+    match (json.parse(body)) {
+        case Ok(json.Value value): {
+            return value;
+        }
+        case Err(json.Error error): {
+            return json.Value.Null;
+        }
+    }
+}
+
+// the event applied to `before` (rows plus the empty row after the final line break) gives `after`
+bool is_equivalent(List<str> before, List<str> after) {
+    json.Value event = MED_lsp.change_of(before, after);
+    if (MED_lsp.is_null(event)) {
+        return before.join("\n") == after.join("\n");
+    }
+    json.Value range = MED_lsp.member(event, "range");
+    json.Value start = MED_lsp.member(range, "start");
+    json.Value finish = MED_lsp.member(range, "end");
+    MED_lsp.TextEdit edit = MED_lsp.TextEdit(MED_lsp.int_of(MED_lsp.member(start, "line"), 0), MED_lsp.int_of(MED_lsp.member(start, "character"), 0), MED_lsp.int_of(MED_lsp.member(finish, "line"), 0), MED_lsp.int_of(MED_lsp.member(finish, "character"), 0), MED_lsp.text_of(MED_lsp.member(event, "text")));
+    List<str> padded_before = before.slice(0, before.size());
+    padded_before.push("");
+    List<str> padded_after = after.slice(0, after.size());
+    padded_after.push("");
+    return MED_lsp.apply_edits(padded_before, [edit]).join("\n") == padded_after.join("\n");
+}
+
+json.Value one_event = MED_lsp.change_of(["hello world", "second"], ["hello there", "second"]);
+check.eq_str("a character change is a ranged text", MED_lsp.text_of(MED_lsp.member(one_event, "text")), "there");
+check.eq_int("it starts after the common prefix", MED_lsp.int_of(MED_lsp.member(MED_lsp.member(MED_lsp.member(one_event, "range"), "start"), "character"), -1), 6);
+check.eq_int("it ends before the common suffix", MED_lsp.int_of(MED_lsp.member(MED_lsp.member(MED_lsp.member(one_event, "range"), "end"), "character"), -1), 11);
+check.ok("no change is null", MED_lsp.is_null(MED_lsp.change_of(["a", "b"], ["a", "b"])));
+json.Value inserted_rows = MED_lsp.change_of(["a", "d"], ["a", "b", "c", "d"]);
+check.eq_str("inserted rows are the rows and a line break", MED_lsp.text_of(MED_lsp.member(inserted_rows, "text")), "b\nc\n");
+check.eq_int("at the start of the next row", MED_lsp.int_of(MED_lsp.member(MED_lsp.member(MED_lsp.member(inserted_rows, "range"), "start"), "line"), -1), 1);
+json.Value deleted_rows = MED_lsp.change_of(["a", "b", "c", "d"], ["a", "d"]);
+check.eq_str("deleted rows have no text", MED_lsp.text_of(MED_lsp.member(deleted_rows, "text")), "");
+check.eq_int("the range ends at the start of the row after", MED_lsp.int_of(MED_lsp.member(MED_lsp.member(MED_lsp.member(deleted_rows, "range"), "end"), "line"), -1), 3);
+json.Value wide = MED_lsp.change_of(["a\u{1f600}b"], ["a\u{1f600}c"]);
+check.eq_int("columns are UTF-16 units", MED_lsp.int_of(MED_lsp.member(MED_lsp.member(MED_lsp.member(wide, "range"), "start"), "character"), -1), 3);
+check.ok("append at the end of the document", is_equivalent(["a"], ["a", "b"]));
+check.ok("remove the last line", is_equivalent(["a", "b"], ["a"]));
+check.ok("empty document grows", is_equivalent([], ["x"]));
+check.ok("document is emptied", is_equivalent(["x"], []));
+check.ok("one line becomes two", is_equivalent(["ab"], ["a", "b"]));
+check.ok("two lines are joined", is_equivalent(["a", "b"], ["ab"]));
+// a deterministic pile of random edits: every pair of documents round-trips
+List<str> alphabet = ["", "a", "ab", "b", "\u{e9}", "\u{1f600}x", "xyz", "  ", "a b"];
+int seed = 12345;
+int bad_pairs = 0;
+for (int round in 0 .. 400) {
+    List<str> old_doc = [];
+    int old_count = 0;
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    old_count = (seed / 65536) % 6;
+    for (int row in 0 .. old_count) {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        old_doc.push(alphabet[(seed / 65536) % alphabet.size()]);
+    }
+    List<str> new_doc = old_doc.slice(0, old_doc.size());
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    int edit_count = 1 + (seed / 65536) % 3;
+    for (int one in 0 .. edit_count) {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        int kind = (seed / 65536) % 4;
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        int place = 0;
+        if (new_doc.size() > 0) {
+            place = (seed / 65536) % new_doc.size();
+        }
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        str piece = alphabet[(seed / 65536) % alphabet.size()];
+        if (kind == 0) {
+            new_doc.insert(place, piece);
+        } else if (kind == 1 && new_doc.size() > 0) {
+            new_doc.remove_at(place);
+        } else if (kind == 2 && new_doc.size() > 0) {
+            new_doc[place] = new_doc[place] + piece;
+        } else if (kind == 3 && new_doc.size() > 0) {
+            new_doc[place] = piece;
+        }
+    }
+    if (!is_equivalent(old_doc, new_doc)) {
+        bad_pairs = bad_pairs + 1;
+        print("pair fails: [" + old_doc.join("|") + "] -> [" + new_doc.join("|") + "]");
+    }
+}
+check.eq_int("400 random edits all round-trip through change_of", bad_pairs, 0);
+// sync kind and dynamic registration
+MED_lsp.Server plain_server = MED_lsp.Server("x", [], "/");
+plain_server.capabilities = parsed_json("{\"textDocumentSync\":2}");
+check.eq_int("incremental announced as a number", plain_server.sync_kind(), 2);
+plain_server.capabilities = parsed_json("{\"textDocumentSync\":{\"openClose\":true,\"change\":2}}");
+check.eq_int("incremental announced in an object", plain_server.sync_kind(), 2);
+plain_server.capabilities = parsed_json("{\"textDocumentSync\":1}");
+check.eq_int("full sync stays full", plain_server.sync_kind(), 1);
+plain_server.capabilities = parsed_json("{}");
+check.eq_int("silent servers get the whole text (as before)", plain_server.sync_kind(), 1);
+check.ok("not announced yet", !plain_server.can_do("completionProvider"));
+plain_server.register(parsed_json("{\"registrations\":[{\"id\":\"1\",\"method\":\"textDocument/completion\",\"registerOptions\":{\"triggerCharacters\":[\".\"]}},{\"id\":\"2\",\"method\":\"textDocument/didChange\",\"registerOptions\":{\"syncKind\":2}},{\"id\":\"3\",\"method\":\"workspace/didChangeWatchedFiles\",\"registerOptions\":{\"watchers\":[]}},{\"id\":\"4\",\"method\":\"textDocument/formatting\"},{\"id\":\"5\",\"method\":\"unknown/method\"}]}"));
+check.ok("a registered capability can be used", plain_server.can_do("completionProvider"));
+check.eq_str("its options are seen", plain_server.trigger_characters().join(""), ".");
+check.eq_int("a registered sync kind", plain_server.sync_kind(), 2);
+check.ok("a registration without options is true", plain_server.can_do("documentFormattingProvider"));
+check.eq_int("watchers are remembered", plain_server.watchers.size(), 1);
+plain_server.unregister(parsed_json("{\"unregisterations\":[{\"id\":\"1\",\"method\":\"textDocument/completion\"},{\"id\":\"2\",\"method\":\"textDocument/didChange\"},{\"id\":\"3\",\"method\":\"workspace/didChangeWatchedFiles\"},{\"id\":\"9\",\"method\":\"x\"}]}"));
+check.ok("unregistered: gone again", !plain_server.can_do("completionProvider"));
+check.eq_int("the sync kind is back", plain_server.sync_kind(), 1);
+check.eq_int("no watchers", plain_server.watchers.size(), 0);
+check.ok("the other registration stays", plain_server.can_do("documentFormattingProvider"));
+// WorkspaceEdit steps, in order
+List<MED_lsp.FileOp> ops = MED_lsp.workspace_ops(parsed_json("{\"documentChanges\":[{\"kind\":\"create\",\"uri\":\"file:///p/new.txt\",\"options\":{\"ignoreIfExists\":true}},{\"textDocument\":{\"uri\":\"file:///p/a.py\",\"version\":4},\"edits\":[{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":1}},\"newText\":\"X\"}]},{\"kind\":\"rename\",\"oldUri\":\"file:///p/new.txt\",\"newUri\":\"file:///p/moved.txt\"},{\"kind\":\"delete\",\"uri\":\"file:///p/old.txt\",\"options\":{\"ignoreIfNotExists\":true}}]}"));
+check.eq_int("four steps", ops.size(), 4);
+check.eq_str("create", ops[0].kind, "create");
+check.ok("create option", ops[0].is_ignored);
+check.eq_str("edit", ops[1].kind, "edit");
+check.eq_int("edit version", ops[1].version, 4);
+check.eq_int("edit count", ops[1].edits.size(), 1);
+check.eq_str("rename from", ops[2].path, "/p/new.txt");
+check.eq_str("rename to", ops[2].target, "/p/moved.txt");
+check.eq_str("delete", ops[3].kind, "delete");
+List<MED_lsp.FileOp> plain_ops = MED_lsp.workspace_ops(parsed_json("{\"changes\":{\"file:///p/a.py\":[{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},\"newText\":\"x\"}]}}"));
+check.eq_int("`changes` is one edit step per file", plain_ops.size(), 1);
+check.eq_int("unversioned", plain_ops[0].version, -1);
 check.finish("t_lsp");

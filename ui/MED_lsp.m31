@@ -509,6 +509,149 @@ pub List<int> map_point(List<TextEdit> edits, int line, int character) {
     return [line + moved_lines, character + shift];
 }
 
+// ---------------------------------------------------------------- incremental sync
+
+// Row `index` of a document whose text ends with a line break: the row after the last line is empty.
+str row_at(List<str> lines, int index) {
+    if (index >= lines.size()) {
+        return "";
+    }
+    return lines[index];
+}
+
+/// The one change that turns the document `before` (lines; its text is the lines joined with line breaks and a
+/// final one) into `after`, as a `TextDocumentContentChangeEvent` (a range in UTF-16 columns and the new text);
+/// null when they are the same. The range spans only what differs: the common leading and trailing rows are
+/// left out, then the common leading and trailing characters of the first and last row that differ.
+pub json.Value change_of(List<str> before, List<str> after) {
+    int old_rows = before.size() + 1;
+    int new_rows = after.size() + 1;
+    int limit = old_rows;
+    if (new_rows < limit) {
+        limit = new_rows;
+    }
+    int head = 0;
+    while (head < limit - 1 && row_at(before, head) == row_at(after, head)) {
+        head = head + 1;
+    }
+    int tail = 0;
+    while (tail < limit - head && row_at(before, old_rows - 1 - tail) == row_at(after, new_rows - 1 - tail)) {
+        tail = tail + 1;
+    }
+    int old_end = old_rows - tail;
+    int new_end = new_rows - tail;
+    if (old_end == head && new_end == head) {
+        return json.Value.Null;
+    }
+    if (old_end == head) {
+        // rows were inserted before row `head`
+        List<str> inserted = [];
+        for (int index in head .. new_end) {
+            inserted.push(row_at(after, index));
+        }
+        return change_event(position_value(head, 0), position_value(head, 0), inserted.join("\n") + "\n");
+    }
+    if (new_end == head) {
+        // rows head .. old_end were removed
+        return change_event(position_value(head, 0), position_value(old_end, 0), "");
+    }
+    List<int> first_old = row_at(before, head).chars();
+    List<int> first_new = row_at(after, head).chars();
+    List<int> last_old = row_at(before, old_end - 1).chars();
+    List<int> last_new = row_at(after, new_end - 1).chars();
+    int prefix = 0;
+    while (prefix < first_old.size() && prefix < first_new.size() && first_old[prefix] == first_new[prefix]) {
+        prefix = prefix + 1;
+    }
+    int room_old = last_old.size();
+    if (old_end - 1 == head) {
+        room_old = room_old - prefix;
+    }
+    int room_new = last_new.size();
+    if (new_end - 1 == head) {
+        room_new = room_new - prefix;
+    }
+    int suffix = 0;
+    while (suffix < room_old && suffix < room_new && last_old[last_old.size() - 1 - suffix] == last_new[last_new.size() - 1 - suffix]) {
+        suffix = suffix + 1;
+    }
+    str start_head = str.from_chars(first_old.slice(0, prefix));
+    int start_units = utf16_size(start_head);
+    int end_units = utf16_size(str.from_chars(last_old.slice(0, last_old.size() - suffix)));
+    List<str> pieces = [];
+    for (int index in head .. new_end) {
+        pieces.push(row_at(after, index));
+    }
+    str first_piece = str.from_chars(first_new.slice(prefix, first_new.size()));
+    if (pieces.size() == 1) {
+        first_piece = str.from_chars(first_new.slice(prefix, first_new.size() - suffix));
+        pieces[0] = first_piece;
+    } else {
+        pieces[0] = first_piece;
+        pieces[pieces.size() - 1] = str.from_chars(last_new.slice(0, last_new.size() - suffix));
+    }
+    return change_event(position_value(head, start_units), position_value(old_end - 1, end_units), pieces.join("\n"));
+}
+
+json.Value change_event(json.Value from_value, json.Value to_value, str replacement) {
+    return object(["range", "text"], [object(["start", "end"], [from_value, to_value]), text(replacement)]);
+}
+
+// ---------------------------------------------------------------- workspace edits
+
+/// One step of a WorkspaceEdit, in order: kind "edit" (a file's text edits, `version` the document version the
+/// server saw or -1), "create", "rename" (`path` to `target`) or "delete".
+pub type FileOp {
+    pub str kind;
+    pub str path;
+    pub str target = "";
+    pub List<TextEdit> edits = [];
+    pub int version = -1;
+    pub bool is_overwrite = false;
+    pub bool is_ignored = false;
+}
+
+/// The steps of a WorkspaceEdit: `documentChanges` (text document edits and create / rename / delete
+/// operations) when it has them, else `changes`.
+pub List<FileOp> workspace_ops(json.Value edit) {
+    List<FileOp> out = [];
+    List<json.Value> changes = items_of(member(edit, "documentChanges"));
+    if (changes.size() == 0) {
+        for (FileEdits one in workspace_edits(edit)) {
+            FileOp step = FileOp("edit", one.path);
+            step.edits = one.edits;
+            out.push(step);
+        }
+        return out;
+    }
+    for (json.Value change in changes) {
+        str kind = text_of(member(change, "kind"));
+        json.Value options = member(change, "options");
+        if (kind == "create" || kind == "delete") {
+            FileOp step = FileOp(kind, path_of(text_of(member(change, "uri"))));
+            step.is_overwrite = is_true(member(options, "overwrite")) || is_true(member(options, "recursive"));
+            step.is_ignored = is_true(member(options, "ignoreIfExists")) || is_true(member(options, "ignoreIfNotExists"));
+            out.push(step);
+        } else if (kind == "rename") {
+            FileOp step = FileOp(kind, path_of(text_of(member(change, "oldUri"))));
+            step.target = path_of(text_of(member(change, "newUri")));
+            step.is_overwrite = is_true(member(options, "overwrite"));
+            step.is_ignored = is_true(member(options, "ignoreIfExists"));
+            out.push(step);
+        } else {
+            json.Value document = member(change, "textDocument");
+            str uri = text_of(member(document, "uri"));
+            if (uri.size() > 0) {
+                FileOp step = FileOp("edit", path_of(uri));
+                step.edits = edits_of(member(change, "edits"));
+                step.version = int_of(member(document, "version"), -1);
+                out.push(step);
+            }
+        }
+    }
+    return out;
+}
+
 /// A location: file path, line and UTF-16 column (path "" when the value is
 /// not one). Accepts Location and LocationLink.
 pub type Place {
@@ -696,6 +839,15 @@ pub type Server {
     pub str exit_note = "";
     /// Messages that arrived while `await` waited for another one; `poll` returns them first.
     List<Message> backlog = [];
+    /// The text the server has of each open document (path -> lines), the base of the next incremental change.
+    Map<str, List<str>> snapshots = {};
+    /// `client/registerCapability` ids -> the capability key they set (and what it was before).
+    Map<str, str> registered = {};
+    Map<str, json.Value> replaced = {};
+    /// A dynamically registered `textDocument/didChange` sync kind (-1: none registered).
+    int synced = -1;
+    /// Ids of `workspace/didChangeWatchedFiles` registrations.
+    pub List<str> watchers = [];
 }
 
 void Server.transmit(str body) {
@@ -768,6 +920,150 @@ pub bool Server.can_do(str feature) {
             return true;
         }
     }
+}
+
+/// How the server wants document changes: 2 incremental, 1 the whole text (also when it says nothing, as
+/// before), after `textDocumentSync` or a dynamic registration.
+pub int Server.sync_kind() {
+    if (synced >= 0) {
+        return synced;
+    }
+    json.Value sync = member(capabilities, "textDocumentSync");
+    int kind = int_of(sync, -1);
+    if (kind < 0) {
+        kind = int_of(member(sync, "change"), 1);
+    }
+    if (kind == 2) {
+        return 2;
+    }
+    return 1;
+}
+
+/// `textDocument/didOpen` for `key` (a path) with the buffer `lines`; the text becomes the base of later changes.
+pub void Server.did_open(str key, str language, List<str> lines) {
+    versions.set(key, 1);
+    snapshots.set(key, lines.slice(0, lines.size()));
+    notify("textDocument/didOpen", object(["textDocument"], [object(["uri", "languageId", "version", "text"], [text(uri_of(key)), text(language), number(1), text(lines.join("\n") + "\n")])]));
+}
+
+/// `textDocument/didChange` for `key` after its buffer became `lines`: one ranged change when the server
+/// announced incremental sync and the previous text is known, else the whole text. Nothing is sent (and the
+/// version stays) when the text is the same as the server's.
+pub void Server.did_change(str key, List<str> lines) {
+    json.Value event = json.Value.Null;
+    bool is_incremental = sync_kind() == 2 && snapshots.contains(key);
+    if (is_incremental) {
+        event = change_of(snapshots.get(key).or([]), lines);
+        if (is_null(event)) {
+            return;
+        }
+    } else {
+        event = object(["text"], [text(lines.join("\n") + "\n")]);
+    }
+    int version = versions.get(key).or(1) + 1;
+    versions.set(key, version);
+    snapshots.set(key, lines.slice(0, lines.size()));
+    notify("textDocument/didChange", object(["textDocument", "contentChanges"], [object(["uri", "version"], [text(uri_of(key)), number(version)]), json.Value.Array([event])]));
+}
+
+// `capabilities` with `key` set to `value` (or removed when `value` is None-like: the Null value).
+void Server.set_capability(str key, json.Value value) {
+    Map<str, json.Value> copy = {};
+    match (capabilities) {
+        case Object(Map<str, json.Value> members): {
+            for (str member_name in members.keys()) {
+                copy.set(member_name, members.get(member_name).or(json.Value.Null));
+            }
+        }
+        case Null: {
+        }
+        case Bool(bool flag): {
+        }
+        case Int(int whole): {
+        }
+        case Float(float real): {
+        }
+        case Str(str words): {
+        }
+        case Array(List<json.Value> items): {
+        }
+    }
+    if (is_null(value)) {
+        copy.remove(key);
+    } else {
+        copy.set(key, value);
+    }
+    capabilities = json.Value.Object(copy);
+}
+
+/// `client/registerCapability`: every registration of a method that is a capability sets it (so `can_do` and the
+/// trigger characters see it); `textDocument/didChange` sets the sync kind; `workspace/didChangeWatchedFiles` is
+/// remembered (the client then reports saved, created and deleted files).
+pub void Server.register(json.Value parameters) {
+    for (json.Value one in items_of(member(parameters, "registrations"))) {
+        str id = text_of(member(one, "id"));
+        str method = text_of(member(one, "method"));
+        json.Value options = member(one, "registerOptions");
+        if (method == "textDocument/didChange") {
+            synced = int_of(member(options, "syncKind"), 1);
+            registered.set(id, "!sync");
+            continue;
+        }
+        if (method == "workspace/didChangeWatchedFiles") {
+            watchers.push(id);
+            registered.set(id, "!watch");
+            continue;
+        }
+        str key = capability_key(method);
+        if (key.size() == 0) {
+            continue;
+        }
+        if (is_null(options)) {
+            options = json.Value.Bool(true);
+        }
+        replaced.set(id, member(capabilities, key));
+        registered.set(id, key);
+        set_capability(key, options);
+    }
+}
+
+/// `client/unregisterCapability`: undo what the registration set (the static value comes back).
+pub void Server.unregister(json.Value parameters) {
+    for (json.Value one in items_of(member(parameters, "unregisterations"))) {
+        str id = text_of(member(one, "id"));
+        str key = registered.get(id).or("");
+        if (key.size() == 0) {
+            continue;
+        }
+        registered.remove(id);
+        if (key == "!sync") {
+            synced = -1;
+        } else if (key == "!watch") {
+            List<str> kept = [];
+            for (str other in watchers) {
+                if (other != id) {
+                    kept.push(other);
+                }
+            }
+            watchers = kept;
+        } else {
+            set_capability(key, replaced.get(id).or(json.Value.Null));
+            replaced.remove(id);
+        }
+    }
+}
+
+/// `workspace/didChangeWatchedFiles` for the files in `paths` (change type 1 created, 2 changed, 3 deleted),
+/// when the server registered for it.
+pub void Server.report_files(List<str> paths, List<int> kinds) {
+    if (watchers.size() == 0 || is_dead) {
+        return;
+    }
+    List<json.Value> changes = [];
+    for (int index in 0 .. paths.size()) {
+        changes.push(object(["uri", "type"], [text(uri_of(paths[index])), number(kinds[index])]));
+    }
+    notify("workspace/didChangeWatchedFiles", object(["changes"], [json.Value.Array(changes)]));
 }
 
 /// The characters after which the server wants completion requested (its `completionProvider`).
@@ -920,6 +1216,41 @@ pub void Server.stop() {
     is_dead = true;
 }
 
+/// The capability key a dynamically registered method sets ("" for one that is not a capability).
+pub str capability_key(str method) {
+    if (method == "textDocument/completion") {
+        return "completionProvider";
+    }
+    if (method == "textDocument/hover") {
+        return "hoverProvider";
+    }
+    if (method == "textDocument/signatureHelp") {
+        return "signatureHelpProvider";
+    }
+    if (method == "textDocument/definition") {
+        return "definitionProvider";
+    }
+    if (method == "textDocument/references") {
+        return "referencesProvider";
+    }
+    if (method == "textDocument/rename") {
+        return "renameProvider";
+    }
+    if (method == "textDocument/formatting") {
+        return "documentFormattingProvider";
+    }
+    if (method == "textDocument/codeAction") {
+        return "codeActionProvider";
+    }
+    if (method == "textDocument/inlayHint") {
+        return "inlayHintProvider";
+    }
+    if (method == "textDocument/semanticTokens") {
+        return "semanticTokensProvider";
+    }
+    return "";
+}
+
 /// Start `argv` as language server `name` for `root`, and send `initialize`.
 pub Server start(str name, List<str> argv, str root) {
     Server server = Server(name, argv, root);
@@ -932,16 +1263,21 @@ pub Server start(str name, List<str> argv, str root) {
             return server;
         }
     }
-    json.Value synchronization = object(["didSave", "dynamicRegistration"], [json.Value.Bool(true), json.Value.Bool(false)]);
-    json.Value markup = object(["contentFormat"], [json.Value.Array([text("markdown"), text("plaintext")])]);
-    json.Value diagnostics = object(["relatedInformation", "versionSupport"], [json.Value.Bool(false), json.Value.Bool(true)]);
-    json.Value signature = object(["signatureInformation"], [object(["documentationFormat", "parameterInformation"], [json.Value.Array([text("plaintext")]), object(["labelOffsetSupport"], [json.Value.Bool(true)])])]);
-    json.Value completion_item = object(["snippetSupport", "documentationFormat", "resolveSupport", "insertReplaceSupport", "commitCharactersSupport", "labelDetailsSupport", "preselectSupport"], [json.Value.Bool(true), json.Value.Array([text("markdown"), text("plaintext")]), object(["properties"], [json.Value.Array([text("documentation"), text("detail"), text("additionalTextEdits")])]), json.Value.Bool(true), json.Value.Bool(true), json.Value.Bool(true), json.Value.Bool(true)]);
-    json.Value completion = object(["contextSupport", "completionItem"], [json.Value.Bool(true), completion_item]);
-    json.Value document_capabilities = object(["completion", "synchronization", "hover", "signatureHelp", "inlayHint", "definition", "references", "rename", "codeAction", "formatting", "publishDiagnostics"], [completion, synchronization, markup, signature, object(["dynamicRegistration"], [json.Value.Bool(false)]), object(["linkSupport"], [json.Value.Bool(false)]), object([], []), object(["prepareSupport"], [json.Value.Bool(false)]), object(["isPreferredSupport", "dataSupport", "resolveSupport"], [json.Value.Bool(false), json.Value.Bool(true), object(["properties"], [json.Value.Array([text("edit")])])]), object([], []), diagnostics]);
+    json.Value yes = json.Value.Bool(true);
+    json.Value synchronization = object(["didSave", "dynamicRegistration"], [yes, yes]);
+    json.Value markup = object(["contentFormat", "dynamicRegistration"], [json.Value.Array([text("markdown"), text("plaintext")]), yes]);
+    json.Value diagnostics = object(["relatedInformation", "versionSupport"], [json.Value.Bool(false), yes]);
+    json.Value signature = object(["signatureInformation", "dynamicRegistration"], [object(["documentationFormat", "parameterInformation"], [json.Value.Array([text("plaintext")]), object(["labelOffsetSupport"], [yes])]), yes]);
+    json.Value completion_item = object(["snippetSupport", "documentationFormat", "resolveSupport", "insertReplaceSupport", "commitCharactersSupport", "labelDetailsSupport", "preselectSupport"], [yes, json.Value.Array([text("markdown"), text("plaintext")]), object(["properties"], [json.Value.Array([text("documentation"), text("detail"), text("additionalTextEdits")])]), yes, yes, yes, yes]);
+    json.Value completion = object(["contextSupport", "completionItem", "dynamicRegistration"], [yes, completion_item, yes]);
+    json.Value plain = object(["dynamicRegistration"], [yes]);
+    json.Value definition = object(["linkSupport", "dynamicRegistration"], [json.Value.Bool(false), yes]);
+    json.Value rename = object(["prepareSupport", "dynamicRegistration"], [json.Value.Bool(false), yes]);
+    json.Value action = object(["isPreferredSupport", "dataSupport", "resolveSupport", "dynamicRegistration"], [json.Value.Bool(false), yes, object(["properties"], [json.Value.Array([text("edit")])]), yes]);
+    json.Value document_capabilities = object(["completion", "synchronization", "hover", "signatureHelp", "inlayHint", "definition", "references", "rename", "codeAction", "formatting", "publishDiagnostics"], [completion, synchronization, markup, signature, plain, definition, plain, rename, action, plain, diagnostics]);
     // workspaceFolders is deliberately not declared: pyright then never starts
     // analysing (the root is passed as rootUri and as one workspace folder)
-    json.Value workspace_capabilities = object(["applyEdit", "workspaceEdit"], [json.Value.Bool(true), object(["documentChanges"], [json.Value.Bool(false)])]);
+    json.Value workspace_capabilities = object(["applyEdit", "workspaceEdit", "didChangeWatchedFiles"], [json.Value.Bool(true), object(["documentChanges", "resourceOperations", "failureHandling"], [json.Value.Bool(true), json.Value.Array([text("create"), text("rename"), text("delete")]), text("abort")]), plain]);
     json.Value window_capabilities = object(["workDoneProgress"], [json.Value.Bool(true)]);
     json.Value general = object(["positionEncodings"], [json.Value.Array([text("utf-16")])]);
     json.Value capabilities = object(["textDocument", "workspace", "window", "general"], [document_capabilities, workspace_capabilities, window_capabilities, general]);

@@ -522,6 +522,144 @@ def popup_commit_character(binary, root, rep, quick):
         term.close()
 
 
+def last_doc(log):
+    docs = [e["doc"] for e in log if e["kind"] in ("didOpen", "didChange")]
+    return docs[-1] if docs else None
+
+
+def read_file(root, name):
+    with open(os.path.join(root, name), encoding="utf-8") as f:
+        return f.read()
+
+
+EDITS = ["A XX\x1b", "jdd", "yyp", "u", "3yyP", ":%s/a/\u00e9\U0001f600/g\r", "Gox\x1b", "ggdG",
+         "ihello\rworld\x1b", "ggA!\x1b", "ddp"]
+
+
+def drive_edits(term):
+    for keys in EDITS:
+        term.type(keys, 0.6)
+    term.type(":w\r", 0.5)
+    term.settle(1.0)
+
+
+@scenario
+def sync_incremental(binary, root, rep, quick):
+    """FAKE_LSP_SYNC=2: every didChange is one ranged change, and the server's text is the file at the end."""
+    term = start(binary, root, "alpha\nbeta \u00e9\ngamma \U0001f600\ndelta\n", auto=False, extra_env={"FAKE_LSP_SYNC": "2"})
+    try:
+        drive_edits(term)
+        log = term.log()
+        changes = [e for e in log if e["kind"] == "didChange"]
+        rep.ok("several changes were sent", len(changes) >= 5, repr(len(changes)))
+        rep.ok("every change has a range (incremental sync)", changes and all("range" in c for e in changes for c in e["changes"]), repr(changes[:2]))
+        rep.ok("one event per didChange", all(len(e["changes"]) == 1 for e in changes))
+        rep.ok("versions go up one by one", [e["version"] for e in changes] == list(range(2, 2 + len(changes))), repr([e["version"] for e in changes]))
+        rep.ok("the server's text is the file's text", last_doc(log) == read_file(root, "a.py"), "%r vs %r" % (last_doc(log), read_file(root, "a.py")))
+    finally:
+        left = term.close()
+    rep.ok("no server left", not left, repr(left))
+
+
+@scenario
+def sync_full_default(binary, root, rep, quick):
+    """FAKE_LSP_SYNC=1 (and a server that says nothing): the whole text, as before."""
+    term = start(binary, root, "alpha\nbeta \u00e9\ngamma \U0001f600\ndelta\n", auto=False, extra_env={"FAKE_LSP_SYNC": "1"})
+    try:
+        drive_edits(term)
+        log = term.log()
+        changes = [e for e in log if e["kind"] == "didChange"]
+        rep.ok("changes carry the whole text", changes and all("range" not in c for e in changes for c in e["changes"]), repr(changes[:1]))
+        rep.ok("the server's text is the file's text", last_doc(log) == read_file(root, "a.py"))
+    finally:
+        term.close()
+
+
+@scenario
+def format_on_save(binary, root, rep, quick):
+    term = start(binary, root, "x = 1\n", auto=False)
+    try:
+        term.type("A # one\x1b", 0.5)
+        term.type(":w\r", 0.6)
+        rep.ok("nothing is formatted without :set lspformat", not [e for e in term.log() if e["kind"] == "formatting"] and read_file(root, "a.py") == "x = 1 # one\n", repr(read_file(root, "a.py")))
+        term.type(":set lspformat\r", 0.3)
+        term.type("A two\x1b", 0.5)
+        term.type(":w\r", 0.8)
+        log = term.log()
+        kinds = [e["kind"] for e in log]
+        rep.ok("the file is written formatted", read_file(root, "a.py").startswith("// formatted\n"), repr(read_file(root, "a.py")))
+        rep.ok("formatting was asked for before the save", "formatting" in kinds and "didSave" in kinds and max(i for i, k in enumerate(kinds) if k == "formatting") < max(i for i, k in enumerate(kinds) if k == "didSave"), repr(kinds[-5:]))
+        rep.ok("the buffer shows it", "// formatted" in "\n".join(term.text()[:4]))
+        term.type("u", 0.4)
+        term.type(":set nolspformat\r", 0.3)
+        term.type(":w\r", 0.6)
+        rep.ok("and not any more after :set nolspformat", len([e for e in term.log() if e["kind"] == "formatting"]) == 1)
+    finally:
+        term.close()
+
+
+@scenario
+def dynamic_registration(binary, root, rep, quick):
+    """Completion, formatting, the sync kind and file watching are registered after initialize."""
+    term = start(binary, root, "x = 1\n\n", extra_env={"FAKE_LSP_DYNAMIC": "1", "FAKE_LSP_SYNC": "2"})
+    try:
+        rep.ok("the registration was answered", any(e["kind"] == "registered" for e in term.log()) or term.wait_for("zzzz", 0.5) or any(e["kind"] == "registered" for e in term.log()), repr(term.log()))
+        term.type("jA")
+        term.type("hel", 0.8)
+        rep.ok("a completion provider that registered itself is used", term.wait_for("hello_world"), "\n".join(term.text()[:8]))
+        term.type("\x1b\x1b", 0.3)
+        term.type(":set lspformat\r", 0.3)
+        term.type("A one\x1b", 0.5)
+        term.type(":w\r", 0.6)
+        term.type("A two\x1b", 0.5)
+        term.type(":w\r", 0.6)
+        term.type("A three\x1b", 0.5)
+        term.type(":w\r", 0.8)
+        term.type("A four\x1b", 0.5)
+        term.type(":w\r", 0.8)
+        term.settle(0.6)
+        log = term.log()
+        kinds = [e["kind"] for e in log]
+        rep.ok("formatting registered dynamically ran on the first three saves, not after unregister", kinds.count("formatting") == 3, repr(kinds))
+        rep.ok("the sync kind registered dynamically is used", any("range" in c for e in log if e["kind"] == "didChange" for c in e["changes"]), repr(log[:6]))
+        watched = [e for e in log if e["kind"] == "watched"]
+        rep.ok("file watching: each save is reported (type 2, changed)", len(watched) >= 3 and all(w["changes"][0]["type"] == 2 for w in watched), repr(watched))
+        rep.ok("the server's text is the file's text", last_doc(log) == read_file(root, "a.py"), "%r vs %r" % (last_doc(log), read_file(root, "a.py")))
+    finally:
+        term.close()
+
+
+@scenario
+def cancel_overtaken_request(binary, root, rep, quick):
+    term = start(binary, root, "x = 1\n", auto=False)
+    try:
+        term.ed.send(":Lsp hover\r:Lsp hover\r")
+        term.settle(1.2)
+        log = term.log()
+        rep.ok("a second hover overtakes the first ($/cancelRequest)", any(e["kind"] == "cancel" for e in log), repr(log))
+        term.type("\r", 0.3)
+        replies = [e for e in log if e["kind"] == "applyEdit_reply"]
+        rep.ok("a stale workspace/applyEdit is refused with applied=false", replies and replies[0]["result"].get("applied") is False, repr(replies))
+        rep.ok("and changed nothing", "STALE" not in "\n".join(term.text()))
+    finally:
+        term.close()
+
+
+@scenario
+def workspace_edit_operations(binary, root, rep, quick):
+    write(root, "doomed.txt", "bye\n")
+    term = start(binary, root, "hello = 1\nprint(hello)\n", auto=False)
+    try:
+        term.type(":Lsp rename zz\r", 1.0)
+        rep.ok("the text edit of the documentChanges was applied", term.wait_for("zzello = 1"), "\n".join(term.text()[:5]))
+        rep.ok("created then renamed", os.path.exists(os.path.join(root, "moved.txt")) and not os.path.exists(os.path.join(root, "created.txt")))
+        rep.ok("deleted", not os.path.exists(os.path.join(root, "doomed.txt")))
+        rep.ok("the summary is shown", "Renamed in 1 file" in "\n".join(term.text()[-3:]), "\n".join(term.text()[-3:]))
+        # an edit for an older version of the document stops the whole edit
+    finally:
+        term.close()
+
+
 # -------------------------------------------------------------------------------------- real servers
 
 def find_server(*names):
@@ -583,6 +721,30 @@ def oracle_labels(lang, cmd):
             labels = json.loads(line[len("labels:"):].strip() or "[]")
             return labels or None
     return None
+
+
+@scenario
+def real_clangd_sync_format(binary, root, rep, quick):
+    """A real server announces incremental sync: edits keep its diagnostics right, and format on save formats."""
+    cmd = find_server("clangd")
+    term = start(binary, root, "int main(void) {\nint x = undefined_thing;\nreturn x;\n}\n", name="a.c", auto=False)
+    try:
+        term.type(":Lsp server c %s\r" % cmd, 0.3)
+        term.type(":Lsp stop\r", 0.5)
+        term.type(":Lsp start\r", 1.0)
+        rep.ok("diagnostics arrive", term.wait_for("E:1", 30.0), "\n".join(term.text()[-3:]))
+        term.type("jdddd", 0.5)
+        term.type("O  int  y=1;\x1b", 0.5)
+        rep.ok("deleting the bad line (an incremental change) clears the error", term.wait_gone("E:1", 15.0), "\n".join(term.text()[-3:]))
+        term.type("ggdG", 0.3)
+        term.type("iint   main( void ){return   0;}\x1b", 0.5)
+        term.type(":set lspformat\r", 0.3)
+        term.type(":w\r", 3.0)
+        formatted = read_file(root, "a.c")
+        rep.ok("clangd formats on save", formatted == "int main(void) { return 0; }\n", repr(formatted))
+    finally:
+        left = term.close()
+    rep.ok("no clangd process left", not left, repr(left))
 
 
 @scenario

@@ -15,6 +15,12 @@ character long the answer is `isIncomplete`: the client must ask again as more i
 
 Every request and notification of interest is appended as one JSON line to $FAKE_LSP_LOG, so a test can
 check what went over the wire (trigger kinds, cancels, the incremental changes of didChange).
+
+Environment: FAKE_LSP_SYNC=1|2 (the sync kind announced), FAKE_LSP_DYNAMIC=1 (completion, formatting, didChange and
+didChangeWatchedFiles are registered with client/registerCapability instead of announced; formatting is
+unregistered again at the third didSave). Also: hover waits 0.4 s and first sends a workspace/applyEdit for a
+document version that does not exist (the client must refuse it); formatting prepends a comment line; rename
+answers with documentChanges (create, edit, rename, delete).
 """
 import json
 import os
@@ -22,8 +28,11 @@ import sys
 import time
 
 docs = {}
+versions = {}
+saves = [0]
 LOG = os.environ.get("FAKE_LSP_LOG")
 SYNC = int(os.environ.get("FAKE_LSP_SYNC", "1"))
+DYNAMIC = os.environ.get("FAKE_LSP_DYNAMIC") == "1"
 
 
 def log(kind, **fields):
@@ -102,19 +111,33 @@ while True:
     method = message.get("method")
     params = message.get("params", {})
     if method == "initialize":
-        reply(message, {"capabilities": {
-            "textDocumentSync": {"openClose": True, "change": SYNC},
-            "completionProvider": {"triggerCharacters": ["."], "resolveProvider": True,
-                                   "allCommitCharacters": [";"]},
-            "documentFormattingProvider": True}})
+        caps = {"textDocumentSync": {"openClose": True, "change": 1 if DYNAMIC else SYNC},
+                "hoverProvider": True, "renameProvider": True}
+        if not DYNAMIC:
+            caps["completionProvider"] = {"triggerCharacters": ["."], "resolveProvider": True,
+                                          "allCommitCharacters": [";"]}
+            caps["documentFormattingProvider"] = True
+        reply(message, {"capabilities": caps})
     elif method == "initialized":
-        pass
+        if DYNAMIC:
+            send({"jsonrpc": "2.0", "id": "r1", "method": "client/registerCapability", "params": {"registrations": [
+                {"id": "c1", "method": "textDocument/completion",
+                 "registerOptions": {"triggerCharacters": ["."], "resolveProvider": True, "allCommitCharacters": [";"]}},
+                {"id": "f1", "method": "textDocument/formatting"},
+                {"id": "s1", "method": "textDocument/didChange", "registerOptions": {"syncKind": SYNC}},
+                {"id": "w1", "method": "workspace/didChangeWatchedFiles",
+                 "registerOptions": {"watchers": [{"globPattern": "**/*"}]}}]}})
+    elif method is None and message.get("id") == "r1":
+        log("registered", result=message.get("result"))
+    elif method is None and message.get("id") == "ae1":
+        log("applyEdit_reply", result=message.get("result"))
     elif method == "textDocument/didOpen":
         document = params["textDocument"]
         docs[document["uri"]] = document["text"]
-        log("didOpen", version=document["version"])
+        versions[document["uri"]] = document["version"]
+        log("didOpen", version=document["version"], doc=document["text"])
     elif method == "textDocument/didChange":
-        log("didChange", changes=params["contentChanges"], version=params["textDocument"]["version"])
+        versions[params["textDocument"]["uri"]] = params["textDocument"]["version"]
         for change in params["contentChanges"]:
             uri = params["textDocument"]["uri"]
             if "range" not in change:
@@ -126,6 +149,8 @@ while True:
                 tail = lines[b["line"]][b["character"]:]
                 lines[a["line"]:b["line"] + 1] = (head + change["text"] + tail).split("\n")
                 docs[uri] = "\n".join(lines)
+        log("didChange", changes=params["contentChanges"], version=params["textDocument"]["version"],
+            doc=docs[params["textDocument"]["uri"]])
     elif method == "textDocument/completion":
         context = params.get("context", {})
         text = before_cursor(params)
@@ -155,7 +180,33 @@ while True:
         log("formatting")
         reply(message, [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}}, "newText": "// formatted\n"}])
     elif method == "textDocument/didSave":
+        saves[0] += 1
         log("didSave")
+        if DYNAMIC and saves[0] == 3:
+            send({"jsonrpc": "2.0", "id": "u1", "method": "client/unregisterCapability",
+                  "params": {"unregisterations": [{"id": "f1", "method": "textDocument/formatting"}]}})
+    elif method == "workspace/didChangeWatchedFiles":
+        log("watched", changes=params["changes"])
+    elif method == "textDocument/hover":
+        uri = params["textDocument"]["uri"]
+        log("hover")
+        send({"jsonrpc": "2.0", "id": "ae1", "method": "workspace/applyEdit", "params": {"edit": {"documentChanges": [
+            {"textDocument": {"uri": uri, "version": 999},
+             "edits": [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}},
+                        "newText": "STALE"}]}]}}})
+        time.sleep(0.4)
+        reply(message, {"contents": "hover text"})
+    elif method == "textDocument/rename":
+        uri = params["textDocument"]["uri"]
+        base = uri.rsplit("/", 1)[0]
+        log("rename", name=params["newName"])
+        reply(message, {"documentChanges": [
+            {"kind": "create", "uri": base + "/created.txt"},
+            {"textDocument": {"uri": uri, "version": versions.get(uri)},
+             "edits": [{"range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}},
+                        "newText": params["newName"]}]},
+            {"kind": "rename", "oldUri": base + "/created.txt", "newUri": base + "/moved.txt"},
+            {"kind": "delete", "uri": base + "/doomed.txt"}]})
     elif method == "shutdown":
         reply(message, None)
     elif method == "exit":

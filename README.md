@@ -267,7 +267,9 @@ the per-server table is in DESIGN.md section 13. The status line shows `LSP: ...
 (indexing). CTRL-Space in Insert mode completes from the server (a picker; Enter accepts). `:set lspcomplete=auto`
 turns on the completion popup that follows the cursor: it opens as you type (trigger and identifier characters), narrows
 with every key, shows documentation beside the list; `<Tab>`/`<C-n>` and `<S-Tab>`/`<C-p>` select, `<C-y>` (or `<CR>` on a
-selected row) accepts, `<C-e>` closes. Snippet items expand through the snippet engine.
+selected row) accepts, `<C-e>` closes. Snippet items expand through the snippet engine. `:set lspformat` formats a
+buffer with its server before every write. Servers that announce incremental sync get ranged `didChange`s; servers that
+register capabilities dynamically are supported.
 
 ## Themes
 

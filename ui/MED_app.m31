@@ -226,6 +226,9 @@ pub type App {
     int pum_resolve_wait = -1;
     int pum_shown_at = -2;
     // <<< completion popup state
+    /// What the last WorkspaceEdit changed (files, edits).
+    int lsp_edit_files = 0;
+    int lsp_edit_count = 0;
     /// Inlay hints: by absolute file path, row -> the hints of that row as one
     /// text; shown after the end of the line while `is_hints_on`.
     pub Map<str, Map<str, str>> hints = {};
@@ -6862,14 +6865,11 @@ bool App.did_tick_lsp(int elapsed_ms) {
             int stamp = slot.editor.buffer.tick;
             str ticks_key = lang + "|" + key;
             if (!server.versions.contains(key)) {
-                server.versions.set(key, 1);
                 lsp_ticks.set(ticks_key, stamp);
-                server.notify("textDocument/didOpen", MED_lsp.object(["textDocument"], [MED_lsp.object(["uri", "languageId", "version", "text"], [MED_lsp.text(MED_lsp.uri_of(key)), MED_lsp.text(MED_lsp.language_id_of(key, lang)), MED_lsp.number(1), MED_lsp.text(text_of_slot(slot))])]));
+                server.did_open(key, MED_lsp.language_id_of(key, lang), slot.editor.buffer.lines);
             } else if (lsp_ticks.get(ticks_key).or(-1) != stamp && slot.editor.mode != MED_editor.INSERT) {
-                int version = server.versions.get(key).or(1) + 1;
-                server.versions.set(key, version);
                 lsp_ticks.set(ticks_key, stamp);
-                server.notify("textDocument/didChange", MED_lsp.object(["textDocument", "contentChanges"], [MED_lsp.object(["uri", "version"], [MED_lsp.text(MED_lsp.uri_of(key)), MED_lsp.number(version)]), json.Value.Array([MED_lsp.object(["text"], [MED_lsp.text(text_of_slot(slot))])])]));
+                server.did_change(key, slot.editor.buffer.lines);
             }
         }
     }
@@ -6888,10 +6888,8 @@ void App.lsp_flush_document() {
     if (!server.versions.contains(key)) {
         return;
     }
-    int version = server.versions.get(key).or(1) + 1;
-    server.versions.set(key, version);
     lsp_ticks.set(lsp_language_here() + "|" + key, editor.buffer.tick);
-    server.notify("textDocument/didChange", MED_lsp.object(["textDocument", "contentChanges"], [MED_lsp.object(["uri", "version"], [MED_lsp.text(MED_lsp.uri_of(key)), MED_lsp.number(version)]), json.Value.Array([MED_lsp.object(["text"], [MED_lsp.text(editor.buffer.lines.join("\n") + "\n")])])]));
+    server.did_change(key, editor.buffer.lines);
 }
 
 /// Whether the server of this buffer asks for signature help after typing `code`.
@@ -6933,6 +6931,7 @@ void App.lsp_did_save(str file) {
     for (int position in 0 .. servers.size()) {
         if (!servers[position].is_dead && servers[position].versions.contains(key)) {
             servers[position].notify("textDocument/didSave", MED_lsp.object(["textDocument"], [MED_lsp.object(["uri"], [MED_lsp.text(MED_lsp.uri_of(key))])]));
+            servers[position].report_files([key], [2]);
         }
     }
 }
@@ -7016,8 +7015,12 @@ bool App.did_handle_server_message(int position, MED_lsp.Message message) {
     }
     if (message.kind == "request") {
         if (message.method == "workspace/applyEdit") {
-            List<MED_lsp.FileEdits> files = MED_lsp.workspace_edits(MED_lsp.member(message.body, "edit"));
-            apply_workspace_edits(files);
+            str failure = apply_workspace_edit(MED_lsp.member(message.body, "edit"));
+            if (failure.size() > 0) {
+                server.respond_to(message, MED_lsp.object(["applied", "failureReason"], [json.Value.Bool(false), MED_lsp.text(failure)]));
+                notice = "LSP: " + failure;
+                return true;
+            }
             server.respond_to(message, MED_lsp.object(["applied"], [json.Value.Bool(true)]));
             return true;
         }
@@ -7033,6 +7036,15 @@ bool App.did_handle_server_message(int position, MED_lsp.Message message) {
         if (message.method == "workspace/workspaceFolders") {
             json.Value folder = MED_lsp.object(["uri", "name"], [MED_lsp.text(MED_lsp.uri_of(server.root)), MED_lsp.text(server.root)]);
             server.respond_to(message, json.Value.Array([folder]));
+            return false;
+        }
+        if (message.method == "client/registerCapability" || message.method == "client/unregisterCapability") {
+            if (message.method == "client/registerCapability") {
+                server.register(message.body);
+            } else {
+                server.unregister(message.body);
+            }
+            server.respond_to(message, json.Value.Null);
             return false;
         }
         if (message.method == "window/workDoneProgress/create") {
@@ -7098,6 +7110,20 @@ void App.lsp_request(str method, str purpose, json.Value parameters) {
     if (found < 0 || servers[found].is_dead || !servers[found].is_ready) {
         notice = "LSP: no language server is ready for this buffer";
         return;
+    }
+    // a newer request of the same kind overtakes an older one still in flight: tell the server ($/cancelRequest)
+    List<str> overtaken = [];
+    for (str waiting in lsp_pending.keys()) {
+        if (waiting.starts_with(servers[found].name + "#") && lsp_pending.get(waiting).or("").starts_with(purpose + "|")) {
+            overtaken.push(waiting);
+        }
+    }
+    for (str waiting in overtaken) {
+        int old_id = waiting.substr(servers[found].name.size() + 1, waiting.size()).parse_int().or(0);
+        if (old_id > 0) {
+            servers[found].cancel(old_id);
+        }
+        lsp_pending.remove(waiting);
     }
     int id = servers[found].request(method, parameters);
     lsp_pending.set(servers[found].name + "#" + id.to_str(), purpose + "|" + absolute_of(path));
@@ -7337,9 +7363,12 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
         has_picker = true;
         update_preview();
     } else if (purpose == "rename") {
-        List<MED_lsp.FileEdits> files = MED_lsp.workspace_edits(result);
-        int count = apply_workspace_edits(files);
-        notice = "Renamed in " + files.size().to_str() + " file(s), " + count.to_str() + " edit(s)";
+        str failure = apply_workspace_edit(result);
+        if (failure.size() > 0) {
+            notice = "LSP: " + failure;
+        } else {
+            notice = "Renamed in " + lsp_edit_files.to_str() + " file(s), " + lsp_edit_count.to_str() + " edit(s)";
+        }
     } else if (purpose == "format") {
         List<MED_lsp.TextEdit> edits = MED_lsp.edits_of(result);
         if (edits.size() == 0) {
@@ -7794,6 +7823,172 @@ void App.draw_pum(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows) {
 
 // <<< completion popup -----------------------------------------------------------------------------------
 
+// >>> workspace edits and format on save (ui/MED_lsp.m31: FileOp, Server.await)
+
+/// Say why a WorkspaceEdit stopped, when it did.
+void App.notice_edit_failure(str failure) {
+    if (failure.size() > 0) {
+        notice = "LSP: " + failure;
+    }
+}
+
+/// Carry out a WorkspaceEdit step by step, in the server's order: text edits (refused when the server saw another
+/// version of the document), create, rename and delete files. "" when all went through, else why it stopped (the
+/// steps before it stay done). The servers are told about the files that came and went
+/// (`workspace/didChangeWatchedFiles`, when they registered for it).
+str App.apply_workspace_edit(json.Value edit) {
+    List<str> touched = [];
+    List<int> kinds = [];
+    str problem = "";
+    lsp_edit_files = 0;
+    lsp_edit_count = 0;
+    for (MED_lsp.FileOp step in MED_lsp.workspace_ops(edit)) {
+        if (step.kind == "edit") {
+            bool is_stale = false;
+            for (MED_lsp.Server server in servers) {
+                if (step.version >= 0 && server.versions.contains(step.path) && server.versions.get(step.path).or(step.version) != step.version) {
+                    is_stale = true;
+                }
+            }
+            if (is_stale) {
+                problem = "the server's edit is for an older version of " + step.path;
+                break;
+            }
+            if (!did_apply_file_edits(step.path, step.edits)) {
+                problem = "could not edit " + step.path;
+                break;
+            }
+            lsp_edit_files = lsp_edit_files + 1;
+            lsp_edit_count = lsp_edit_count + step.edits.size();
+        } else if (step.kind == "create") {
+            if (fs.is_present(step.path) && !step.is_overwrite) {
+                if (step.is_ignored) {
+                    continue;
+                }
+                problem = step.path + " exists";
+                break;
+            }
+            match (io.write(step.path, "")) {
+                case Ok(int count): {
+                    touched.push(step.path);
+                    kinds.push(1);
+                }
+                case Err(io.Error error): {
+                    problem = "could not create " + step.path;
+                }
+            }
+        } else if (step.kind == "rename") {
+            if (fs.is_present(step.target) && !step.is_overwrite) {
+                if (step.is_ignored) {
+                    continue;
+                }
+                problem = step.target + " exists";
+                break;
+            }
+            match (fs.rename(step.path, step.target)) {
+                case Ok(bool is_renamed): {
+                    int open_slot = slot_with_path(step.path);
+                    lsp_did_close(step.path);
+                    if (open_slot >= 0) {
+                        slots[open_slot].path = step.target;
+                        slots[open_slot].editor.buffer.path = step.target;
+                        if (open_slot == index_of(current_id)) {
+                            path = step.target;
+                        }
+                    }
+                    touched.push(step.path);
+                    kinds.push(3);
+                    touched.push(step.target);
+                    kinds.push(1);
+                }
+                case Err(io.Error error): {
+                    problem = "could not rename " + step.path;
+                }
+            }
+        } else if (step.kind == "delete") {
+            if (!fs.is_present(step.path)) {
+                if (step.is_ignored) {
+                    continue;
+                }
+                problem = step.path + " does not exist";
+                break;
+            }
+            bool is_removed = false;
+            if (fs.is_directory(step.path)) {
+                match (fs.rmdir(step.path)) {
+                    case Ok(bool done): {
+                        is_removed = done;
+                    }
+                    case Err(io.Error error): {
+                    }
+                }
+            } else {
+                match (fs.remove(step.path)) {
+                    case Ok(bool done): {
+                        is_removed = done;
+                    }
+                    case Err(io.Error error): {
+                    }
+                }
+            }
+            if (!is_removed) {
+                problem = "could not delete " + step.path;
+            } else {
+                lsp_did_close(step.path);
+                touched.push(step.path);
+                kinds.push(3);
+            }
+        }
+        if (problem.size() > 0) {
+            break;
+        }
+    }
+    save_active();
+    if (touched.size() > 0) {
+        for (MED_lsp.Server server in servers) {
+            server.report_files(touched, kinds);
+        }
+    }
+    return problem;
+}
+
+/// `:set lspformat`: before a buffer is written, its language server formats it (`textDocument/formatting`; a
+/// short wait for the answer, then the write goes on either way).
+void App.lsp_format_before_write(Slot slot) {
+    if (servers.size() == 0 || slot.is_listing || slot.path.size() == 0 || !slot.editor.is_option_on("lspformat", false) || !is_plugin_on("lsp")) {
+        return;
+    }
+    str key = slot_key(slot);
+    str lang = server_language_of(slot.path, slot.editor.buffer.line(0));
+    if (lang.size() == 0) {
+        lang = MED_lsp.language_of_extension(slot.path);
+    }
+    int found = server_for(lang);
+    if (key.size() == 0 || found < 0 || servers[found].is_dead || !servers[found].is_ready || !servers[found].can_do("documentFormattingProvider") || !servers[found].versions.contains(key)) {
+        return;
+    }
+    MED_lsp.Server server = servers[found];
+    lsp_ticks.set(lang + "|" + key, slot.editor.buffer.tick);
+    server.did_change(key, slot.editor.buffer.lines);
+    json.Value options = MED_lsp.object(["tabSize", "insertSpaces"], [MED_lsp.number(slot.editor.tab), json.Value.Bool(slot.editor.is_expandtab)]);
+    int id = server.request("textDocument/formatting", MED_lsp.object(["textDocument", "options"], [MED_lsp.object(["uri"], [MED_lsp.text(MED_lsp.uri_of(key))]), options]));
+    match (server.await(id, 1500)) {
+        case Some(MED_lsp.Message reply): {
+            if (!reply.is_error) {
+                List<MED_lsp.TextEdit> edits = MED_lsp.edits_of(reply.body);
+                if (edits.size() > 0) {
+                    did_apply_file_edits(key, edits);
+                }
+            }
+        }
+        case None: {
+            server.cancel(id);
+        }
+    }
+}
+
+// <<< workspace edits and format on save
+
 // ---------------------------------------------------------------- snippets (engine/MED_snippet.m31, MED_snipops.m31)
 
 /// Read the user's snippets: `snippets.json` and `snippets/LANGUAGE.json` (entries that apply to that language) next to
@@ -7951,7 +8146,7 @@ void App.accept_completion_item(json.Value item) {
 /// resolve it first (servers send the edit lazily in `data`).
 void App.run_code_action(json.Value item) {
     if (!MED_lsp.is_null(MED_lsp.member(item, "edit"))) {
-        apply_workspace_edits(MED_lsp.workspace_edits(MED_lsp.member(item, "edit")));
+        notice_edit_failure(apply_workspace_edit(MED_lsp.member(item, "edit")));
         run_action_command(item);
         return;
     }
@@ -7966,7 +8161,7 @@ void App.run_code_action(json.Value item) {
 /// The result of `codeAction/resolve`.
 void App.run_resolved_action(json.Value item) {
     if (!MED_lsp.is_null(MED_lsp.member(item, "edit"))) {
-        apply_workspace_edits(MED_lsp.workspace_edits(MED_lsp.member(item, "edit")));
+        notice_edit_failure(apply_workspace_edit(MED_lsp.member(item, "edit")));
     }
     run_action_command(item);
 }
@@ -8091,19 +8286,6 @@ bool App.did_apply_file_edits(str file, List<MED_lsp.TextEdit> edits) {
     slot.editor.end_block();
     slot.editor.clamp();
     return true;
-}
-
-/// Apply every file's edits; the number of edits applied.
-int App.apply_workspace_edits(List<MED_lsp.FileEdits> files) {
-    int count = 0;
-    for (MED_lsp.FileEdits one in files) {
-        if (did_apply_file_edits(one.path, one.edits)) {
-            count = count + one.edits.size();
-        }
-    }
-    save_active();
-    // the active buffer's editor may have been edited through its slot
-    return count;
 }
 
 /// The severity of each row of `file` that has a diagnostic (0 for none);
@@ -8279,6 +8461,7 @@ void App.ext_fire_slot(MED_ext.Event event, Slot slot, str file) {
 
 /// `write_slot` with the BufWritePre / BufWritePost events around it.
 str App.write_hooked(Slot slot, str target) {
+    lsp_format_before_write(slot);
     if (!ext.has_handler(MED_ext.Event.BufWritePre) && !ext.has_handler(MED_ext.Event.BufWritePost)) {
         return write_slot(slot, target);
     }

@@ -99,6 +99,7 @@ const List<str> SPECS = [
     "jk_escape::bool:true",
     "lsp::bool:true",
     "lspcomplete::str:manual",
+    "lspformat::bool:false",
     "indentguides::bool:true",
     "todohl::bool:true",
     "bufferline::bool:true",

@@ -4,6 +4,20 @@
 
 Language intelligence completion: docs/ROADMAP.md items 15 to 17 (item 18, DAP, is not started).
 
+- Item 16, the protocol: incremental `didChange` when the server announces `textDocumentSync` change 2 (one ranged
+  change per sync, found by comparing the text the server has with the buffer: common rows, then common characters;
+  UTF-16 columns; checked by 400 random round trips); servers that announce 1 or nothing keep getting the whole
+  text. Dynamic registration: `client/registerCapability` / `unregisterCapability` set and unset completion, hover,
+  signature help, definition, references, rename, formatting, code action, inlay hint providers, the `didChange`
+  sync kind and file watching (a registered capability is used like an announced one). `$/cancelRequest` for a
+  request overtaken by a newer one of the same kind (hover, definition, references, ... and completion).
+  `:set lspformat` formats a buffer through `textDocument/formatting` before it is written (`:w`, `:wq`, `:wa`; it
+  waits up to 1.5 s, then writes anyway). Workspace edits: the client declares `documentChanges`, create / rename /
+  delete operations and watched-file support; steps run in order, a text edit for another version of the document
+  than the server was sent is refused (`applied: false` with a reason), a rename carries open buffers along, and the
+  servers that registered for `workspace/didChangeWatchedFiles` are told about saved, created, renamed and deleted
+  files (every file; the registered glob patterns are not matched).
+
 - Completion popup that follows the cursor (item 15): `:set lspcomplete=auto` (default `manual`: CTRL-Space keeps
   opening the picker) shows the server's items under the word being typed, asked for after trigger characters and
   identifier characters (a 25 ms pause after the last key, so typing never waits for a server) and narrowed on every

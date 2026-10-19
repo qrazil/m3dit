@@ -649,8 +649,11 @@ whatever a server wrote (a read with a deadline that has already passed fails at
   jedi-language-server; clangd; typescript-language-server --stdio; lua-language-server; marksman server;
   bash-language-server start. `:Lsp server LANGUAGE COMMAND...` overrides one (a keymap file line).
 * Started on demand when the active buffer's language has one, never at launch. Root is the project root.
-* Sync: full document, `didOpen` when the server is ready, `didChange` on the next tick after a change while the
-  buffer is not in Insert mode (so diagnostics refresh when Insert mode ends), `didSave` on `:w`. Positions are converted between UTF-16 columns and bytes with the buffer text.
+* Sync: `didOpen` when the server is ready, `didChange` on the next tick after a change while the buffer is not in
+  Insert mode (so diagnostics refresh when Insert mode ends), `didSave` on `:w`. Full text by default; incremental
+  only when the server announced change kind 2 (or registered it dynamically): `Server.did_change` compares the text
+  it sent last (a copy of the lines, kept per document) with the buffer and sends one ranged change, `MED_lsp.change_of`.
+  Positions are converted between UTF-16 columns and bytes with the buffer text.
 * Features: `publishDiagnostics` (signs `E W I`, `E:n W:n` in the statusline, `]d [d`, `<Space>ll`, `<Space>]]`
   `<Space>[[`, the diagnostics picker `<Space>xx fx`), `K` hover, `gd` definition, `grr` references (picker),
   `grn` / `:Lsp rename NAME`, `gra` / `:Lsp action` (picker of edit-carrying actions), `:Lsp format`. WorkspaceEdits
