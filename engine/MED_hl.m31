@@ -6,6 +6,7 @@
 // row the buffer changed (`Buffer.dirty_row`).
 
 import engine.MED_editor;
+import engine.MED_semtok;
 import syntax.core.SYN_detect;
 import syntax.core.SYN_highlight;
 import syntax.core.SYN_registry;
@@ -39,8 +40,19 @@ pub str language(MED_editor.Editor editor) {
 
 /// The class of each byte of line `row` (all 25 classes of the library; the
 /// renderer draws each, `SYN_class.legacy` is the fold onto the first twelve),
-/// or an empty list without highlighting.
+/// or an empty list without highlighting. Semantic tokens from a language
+/// server (`editor.sem`, engine/MED_semtok.m31) are painted over the lexical
+/// classes, on a row whose text is still the one they were computed for.
 pub List<int> classes_of(MED_editor.Editor editor, int row, str lang) {
+    List<int> lexical = lexical_classes(editor, row, lang);
+    if (editor.sem.count == 0 || row >= editor.buffer.line_count()) {
+        return lexical;
+    }
+    return MED_semtok.overlay(editor.sem, row, editor.buffer.line(row), lexical);
+}
+
+// The lexer's classes of a row.
+List<int> lexical_classes(MED_editor.Editor editor, int row, str lang) {
     if (lang == "") {
         return [];
     }

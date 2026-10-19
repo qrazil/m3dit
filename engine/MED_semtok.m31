@@ -1,0 +1,214 @@
+// Semantic tokens (LSP 3.17) as an overlay on the lexical highlighter: the tokens a language server computed for
+// a buffer, kept per row as byte ranges with the syntax class they stand for (`SYN_class`, so the theme's class
+// to colour map is the only colour table), painted over the classes `MED_hl` got from the lexer.
+//
+// The tokens are valid for the text they were computed from. A row whose text differs now (it was edited, or
+// rows were inserted above it) shows its lexical colours until the next answer arrives; a row that still has the
+// same text keeps its tokens, wherever the edit was made. Positions arrive as UTF-16 columns relative to the
+// previous token (`textDocument/semanticTokens/full`); `decode` turns them into byte ranges with the rows' text.
+//
+// API
+// ---
+//   MED_semtok.decode(data, types, modifiers, lines)     Tokens of a `data` array
+//   MED_semtok.class_of(type, bits, modifiers)           the SYN_class of a token (-1: leave the lexical one)
+//   MED_semtok.overlay(tokens, row, line, classes)       `classes` with the tokens of the row painted over
+//   MED_semtok.describe(tokens, row, byte)               "function declaration", "" when no token is there
+
+import syntax.core.SYN_class;
+
+pub type Tokens {
+    /// The rows as they were when the tokens were computed.
+    pub List<str> texts = [];
+    /// Row (as text) -> its tokens, five numbers each: start byte, end byte, class, legend type, modifier bits.
+    pub Map<str, List<int>> spans = {};
+    pub List<str> types = [];
+    pub List<str> modifiers = [];
+    /// How many tokens there are.
+    pub int count = 0;
+}
+
+/// The standard token types and modifiers m3 asks servers to use (`initialize`, LSP 3.17).
+pub const Array<str> STANDARD_TYPES = ["namespace", "type", "class", "enum", "interface", "struct", "typeParameter", "parameter", "variable", "property", "enumMember", "event", "function", "method", "macro", "keyword", "modifier", "comment", "string", "number", "regexp", "operator", "decorator"];
+pub const Array<str> STANDARD_MODIFIERS = ["declaration", "definition", "readonly", "static", "deprecated", "abstract", "async", "modification", "documentation", "defaultLibrary"];
+
+// The byte offset of UTF-16 column `units` of `line`.
+int byte_at_units(str line, int units) {
+    int used = 0;
+    int offset = 0;
+    for (int code_point in line.chars()) {
+        if (used >= units) {
+            return offset;
+        }
+        offset = offset + str.from_chars([code_point]).size();
+        used = used + 1;
+        if (code_point > 65535) {
+            used = used + 1;
+        }
+    }
+    return offset;
+}
+
+// Whether the modifier called `name` is set in `bits`.
+bool has_modifier(int bits, List<str> modifiers, str name) {
+    for (int index in 0 .. modifiers.size()) {
+        if (modifiers[index] == name && (bits / pow2(index)) % 2 == 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int pow2(int exponent) {
+    int out = 1;
+    for (int step in 0 .. exponent) {
+        out = out * 2;
+    }
+    return out;
+}
+
+/// The syntax class a token of type `kind` with modifier `bits` is drawn as; -1 for the types the lexical
+/// highlighter does better (variables and parameters, whose plain colour the lexer already gives).
+pub int class_of(str kind, int bits, List<str> modifiers) {
+    if (kind == "namespace" || kind == "type" || kind == "class" || kind == "enum" || kind == "interface" || kind == "struct" || kind == "typeParameter") {
+        return SYN_class.TYPE;
+    }
+    if (kind == "function" || kind == "method") {
+        if (has_modifier(bits, modifiers, "declaration") || has_modifier(bits, modifiers, "definition")) {
+            return SYN_class.FUNCTION;
+        }
+        return SYN_class.CALL;
+    }
+    if (kind == "property") {
+        return SYN_class.PROPERTY;
+    }
+    if (kind == "enumMember") {
+        return SYN_class.CONSTANT;
+    }
+    if (kind == "variable" || kind == "parameter") {
+        if (has_modifier(bits, modifiers, "defaultLibrary")) {
+            return SYN_class.BUILTIN_VAR;
+        }
+        if (has_modifier(bits, modifiers, "readonly") && kind == "variable") {
+            return SYN_class.CONSTANT;
+        }
+        return -1;
+    }
+    if (kind == "keyword" || kind == "modifier") {
+        return SYN_class.KEYWORD;
+    }
+    if (kind == "comment") {
+        return SYN_class.COMMENT;
+    }
+    if (kind == "string" || kind == "regexp") {
+        return SYN_class.STRING;
+    }
+    if (kind == "number") {
+        return SYN_class.NUMBER;
+    }
+    if (kind == "operator") {
+        return SYN_class.OPERATOR;
+    }
+    if (kind == "macro") {
+        return SYN_class.PREPROC;
+    }
+    if (kind == "decorator") {
+        return SYN_class.ATTRIBUTE;
+    }
+    return -1;
+}
+
+/// The tokens of a `data` array (five numbers per token: line and start relative to the previous token, length,
+/// type, modifiers) for the buffer `lines`. Tokens outside the buffer are dropped.
+pub Tokens decode(List<int> data, List<str> types, List<str> modifiers, List<str> lines) {
+    Tokens out = Tokens();
+    out.texts = lines.slice(0, lines.size());
+    out.types = types;
+    out.modifiers = modifiers;
+    int row = 0;
+    int start = 0;
+    int index = 0;
+    while (index + 4 < data.size()) {
+        int delta_row = data[index];
+        int delta_start = data[index + 1];
+        int length = data[index + 2];
+        int type_index = data[index + 3];
+        int bits = data[index + 4];
+        index = index + 5;
+        if (delta_row > 0) {
+            row = row + delta_row;
+            start = delta_start;
+        } else {
+            start = start + delta_start;
+        }
+        if (row >= lines.size() || length <= 0) {
+            continue;
+        }
+        str line = lines[row];
+        int from = byte_at_units(line, start);
+        int stop = byte_at_units(line, start + length);
+        if (stop <= from) {
+            continue;
+        }
+        str kind = "";
+        if (type_index >= 0 && type_index < types.size()) {
+            kind = types[type_index];
+        }
+        List<int> mine = out.spans.get(row.to_str()).or([]);
+        mine.push(from);
+        mine.push(stop);
+        mine.push(class_of(kind, bits, modifiers));
+        mine.push(type_index);
+        mine.push(bits);
+        out.spans.set(row.to_str(), mine);
+        out.count = out.count + 1;
+    }
+    return out;
+}
+
+/// `classes` (a class per byte of `line`, empty without a lexer) with the tokens of `row` painted over, when the
+/// row still has the text the tokens were computed for.
+pub List<int> overlay(Tokens tokens, int row, str line, List<int> classes) {
+    if (tokens.count == 0 || row >= tokens.texts.size() || tokens.texts[row] != line) {
+        return classes;
+    }
+    List<int> found = tokens.spans.get(row.to_str()).or([]);
+    if (found.size() == 0) {
+        return classes;
+    }
+    List<int> out = classes.slice(0, classes.size());
+    while (out.size() < line.size()) {
+        out.push(SYN_class.NORMAL);
+    }
+    int index = 0;
+    while (index + 4 < found.size()) {
+        if (found[index + 2] >= 0) {
+            for (int offset in found[index] .. found[index + 1]) {
+                out[offset] = found[index + 2];
+            }
+        }
+        index = index + 5;
+    }
+    return out;
+}
+
+/// What the token at byte `col` of `row` is, as "type modifier modifier"; "" without one.
+pub str describe(Tokens tokens, int row, int col) {
+    List<int> found = tokens.spans.get(row.to_str()).or([]);
+    int index = 0;
+    while (index + 4 < found.size()) {
+        if (col >= found[index] && col < found[index + 1]) {
+            str out = "token";
+            if (found[index + 3] >= 0 && found[index + 3] < tokens.types.size()) {
+                out = tokens.types[found[index + 3]];
+            }
+            for (int bit in 0 .. tokens.modifiers.size()) {
+                if ((found[index + 4] / pow2(bit)) % 2 == 1) {
+                    out = out + " " + tokens.modifiers[bit];
+                }
+            }
+            return out;
+        }
+        index = index + 5;
+    }
+    return "";
+}

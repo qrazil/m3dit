@@ -39,6 +39,7 @@ import engine.MED_key;
 import engine.MED_listing;
 import engine.MED_hl;
 import engine.MED_snippet;
+import engine.MED_semtok;
 import engine.MED_map;
 import ui.MED_keymap;
 import encoding.json;
@@ -229,6 +230,14 @@ pub type App {
     /// What the last WorkspaceEdit changed (files, edits).
     int lsp_edit_files = 0;
     int lsp_edit_count = 0;
+    // >>> semantic tokens state (engine/MED_semtok.m31; the methods are in the "semantic tokens" section)
+    Map<str, int> sem_ticks = {};
+    List<str> sem_lines = [];
+    str sem_file = "";
+    int sem_sent_tick = 0;
+    int sem_request = 0;
+    int sem_wait_ms = 1000;
+    // <<< semantic tokens state
     /// Inlay hints: by absolute file path, row -> the hints of that row as one
     /// text; shown after the end of the line while `is_hints_on`.
     pub Map<str, Map<str, str>> hints = {};
@@ -6832,6 +6841,7 @@ bool App.did_tick_lsp(int elapsed_ms) {
         if (!server.is_ready || lsp_quiet_ms < 250) {
             continue;
         }
+        lsp_semantic_tick(position, lang_here, elapsed_ms);
         if (is_hints_on && server_languages[position] == lang_here && server.can_do("inlayHintProvider") && path.size() > 0) {
             int hint_tick = editor.buffer.tick;
             if ((hint_tick != hints_tick || editor.view_top != hints_top) && server.versions.contains(absolute_of(path)) && editor.mode != MED_editor.INSERT) {
@@ -6958,8 +6968,11 @@ bool App.did_handle_server_message(int position, MED_lsp.Message message) {
             return false;
         }
         lsp_pending.remove(key);
-        if (message.is_error && purpose.starts_with("pum")) {
-            // a cancelled or outdated completion request is no news
+        if (purpose == "semtok") {
+            sem_request = 0;
+        }
+        if (message.is_error && (purpose.starts_with("pum") || purpose == "semtok")) {
+            // a cancelled or outdated completion or token request is no news
             return false;
         }
         if (message.is_error) {
@@ -7220,6 +7233,8 @@ void App.run_lsp_command(str sub, str arg) {
     } else if (sub == "signature") {
         lsp_flush_document();
         lsp_request("textDocument/signatureHelp", "signature", lsp_position_parameters());
+    } else if (sub == "tokens") {
+        lsp_tokens_info();
     } else if (sub == "hints") {
         if (arg == "on") {
             is_hints_on = true;
@@ -7302,6 +7317,10 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
     str file = purpose_and_file.substr(bar + 1, purpose_and_file.size());
     if (purpose.starts_with("pum")) {
         pum_answer(purpose, result);
+        return;
+    }
+    if (purpose == "semtok") {
+        lsp_semantic_answer(result);
         return;
     }
     if (purpose == "hover") {
@@ -7823,6 +7842,62 @@ void App.draw_pum(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows) {
 
 // <<< completion popup -----------------------------------------------------------------------------------
 
+// >>> semantic tokens (engine/MED_semtok.m31): `:set nosemantictokens` turns them off, `:Lsp tokens` says what is under the cursor
+
+/// Ask the server of the active buffer for its semantic tokens once the text has settled (not in Insert mode, and
+/// not more often than every 400 ms).
+void App.lsp_semantic_tick(int position, str lang_here, int elapsed_ms) {
+    sem_wait_ms = sem_wait_ms + elapsed_ms;
+    MED_lsp.Server server = servers[position];
+    if (sem_request != 0 || sem_wait_ms < 400 || server_languages[position] != lang_here || path.size() == 0 || editor.mode == MED_editor.INSERT || !editor.is_option_on("semantictokens", true)) {
+        return;
+    }
+    json.Value provider = MED_lsp.member(server.capabilities, "semanticTokensProvider");
+    if (MED_lsp.is_null(provider) || MED_lsp.is_null(MED_lsp.member(provider, "full"))) {
+        return;
+    }
+    str key = absolute_of(path);
+    if (!server.versions.contains(key) || sem_ticks.get(key).or(-1) == editor.buffer.tick) {
+        return;
+    }
+    sem_wait_ms = 0;
+    sem_file = key;
+    sem_sent_tick = editor.buffer.tick;
+    sem_lines = editor.buffer.lines.slice(0, editor.buffer.lines.size());
+    lsp_flush_document();
+    lsp_request("textDocument/semanticTokens/full", "semtok", MED_lsp.object(["textDocument"], [MED_lsp.object(["uri"], [MED_lsp.text(MED_lsp.uri_of(key))])]));
+    sem_request = 1;
+}
+
+/// The answer to `textDocument/semanticTokens/full`: decode it against the text it was asked for.
+void App.lsp_semantic_answer(json.Value result) {
+    sem_request = 0;
+    int found = slot_with_path(sem_file);
+    int owner = server_for(lsp_language_here());
+    if (found < 0 || owner < 0 || MED_lsp.is_null(result)) {
+        return;
+    }
+    json.Value provider = MED_lsp.member(servers[owner].capabilities, "semanticTokensProvider");
+    MED_semtok.Tokens tokens = MED_semtok.decode(MED_lsp.ints_of(MED_lsp.member(result, "data")), MED_lsp.legend_of(provider, "tokenTypes"), MED_lsp.legend_of(provider, "tokenModifiers"), sem_lines);
+    slots[found].editor.sem = tokens;
+    sem_ticks.set(sem_file, sem_sent_tick);
+}
+
+/// `:Lsp tokens`: how many tokens the buffer has and the one under the cursor.
+void App.lsp_tokens_info() {
+    str here = MED_semtok.describe(editor.sem, editor.row, editor.col);
+    if (editor.sem.count == 0) {
+        notice = "LSP: no semantic tokens (yet) for this buffer";
+        return;
+    }
+    if (here.size() == 0) {
+        here = "none";
+    }
+    notice = "LSP: " + editor.sem.count.to_str() + " semantic tokens; under the cursor: " + here;
+}
+
+// <<< semantic tokens
+
 // >>> workspace edits and format on save (ui/MED_lsp.m31: FileOp, Server.await)
 
 /// Say why a WorkspaceEdit stopped, when it did.
@@ -8213,6 +8288,9 @@ str App.lsp_capability_for(str sub) {
     }
     if (sub == "hints") {
         return "inlayHintProvider";
+    }
+    if (sub == "tokens") {
+        return "semanticTokensProvider";
     }
     return "";
 }

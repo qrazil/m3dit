@@ -16,13 +16,13 @@
 //   MED_lsp.diagnostics_of(parameters)    the diagnostics of a publishDiagnostics
 //   MED_lsp.edits_of(value)           TextEdits from a result
 //
-// What is deliberately not here: incremental sync (the whole text is sent),
-// semantic tokens, completion, workspace folders, dynamic registration. The
-// servers a user is likely to run (rust-analyzer, gopls, pyright, clangd,
-// typescript-language-server, lua-language-server, marksman) all work with
-// full-document sync and the requests below.
+// What is deliberately not here: workspace folder changes, `range` and `delta` token requests, pull diagnostics.
+// The servers a user is likely to run (rust-analyzer, gopls, pyright, clangd, typescript-language-server,
+// lua-language-server, marksman) work with the requests below; changes go as one ranged edit when the server
+// announces incremental sync and as the whole text otherwise.
 
 import encoding.json;
+import engine.MED_semtok;
 import io;
 import os;
 import proc;
@@ -1274,7 +1274,7 @@ pub Server start(str name, List<str> argv, str root) {
     json.Value definition = object(["linkSupport", "dynamicRegistration"], [json.Value.Bool(false), yes]);
     json.Value rename = object(["prepareSupport", "dynamicRegistration"], [json.Value.Bool(false), yes]);
     json.Value action = object(["isPreferredSupport", "dataSupport", "resolveSupport", "dynamicRegistration"], [json.Value.Bool(false), yes, object(["properties"], [json.Value.Array([text("edit")])]), yes]);
-    json.Value document_capabilities = object(["completion", "synchronization", "hover", "signatureHelp", "inlayHint", "definition", "references", "rename", "codeAction", "formatting", "publishDiagnostics"], [completion, synchronization, markup, signature, plain, definition, plain, rename, action, plain, diagnostics]);
+    json.Value document_capabilities = object(["completion", "synchronization", "hover", "signatureHelp", "inlayHint", "definition", "references", "rename", "codeAction", "formatting", "semanticTokens", "publishDiagnostics"], [completion, synchronization, markup, signature, plain, definition, plain, rename, action, plain, semantic_tokens_capability(), diagnostics]);
     // workspaceFolders is deliberately not declared: pyright then never starts
     // analysing (the root is passed as rootUri and as one workspace folder)
     json.Value workspace_capabilities = object(["applyEdit", "workspaceEdit", "didChangeWatchedFiles"], [json.Value.Bool(true), object(["documentChanges", "resourceOperations", "failureHandling"], [json.Value.Bool(true), json.Value.Array([text("create"), text("rename"), text("delete")]), text("abort")]), plain]);
@@ -1285,6 +1285,40 @@ pub Server start(str name, List<str> argv, str root) {
     json.Value parameters = object(["processId", "rootUri", "rootPath", "capabilities", "clientInfo", "workspaceFolders", "trace"], [json.Value.Null, text(uri_of(root)), text(root), capabilities, object(["name", "version"], [text("m3"), text("0.1.0")]), json.Value.Array([folder]), text("off")]);
     server.initialize_id = server.request("initialize", parameters);
     return server;
+}
+
+/// What m3 tells a server about semantic tokens: whole-document requests, relative encoding, single-line tokens,
+/// the standard types and modifiers (engine/MED_semtok.m31 draws them over the lexical highlighter).
+json.Value semantic_tokens_capability() {
+    List<json.Value> types = [];
+    for (str one in MED_semtok.STANDARD_TYPES) {
+        types.push(text(one));
+    }
+    List<json.Value> modifiers = [];
+    for (str one in MED_semtok.STANDARD_MODIFIERS) {
+        modifiers.push(text(one));
+    }
+    json.Value yes = json.Value.Bool(true);
+    json.Value off = json.Value.Bool(false);
+    return object(["dynamicRegistration", "requests", "tokenTypes", "tokenModifiers", "formats", "overlappingTokenSupport", "multilineTokenSupport"], [yes, object(["range", "full"], [off, yes]), json.Value.Array(types), json.Value.Array(modifiers), json.Value.Array([text("relative")]), off, off]);
+}
+
+/// The legend names of a `semanticTokensProvider` (`tokenTypes` or `tokenModifiers`).
+pub List<str> legend_of(json.Value provider, str which) {
+    List<str> out = [];
+    for (json.Value one in items_of(member(member(provider, "legend"), which))) {
+        out.push(text_of(one));
+    }
+    return out;
+}
+
+/// The integers of a `data` array.
+pub List<int> ints_of(json.Value value) {
+    List<int> out = [];
+    for (json.Value one in items_of(value)) {
+        out.push(int_of(one, 0));
+    }
+    return out;
 }
 
 /// The text of an inlay hint label: a string or the values of its parts.

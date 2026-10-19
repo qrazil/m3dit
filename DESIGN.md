@@ -689,7 +689,7 @@ whatever a server wrote (a read with a deadline that has already passed fails at
   the documentation panel on the right of the list when 24 cells fit, else on the left. Cells only get text through
   `MED_pum.clean`. `Server.cancel` sends `$/cancelRequest` for a request that was overtaken. Divergences from nvim:
   nvim inserts the selected text live and `<C-e>` restores it; here nothing is inserted until accept.
-* Tests: `tests/t_pum.m31` and `tests/lsp_pty.py` (the popup), `tests/t_lsp.m31` (framing, decoding, URIs, columns, edits, ids, a round trip with a scripted server);
+* Tests: `tests/t_pum.m31`, `tests/t_semtok.m31` and `tests/lsp_pty.py` (popup, sync, registration, tokens), `tests/t_lsp.m31` (framing, decoding, URIs, columns, edits, ids, a round trip with a scripted server);
   the `lsp_client` pty scenario of `tests/e2e.py` against `tests/fake_lsp.py` (server requests with string ids,
   an stderr flood, lazy and command code actions); and `lsp_real_*` pty scenarios against real servers (skipped
   when a binary is missing). Each of the latter waits for diagnostics, then hover, definition, references and

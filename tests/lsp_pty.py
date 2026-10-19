@@ -723,6 +723,122 @@ def oracle_labels(lang, cmd):
     return None
 
 
+def fg_at(term, y, x):
+    return term.screen.buffer[y][x].fg
+
+
+def find_text(term, needle):
+    """(row, column) of the first screen cell run holding `needle`, columns counted in cells."""
+    for y, row in enumerate(term.text()[:term.rows - 2]):
+        x = row.find(needle)
+        if x >= 0:
+            return y, x
+    return None
+
+
+@scenario
+def semantic_tokens(binary, root, rep, quick):
+    """Tokens from the server are painted over the lexical highlighter; an edited row falls back to the lexer until
+    the next answer; UTF-16 columns are right; `:Lsp tokens` says what is under the cursor."""
+    text = "def go(x):\n    myvar = Foo(x)\n\u00e9\U0001f600 myvar + Foo\n"
+    term = start(binary, root, text, auto=False, extra_env={"FAKE_LSP_TOKENS": "1"})
+    try:
+        end = time.time() + 8
+        while time.time() < end and not any(e["kind"] == "semtok" for e in term.log()):
+            term.settle(0.2)
+        term.settle(0.5)
+        kw = find_text(term, "def")
+        var1 = find_text(term, "myvar")
+        rep.ok("the screen shows the file", kw is not None and var1 is not None, "\n".join(term.text()[:5]))
+        if kw is None or var1 is None:
+            return
+        keyword_fg = fg_at(term, var1[0], var1[1])
+        rep.ok("`myvar` (a keyword token) is coloured, all five cells alike", keyword_fg != "default" and all(fg_at(term, var1[0], var1[1] + i) == keyword_fg for i in range(5)),
+               "%r" % [fg_at(term, var1[0], var1[1] + i) for i in range(5)])
+        rep.ok("the neighbour cells are not recoloured", fg_at(term, var1[0], var1[1] - 1) != keyword_fg and fg_at(term, var1[0], var1[1] + 5) != keyword_fg)
+        row3 = [y for y, r in enumerate(term.text()[:term.rows - 2]) if "myvar +" in r.replace("\u00e9", "e")]
+        rep.ok("the third row shows too", bool(row3))
+        if row3:
+            x3 = term.text()[row3[0]].find("myvar")
+            rep.ok("columns after an astral character are right (UTF-16)", all(fg_at(term, row3[0], x3 + i) == keyword_fg for i in range(5)) and fg_at(term, row3[0], x3 - 1) != keyword_fg,
+                   "x3=%d %r" % (x3, [fg_at(term, row3[0], x3 + i) for i in range(-1, 6)]))
+            foo = term.text()[row3[0]].find("Foo")
+            rep.ok("a type token has a colour of its own", fg_at(term, row3[0], foo) not in (keyword_fg, fg_at(term, row3[0], foo - 1)))
+        check(term, rep, "tokens painted", expect_popup=False)
+        term.type("gg", 0.2)
+        term.type("/myvar\r", 0.2)
+        term.type(":Lsp tokens\r", 0.4)
+        rep.ok("`:Lsp tokens` names the token under the cursor", "keyword" in term.text()[-1] or "keyword" in "\n".join(term.text()[-3:]), "\n".join(term.text()[-3:]))
+        term.type(":noh\r", 0.2)
+        # an edit: the edited row shows lexical colours at once, tokens come back after the next answer
+        before = len([e for e in term.log() if e["kind"] == "semtok"])
+        term.type("A # note", 0.3)       # still in Insert mode: no request goes out
+        var1 = find_text(term, "myvar")
+        rep.ok("an edited row falls back to the lexer at once", fg_at(term, var1[0], var1[1]) != keyword_fg, repr(fg_at(term, var1[0], var1[1])))
+        term.type("\x1b", 0.1)
+        end = time.time() + 6
+        while time.time() < end and len([e for e in term.log() if e["kind"] == "semtok"]) == before:
+            term.settle(0.2)
+        term.settle(0.6)
+        rep.ok("and the new answer paints it again", fg_at(term, var1[0], var1[1]) == keyword_fg, repr(fg_at(term, var1[0], var1[1])))
+        check(term, rep, "tokens repainted", expect_popup=False)
+    finally:
+        left = term.close()
+    rep.ok("no server left", not left, repr(left))
+
+
+@scenario
+def real_clangd_tokens(binary, root, rep, quick):
+    """A real server's tokens, against what nvim's own client shows for the same positions (tests/oracle_tokens.py)."""
+    cmd = find_server("clangd")
+    source = "int add(int a, int b) { return a + b; }\nint main(void) { int y = add(1, 2); return y; }\n"
+    term = start(binary, root, source, name="a.c", auto=False)
+    try:
+        term.type(":Lsp server c %s\r" % cmd, 0.3)
+        term.type(":Lsp stop\r", 0.5)
+        term.type(":Lsp start\r", 1.0)
+        points = [(0, 4), (1, 25), (1, 21)]    # add (declaration), add (call), y (declaration)
+        seen = {}
+        end = time.time() + 40
+        while time.time() < end and len(seen) < len(points):
+            term.type("gg", 0.2)
+            for row, col in points:
+                term.type("gg%s0%s" % ("j" * row, "l" * col), 0.1)
+                term.type(":Lsp tokens\r", 0.5)
+                line = " ".join(term.text()[-3:])
+                if "under the cursor:" in line:
+                    seen[(row, col)] = line.split("under the cursor:")[1].strip().split("  ")[0].strip()
+            if len(seen) < len(points):
+                time.sleep(1.0)
+        rep.ok("clangd's semantic tokens arrive", len(seen) == len(points), repr(seen))
+        wanted = oracle_tokens("c", cmd, source, "c", points)
+        if wanted is None:
+            rep.skipped.append("real_clangd_tokens oracle: nvim could not answer")
+        else:
+            for point in points:
+                mine = seen.get(point, "").split()
+                theirs = wanted.get("%d,%d" % point, [])
+                rep.ok("token at %r: type %s modifiers agree with nvim's client (%r)" % (point, mine[:1], theirs),
+                       mine and theirs and mine[0] == theirs[0] and ("declaration" in mine) == ("declaration" in theirs),
+                       "m3 %r nvim %r" % (mine, theirs))
+    finally:
+        left = term.close()
+    rep.ok("no clangd process left", not left, repr(left))
+
+
+def oracle_tokens(lang, cmd, source, ft, points):
+    import subprocess
+    try:
+        out = subprocess.run([sys.executable, os.path.join(HERE, "oracle_tokens.py"), lang, ft, json.dumps(points), source] + cmd.split(),
+                             capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return None
+    for line in out.stdout.splitlines():
+        if line.startswith("tokens:"):
+            return json.loads(line[len("tokens:"):])
+    return None
+
+
 @scenario
 def real_clangd_sync_format(binary, root, rep, quick):
     """A real server announces incremental sync: edits keep its diagnostics right, and format on save formats."""

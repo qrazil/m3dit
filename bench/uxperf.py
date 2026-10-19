@@ -391,13 +391,13 @@ def run_key_actions(binary, args, root):
 
 def run_pum(binary, args, root):
     """Key to frame with the completion popup open (`:set lspcomplete=auto`, the scripted server of
-    tests/fake_lsp_complete.py): a typed character that narrows the list, a backspace that widens it, and
+    tests/fake_lsp_complete.py, with semantic tokens on a page of text): a typed character that narrows the list, a backspace that widens it, and
     <Tab> moving the selection (which also starts the documentation fetch)."""
     fake = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fake_lsp_complete.py")
     path = os.path.join(root, "pum.py")
     with open(path, "w") as f:
-        f.write("x = 1\n\n")
-    env = dict(args.env or {}, PWD=root, GIT_CEILING_DIRECTORIES=os.path.dirname(root))
+        f.write("".join("def go%d(x):\n    myvar = Foo(x) + myvar\n" % i for i in range(30)) + "\n")
+    env = dict(args.env or {}, FAKE_LSP_TOKENS="1", PWD=root, GIT_CEILING_DIRECTORIES=os.path.dirname(root))
     ed = Editor(binary, root, [path], args.rows, args.cols, env=env, sync_reply=args.sync_reply)
     results = {}
     try:
@@ -405,7 +405,8 @@ def run_pum(binary, args, root):
         ed.key(":Lsp server python python3 %s\r" % os.path.abspath(fake), quiet=0.2)
         ed.key(":set lspcomplete=auto\r", quiet=0.2)
         ed.key(":Lsp start\r", quiet=0.8)
-        ed.key("jA", quiet=0.2)
+        ed.key("G", quiet=0.2)
+        ed.key("A", quiet=0.2)
         ed.key("hel", quiet=0.6)
         ed.settle(0.4)
         for name, keys, undo in (("popup open: type a char (narrows)", "l", "\x7f"),

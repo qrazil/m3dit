@@ -20,8 +20,10 @@ Environment: FAKE_LSP_SYNC=1|2 (the sync kind announced), FAKE_LSP_DYNAMIC=1 (co
 didChangeWatchedFiles are registered with client/registerCapability instead of announced; formatting is
 unregistered again at the third didSave). Also: hover waits 0.4 s and first sends a workspace/applyEdit for a
 document version that does not exist (the client must refuse it); formatting prepends a comment line; rename
-answers with documentChanges (create, edit, rename, delete).
+answers with documentChanges (create, edit, rename, delete). FAKE_LSP_TOKENS=1 adds semantic tokens: `myvar` is a
+keyword, `Foo` a type, `go` a function (a declaration after `def `), computed from the current text.
 """
+import re
 import json
 import os
 import sys
@@ -33,6 +35,7 @@ saves = [0]
 LOG = os.environ.get("FAKE_LSP_LOG")
 SYNC = int(os.environ.get("FAKE_LSP_SYNC", "1"))
 DYNAMIC = os.environ.get("FAKE_LSP_DYNAMIC") == "1"
+TOKENS = os.environ.get("FAKE_LSP_TOKENS") == "1"
 
 
 def log(kind, **fields):
@@ -117,6 +120,10 @@ while True:
             caps["completionProvider"] = {"triggerCharacters": ["."], "resolveProvider": True,
                                           "allCommitCharacters": [";"]}
             caps["documentFormattingProvider"] = True
+        if TOKENS:
+            caps["semanticTokensProvider"] = {"legend": {"tokenTypes": ["keyword", "function", "type", "variable"],
+                                                         "tokenModifiers": ["declaration"]},
+                                              "full": True}
         reply(message, {"capabilities": caps})
     elif method == "initialized":
         if DYNAMIC:
@@ -196,6 +203,22 @@ while True:
                         "newText": "STALE"}]}]}}})
         time.sleep(0.4)
         reply(message, {"contents": "hover text"})
+    elif method == "textDocument/semanticTokens/full":
+        uri = params["textDocument"]["uri"]
+        data, last_line, last_start = [], 0, 0
+        for number, line in enumerate(docs.get(uri, "").split("\n")):
+            found = []
+            for match in re.finditer(r"\b(myvar|Foo|go)\b", line):
+                word = match.group(1)
+                units = len(line[:match.start()].encode("utf-16-le")) // 2
+                kind = {"myvar": 0, "go": 1, "Foo": 2}[word]
+                mods = 1 if word == "go" and line[:match.start()].endswith("def ") else 0
+                found.append((units, len(word), kind, mods))
+            for units, length, kind, mods in found:
+                data += [number - last_line, units if number != last_line else units - last_start, length, kind, mods]
+                last_line, last_start = number, units
+        log("semtok", count=len(data) // 5)
+        reply(message, {"data": data})
     elif method == "textDocument/rename":
         uri = params["textDocument"]["uri"]
         base = uri.rsplit("/", 1)[0]

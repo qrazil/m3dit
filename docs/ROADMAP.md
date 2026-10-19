@@ -95,9 +95,9 @@ stage|reset|undo|preview` (`undo` unstages) and the objects `ih` / `ah`.
 
 | # | Item | Reference | Test | Deps | Size | Decision and reason |
 |---|---|---|---|---|---|---|
-| 15 | Completion popup that follows the cursor: trigger characters, as-you-type filtering, `completionItem/resolve` documentation, commit characters, snippets through item 9 | blink.cmp / nvim-cmp essentials | `tests/fake_lsp.py` scenarios + pty | 9 | L | Keep CTRL-Space picker as the explicit path; the popup is opt-in `:set completeopt`-style `lspcomplete=auto|manual` (default `auto` after 1.0 soak) |
-| 16 | Incremental `didChange`, dynamic registration, format on save (`:set lspformat`), `$/cancelRequest`, `workspace/didChangeWatchedFiles` | LSP 3.17 | `fake_lsp.py` | | M | Incremental sync only when the server announces it; full sync stays the default |
-| 17 | Semantic tokens (overlay on the lexical highlighter) | LSP 3.17 | fake server | `feat/themes` merged (class to colour map) | M | After themes; skipped if the theme engine has no overlay slot |
+| 15 | Completion popup that follows the cursor: trigger characters, as-you-type filtering, `completionItem/resolve` documentation, commit characters, snippets through item 9 | blink.cmp / nvim-cmp essentials | `tests/fake_lsp.py` scenarios + pty | 9 | L | **Done** (Unreleased). Keep CTRL-Space picker as the explicit path; the popup is opt-in `:set completeopt`-style `lspcomplete=auto|manual` (default `auto` after 1.0 soak) |
+| 16 | Incremental `didChange`, dynamic registration, format on save (`:set lspformat`), `$/cancelRequest`, `workspace/didChangeWatchedFiles` | LSP 3.17 | `fake_lsp.py` | | M | **Done** (Unreleased). Incremental sync only when the server announces it; full sync stays the default |
+| 17 | Semantic tokens (overlay on the lexical highlighter) | LSP 3.17 | fake server | `feat/themes` merged (class to colour map) | M | **Done** (Unreleased). After themes; skipped if the theme engine has no overlay slot |
 | 18 | DAP | | | 15, a UI for variables and frames | L | Post-1.0. Reason: the pipes exist, the UI does not, and it is a second protocol client |
 
 ### 0.11.0 Terminal

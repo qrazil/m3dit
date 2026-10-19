@@ -1,0 +1,71 @@
+// Unit checks for MED_semtok: decoding the relative token encoding (the example of the LSP specification),
+// UTF-16 columns, the class of a token, the overlay on lexical classes, and stale rows.
+
+import syntax.core.SYN_class;
+import tests.MED_check;
+import engine.MED_semtok;
+
+MED_check.Check check = MED_check.Check();
+List<str> types = ["property", "type", "class"];
+List<str> mods = ["private", "static"];
+// LSP 3.17, "Semantic Tokens Request": three tokens on lines 2 and 5
+List<str> lines = ["", "", "  a private  class", "", "", "  Hello world"];
+lines[2] = "     abc ptyp";
+lines[5] = "  Helloworld";
+MED_semtok.Tokens tokens = MED_semtok.decode([2, 5, 3, 0, 3, 0, 5, 4, 1, 0, 3, 2, 7, 2, 0], types, mods, lines);
+check.eq_int("three tokens", tokens.count, 3);
+check.eq_str("the first is a property with both modifiers", MED_semtok.describe(tokens, 2, 5), "property private static");
+check.eq_str("the second is on the same row, relative to the first", MED_semtok.describe(tokens, 2, 10), "type");
+check.eq_str("the third is three rows down, with an absolute start", MED_semtok.describe(tokens, 5, 2), "class");
+check.eq_str("a column between tokens", MED_semtok.describe(tokens, 2, 8), "");
+check.eq_str("a row without tokens", MED_semtok.describe(tokens, 3, 0), "");
+// the overlay paints the classes over a lexical row, and leaves the rest
+List<int> lexical = [];
+for (int offset in 0 .. lines[2].size()) {
+    lexical.push(SYN_class.COMMENT);
+}
+List<int> painted = MED_semtok.overlay(tokens, 2, lines[2], lexical);
+check.eq_int("before a token the lexical class stays", painted[4], SYN_class.COMMENT);
+check.eq_int("a property token", painted[5], SYN_class.PROPERTY);
+check.eq_int("its last byte", painted[7], SYN_class.PROPERTY);
+check.eq_int("between the tokens", painted[8], SYN_class.COMMENT);
+check.eq_int("a type token", painted[10], SYN_class.TYPE);
+check.eq_int("the lexical list is not changed", lexical[5], SYN_class.COMMENT);
+List<int> bare = MED_semtok.overlay(tokens, 5, lines[5], []);
+check.eq_int("without a lexer the row is built, plain", bare[0], SYN_class.NORMAL);
+check.eq_int("and the token is painted", bare[2], SYN_class.TYPE);
+check.eq_int("the whole row is covered", bare.size(), lines[5].size());
+// a row whose text changed shows its lexical classes; so does a row that moved
+check.eq_int("edited row: lexical", MED_semtok.overlay(tokens, 2, lines[2] + "x", lexical)[5], SYN_class.COMMENT);
+check.eq_int("row past the end", MED_semtok.overlay(tokens, 9, "x", lexical).size(), lexical.size());
+check.eq_int("no tokens at all", MED_semtok.overlay(MED_semtok.Tokens(), 2, lines[2], lexical)[5], SYN_class.COMMENT);
+// UTF-16 columns: an astral character is two units, an accented one is one unit and two bytes
+List<str> wide_lines = ["\u{e9}\u{1f600}ab foo"];
+MED_semtok.Tokens wide = MED_semtok.decode([0, 5, 3, 1, 0, 0, 0, 0, 0, 0], ["x", "function"], [], wide_lines);
+check.eq_str("columns count UTF-16 units", MED_semtok.describe(wide, 0, 9), "function");
+check.eq_int("byte range of the token", wide.spans.get("0").or([])[0], 8);
+check.eq_int("ends after the word", wide.spans.get("0").or([])[1], 11);
+check.eq_str("nothing in the accented prefix (a token of length 0 is dropped)", MED_semtok.describe(wide, 0, 0), "");
+// tokens outside the buffer are dropped
+MED_semtok.Tokens outside = MED_semtok.decode([7, 0, 3, 0, 0], types, mods, ["one"]);
+check.eq_int("a row past the end is dropped", outside.count, 0);
+// classes of tokens
+List<str> standard = ["declaration", "definition", "readonly", "static", "deprecated", "abstract", "async", "modification", "documentation", "defaultLibrary"];
+check.eq_int("keyword", MED_semtok.class_of("keyword", 0, standard), SYN_class.KEYWORD);
+check.eq_int("a function declaration", MED_semtok.class_of("function", 1, standard), SYN_class.FUNCTION);
+check.eq_int("a function use is a call", MED_semtok.class_of("function", 0, standard), SYN_class.CALL);
+check.eq_int("a method", MED_semtok.class_of("method", 0, standard), SYN_class.CALL);
+check.eq_int("struct is a type", MED_semtok.class_of("struct", 0, standard), SYN_class.TYPE);
+check.eq_int("enumMember is a constant", MED_semtok.class_of("enumMember", 0, standard), SYN_class.CONSTANT);
+check.eq_int("a readonly variable is a constant", MED_semtok.class_of("variable", 4, standard), SYN_class.CONSTANT);
+check.eq_int("a default-library variable", MED_semtok.class_of("variable", 512, standard), SYN_class.BUILTIN_VAR);
+check.eq_int("a plain variable keeps the lexical class", MED_semtok.class_of("variable", 0, standard), -1);
+check.eq_int("a parameter keeps the lexical class", MED_semtok.class_of("parameter", 0, standard), -1);
+check.eq_int("macro", MED_semtok.class_of("macro", 0, standard), SYN_class.PREPROC);
+check.eq_int("decorator", MED_semtok.class_of("decorator", 0, standard), SYN_class.ATTRIBUTE);
+check.eq_int("string", MED_semtok.class_of("string", 0, standard), SYN_class.STRING);
+check.eq_int("an unknown type", MED_semtok.class_of("zzz", 0, standard), -1);
+// a -1 class leaves the lexical one in place
+MED_semtok.Tokens plain = MED_semtok.decode([0, 0, 3, 0, 0], ["variable"], [], ["abc"]);
+check.eq_int("variable tokens do not repaint", MED_semtok.overlay(plain, 0, "abc", [SYN_class.STRING, SYN_class.STRING, SYN_class.STRING])[1], SYN_class.STRING);
+check.finish("t_semtok");

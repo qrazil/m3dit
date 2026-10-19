@@ -269,7 +269,8 @@ turns on the completion popup that follows the cursor: it opens as you type (tri
 with every key, shows documentation beside the list; `<Tab>`/`<C-n>` and `<S-Tab>`/`<C-p>` select, `<C-y>` (or `<CR>` on a
 selected row) accepts, `<C-e>` closes. Snippet items expand through the snippet engine. `:set lspformat` formats a
 buffer with its server before every write. Servers that announce incremental sync get ranged `didChange`s; servers that
-register capabilities dynamically are supported.
+register capabilities dynamically are supported. Semantic tokens from the server are painted over the syntax
+highlighting (`:set nosemantictokens` turns them off, `:Lsp tokens` names the token under the cursor).
 
 ## Themes
 

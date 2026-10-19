@@ -4,6 +4,15 @@
 
 Language intelligence completion: docs/ROADMAP.md items 15 to 17 (item 18, DAP, is not started).
 
+- Item 17, semantic tokens: `textDocument/semanticTokens/full` (when the server announces or registers it, `full` and a
+  legend) once the text has settled (not in Insert mode, at most every 400 ms), painted over the lexical highlighter as
+  syntax classes, so every theme already colours them (`engine/MED_semtok.m31`; types and modifiers map to the
+  `SYN_class` set: type-like to TYPE, functions to FUNCTION on a declaration else CALL, properties, enum members,
+  keywords, comments, strings, numbers, operators, macros, decorators; variables and parameters keep the lexer's class,
+  `readonly` ones become CONSTANT and `defaultLibrary` ones BUILTIN_VAR). A row whose text changed since the tokens were
+  computed shows the lexer's colours until the next answer (so an edit never paints stale colours), UTF-16 columns are
+  converted to bytes with the text the tokens were computed for. `:set nosemantictokens` stops the requests;
+  `:Lsp tokens` reports the token under the cursor. Checked against nvim's own client with real clangd.
 - Item 16, the protocol: incremental `didChange` when the server announces `textDocumentSync` change 2 (one ranged
   change per sync, found by comparing the text the server has with the buffer: common rows, then common characters;
   UTF-16 columns; checked by 400 random round trips); servers that announce 1 or nothing keep getting the whole
@@ -38,7 +47,8 @@ Language intelligence completion: docs/ROADMAP.md items 15 to 17 (item 18, DAP, 
 - Tests: `tests/t_pum.m31` (parsing, matching tiers, ranking, narrowing, selection, placement, drawing of hostile
   labels), `tests/lsp_pty.py` against `tests/fake_lsp_complete.py` (frame integrity against a from-scratch redraw,
   control characters, placement above the cursor, resize, cancel, resolve, snippets, additional edits) and, with
-  `M3_LSP_REAL=1`, against real clangd and pyright with an nvim cross-check (`tests/oracle_lsp.py`).
+  `M3_LSP_REAL=1`, against real clangd and pyright with an nvim cross-check (`tests/oracle_lsp.py`); `tests/t_semtok.m31`, the `semantic_tokens` and `real_clangd_tokens` scenarios (nvim cross-check:
+  `tests/oracle_tokens.py`).
 
 ## 0.12.0
 
