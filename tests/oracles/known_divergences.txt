@@ -60,3 +60,15 @@ b }}}\n}}}1\na {{{\n{{{3\n}}}2	2,0	:set fdm=marker<CR>jzNzv>>xzk
 }}}3\n}}}3\n}}}2\nb }}}\n}}}	3,0	:set fdm=marker<CR>zO~Gkzjzk
 # nvim updates marker folds incrementally after an edit (and a paste, a join or a delete inside a closed fold can use the structure from before it); the engine rebuilds the structure after the edit and carries each fold's state by position
 }}}\nx\n}}}3\ny\na {{{\nx	2,0	:set fdm=marker<CR>yypp
+# nvim feeds a burst of typed keys as one change and puts '. at the start of what a command inserted; typed one key at a time it is, as :help '. says, on the last character, which is where the engine puts it (a harness artifact of feedkeys, not reproduced)
+alpha beta\ngamma delta\nepsilon	1,3	ihello<Esc>gg`.x
+# nvim feeds a burst of typed keys as one change and puts '. at the start of what a command inserted; typed one key at a time it is, as :help '. says, on the last character, which is where the engine puts it (a harness artifact of feedkeys, not reproduced)
+alpha beta\ngamma delta\nepsilon	1,3	Afoo<Esc>gg`.x
+# nvim feeds a burst of typed keys as one change and puts '. at the start of what a command inserted; typed one key at a time it is, as :help '. says, on the last character, which is where the engine puts it (a harness artifact of feedkeys, not reproduced)
+alpha beta\ngamma delta\nepsilon	1,3	ofoo<Esc>gg`.x
+# nvim feeds a burst of typed keys as one change and puts '. at the start of what a command inserted; typed one key at a time it is, as :help '. says, on the last character, which is where the engine puts it (a harness artifact of feedkeys, not reproduced)
+alpha beta\ngamma delta\nepsilon	1,3	cwxx<Esc>gg`.x
+# nvim feeds a burst of typed keys as one change and puts '. at the start of what a command inserted; typed one key at a time it is, as :help '. says, on the last character, which is where the engine puts it (a harness artifact of feedkeys, not reproduced)
+alpha beta\ngamma delta\nepsilon	1,3	ihello<Esc>jj`.x
+# nvim feeds a burst of typed keys as one change and puts '. at the start of what a command inserted; typed one key at a time it is, as :help '. says, on the last character, which is where the engine puts it (a harness artifact of feedkeys, not reproduced)
+alpha beta\ngamma delta\nepsilon	1,3	ihello world<Esc>ggg;x

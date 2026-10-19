@@ -511,12 +511,12 @@ Helix 25.01 feature inventory and the v0.1.0 verdict. **Yes** = in the tag,
 | Soft wrap, rulers, indent guides, whitespace rendering | Partial | Soft wrap (with nvim's scrolling), `list` + `listchars`, `number`, `relativenumber`, `colorcolumn`, `cursorline`, `cursorcolumn`, `scrolloff`, `sidescroll(off)` and `nowrap` scrolling, indent guides (0.1.0, `:set noindentguides`), `linebreak`, `breakat`, `showbreak`, `breakindent` and `breakindentopt` (`shift`, `min`, `sbr`; `list` is not done) done |
 | Snippets | **Done** (0.8.0) | `engine/MED_snippet.m31` (grammar, expansion, transforms, tabstop ranges with extmark gravity), `engine/MED_snipops.m31` (session on an Editor), Select mode in `MED_vim`; user snippets in `snippets.json`; LSP snippet completions use it. Checked against nvim's `vim.snippet` where that can parse the snippet |
 | Auto-reload on external change, auto-save | Partial | Poll `fs.stat` mtimes on idle tick; auto-save later |
-| Persistent undo, session restore | Yes (0.7.0) | Undo files under the state directory, buffers and cursors of a project restored (layout not yet) |
+| Persistent undo, session restore | Yes (0.7.0) | Undo files under the state directory, buffers and cursors of a project restored, and (next release) the tab pages and window layout |
 | Increment/decrement (`<C-a>`/`<C-x>`) | Yes | Engine feature, oracle-tested |
 | Search (`/`, `?`, `*`, `#`), `:s`, `:g` | Yes | Vim regex with backreferences and lookaround (engine/MED_regex.m31) |
 | Config file | Yes (minimal) | `~/.config/m3/keymap.vim`: `:map` family, `let mapleader`, `:set`; no scripting |
 | Command-line completion and history | Yes | Tab / Shift-Tab complete ex commands (nvim's own list and order), option names (long and short), files, directories and buffers; `<Up>`/`<Down>` history with prefix, `<C-p>`/`<C-n>` |
-| Folds | Partial | Manual, indent and marker methods, foldlevel, zm zr zx; no expr or syntax methods |
+| Folds | Partial | Manual, indent and marker methods (marker jump levels as nvim builds them), foldlevel, foldlevelstart, zm zr zx; no expr or syntax methods |
 
 Honest summary: with Vim bindings, medit can match or exceed Helix on
 editing, navigation, picker and window features. It cannot match Helix on the
