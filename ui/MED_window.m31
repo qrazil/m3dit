@@ -75,7 +75,7 @@ pub Node leaf(int id) {
     return Node(win_id: id);
 }
 
-bool is_leaf(Node node) {
+pub bool is_leaf(Node node) {
     return node.win_id > 0;
 }
 

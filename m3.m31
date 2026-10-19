@@ -209,6 +209,7 @@ match (MED_app.open_all(files)) {
             app.restore_position();
             app.restore_undo();
             app.apply_session_cursors(saved);
+            app.apply_session_layout(saved);
         }
         if (theme_name != "") {
             // after the keymap file, so the flag wins over its :colorscheme

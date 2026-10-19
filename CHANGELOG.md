@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+Editing depth: the 0.8.0 group of docs/ROADMAP.md (items 7 to 11) and the part of item 6 that 0.7.0 left, each checked
+against `nvim --headless -u NONE` where nvim can answer. Nothing here changes a default except that `<S-Tab>` in Insert
+mode types a Tab (as nvim) and that Tab can expand a snippet when you have written some.
+
+- Session restore: the tab pages and the window layout come back (`m3` with no arguments, `:Session load`): the shape
+  of each page, which file each window shows and where its cursor was, the page and window that were current. Session
+  files are version 2 (version 1 files still load); sizes are shared out equally again.
+- Folds: `foldmethod=marker` builds the same tree as nvim, jump levels (`{{{3`, `}}}2`) included (`foldnestmax` does not
+  apply to markers); a fold's open or closed state survives an edit that moves its end; `3dd`, `2yy`, `3>>` over a closed
+  fold count it as one line; `:set foldlevel=N` re-levels the folds even when N did not change; `foldlevelstart` sets
+  `foldlevel` when a buffer is first shown. The cursor goes to the first line of a closed fold that ends the buffer only
+  when lines were deleted. Corpus 110, 111, 113; `tests/oracles/oracle_folds.py` (the whole fold tree of random marker
+  texts), `tests/t_autofold.m31`, `tests/t_foldstart.m31`.
+- Soft wrap: `linebreak`, `breakat`, `showbreak`, `breakindent` and `breakindentopt` (`shift`, `min`, `sbr`) lay a wrapped
+  line out as nvim does (`engine/MED_wrapmap.m31`), in scrolling, `gj gk g0 gm gM g$`, `j k |`, the mouse and the drawing;
+  a double-width character that leaves the last cell empty gets nvim's `>` also without these options. `g0`, `gm` and
+  `gM` leave the column they asked for as the wanted one. Corpus 112; `tests/t_wrapmap.m31` holds nvim's virtcol() tables
+  and screen rows. New options `breakat`, `breakindentopt`.
+- Snippets: the LSP / VS Code grammar with tabstops, placeholders (nested too), mirrors, choices, transforms and the
+  variables (`engine/MED_snippet.m31`, `MED_snipops.m31`). `<Tab>` / `<S-Tab>` jump while a snippet is active, a
+  placeholder is selected in Select mode (`SELECT` in the status line; a typed character replaces it); `snippets.json` and
+  `snippets/LANGUAGE.json` next to the keymap file hold your own, expanded with `<Tab>` after the prefix; LSP completion
+  items with snippets expand through the engine. `tests/oracles/oracle_snippet.py` (450 cases against nvim's
+  `vim.snippet`), `tests/t_snippet.m31`, a pty scenario.
+- `cgn` / `dgn` with `.`, counts and `nowrapscan` match nvim (corpus 109, nothing needed fixing).
+- Tab pages: `:[N]tab split|vsplit|new|vnew [file]`; a count on `:tabnew`, `:tabedit`, `:tabnext`, `:tabclose`, `:tabonly`
+  and `:tabmove` is a tab page number (`:0tabnew`, `:2tabnew`, `:$tab split`, `.`, `+N`, `-N`), where it was a line
+  number; a click on a tab label shows that page. The window oracle skipped every case with a second tab page since
+  nvim 0.11 (a check of the command line height was off by the tab line): fixed, 78 cases added, all match.
+- Known differences from nvim are listed in `tests/oracles/known_divergences.txt`.
+
 Extension API 0.1.0 (docs/EXTENSIONS.md). Off by default: with no extension built in the editor behaves as before.
 Per decision D2 an extension is an m31 module compiled into the binary; there is no runtime loading.
 

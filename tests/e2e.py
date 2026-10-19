@@ -408,6 +408,36 @@ def tab_click_and_modifier(binary, root):
 
 
 @scenario
+def session_layout_restore(binary, root):
+    keymap = os.path.join(root, "empty.vim")
+    open(keymap, "w").close()
+    s = Session(binary, root, [], keymap=keymap)
+    try:
+        s.send(":e hello.txt\r", settle=0.4)
+        s.send(":vsplit src/main.py\r", settle=0.4)
+        s.send(":tabnew hello.txt\r", settle=0.4)
+        s.send(":split\r", settle=0.4)
+        s.send("G", settle=0.2)
+        assert "third needle line" in s.text(), s.text()
+    finally:
+        s.close()
+    # the next plain `m3` in this directory brings the pages and windows back
+    s = Session(binary, root, [], keymap=keymap)
+    try:
+        assert s.wait_for("hello world"), s.text()
+        first = s.text().split("\n")[0]
+        assert "2 " in first and "src/main.py" in first and "hello.txt" in first, "two pages of two windows:\n" + first
+        text = s.text()
+        # the page that was current: the horizontal split of hello.txt (two status lines, both with the file)
+        assert len([row for row in text.split("\n") if "hello.txt" in row]) >= 2 + 1, "two windows in this page:\n" + text
+        s.send("gT", settle=0.4)
+        text = s.text()
+        assert "return 42" in text and "hello world" in text, "the vertical split of the first page:\n" + text
+    finally:
+        s.close()
+
+
+@scenario
 def state_recent_harpoon_position(binary, root):
     keymap = os.path.join(root, "empty.vim")
     open(keymap, "w").close()

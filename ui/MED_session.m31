@@ -2,19 +2,23 @@
 //
 // API
 // ---
-//   MED_session.encode(entries, active)     the session text
+//   MED_session.encode(entries, active, pages, page_index)  the session text
+//   MED_session.layout_windows(layout)      how many windows a layout string names (-1: not a layout)
 //   MED_session.decode(text)                -> Session (entries in order, `active` the path that was current)
 //   MED_session.is_valid_name(name)         a session name: letters, digits, `.`, `_`, `-`
 //   MED_session.file_for(name, cwd)         state-directory file: "sessions/NAME", or "sessions/%CWD%PATH" for ""
 //   MED_session.save / load / delete / names  the files themselves (all silent on failure)
 //
 // Format (one record per line, tab separated):
-//   m3session 1
+//   m3session 2
 //   active<TAB>PATH
-//   buffer<TAB>PATH<TAB>ROW<TAB>COL
-//
-// A session holds the files and the cursors, not the window layout or tab pages: the files open as buffers,
-// the one that was current is shown. (Layout is on the roadmap.)
+//   buffer<TAB>PATH<TAB>ROW<TAB>COL            every buffer, in buffer order
+//   tabs<TAB>INDEX                             the tab page that was current (0-based), when there is a layout
+//   page<TAB>CURRENT<TAB>LAYOUT                one per tab page; CURRENT is the leaf (0-based) that was active
+//   win<TAB>PATH<TAB>ROW<TAB>COL               one per window of that page, in leaf order
+// LAYOUT is `w` for a window, or `v(A,B,...)` (side by side) / `h(A,B,...)` (stacked) of layouts: `h(w,v(w,w))` is a
+// window above two side by side. Sizes are not kept: the windows share the space equally when the session is read.
+// Version 1 files (no tab pages) still load.
 
 import fs;
 import io;
@@ -25,17 +29,36 @@ pub type Entry {
     pub int col = 0;
 }
 
+/// A tab page of a session: the shape of its windows and what each shows.
+pub type Page {
+    pub str layout = "w";
+    pub int current = 0;
+    pub List<Entry> windows = [];
+}
+
 pub type Session {
     pub List<Entry> entries = [];
     pub str active = "";
+    pub List<Page> pages = [];
+    pub int page_index = 0;
 }
 
-pub const str MAGIC = "m3session 1";
+pub const str MAGIC = "m3session 2";
+const str MAGIC_V1 = "m3session 1";
 
-pub str encode(List<Entry> entries, str active) {
+pub str encode(List<Entry> entries, str active, List<Page> pages, int page_index) {
     List<str> out = [MAGIC, "active\t" + active];
     for (Entry entry in entries) {
         out.push("buffer\t" + entry.path + "\t" + entry.row.to_str() + "\t" + entry.col.to_str());
+    }
+    if (pages.size() > 0) {
+        out.push("tabs\t" + page_index.to_str());
+        for (Page page in pages) {
+            out.push("page\t" + page.current.to_str() + "\t" + page.layout);
+            for (Entry window in page.windows) {
+                out.push("win\t" + window.path + "\t" + window.row.to_str() + "\t" + window.col.to_str());
+            }
+        }
     }
     return out.join("\n") + "\n";
 }
@@ -43,7 +66,7 @@ pub str encode(List<Entry> entries, str active) {
 pub Session decode(str text) {
     Session session = Session();
     List<str> lines = text.split("\n");
-    if (lines.size() == 0 || lines[0] != MAGIC) {
+    if (lines.size() == 0 || (lines[0] != MAGIC && lines[0] != MAGIC_V1)) {
         return session;
     }
     for (str line in lines) {
@@ -52,9 +75,57 @@ pub Session decode(str text) {
             session.active = parts[1];
         } else if (parts[0] == "buffer" && parts.size() == 4 && parts[1].size() > 0) {
             session.entries.push(Entry(parts[1], row: parts[2].parse_int().or(0), col: parts[3].parse_int().or(0)));
+        } else if (parts[0] == "tabs" && parts.size() == 2) {
+            session.page_index = parts[1].parse_int().or(0);
+        } else if (parts[0] == "page" && parts.size() == 3) {
+            Page page = Page();
+            page.current = parts[1].parse_int().or(0);
+            page.layout = parts[2];
+            session.pages.push(page);
+        } else if (parts[0] == "win" && parts.size() == 4 && parts[1].size() > 0 && session.pages.size() > 0) {
+            session.pages[session.pages.size() - 1].windows.push(Entry(parts[1], row: parts[2].parse_int().or(0), col: parts[3].parse_int().or(0)));
         }
     }
     return session;
+}
+
+/// How many windows a layout string names (`w` is one), -1 when it is not a layout.
+pub int layout_windows(str text) {
+    List<int> stack = [];
+    int total = 0;
+    int index = 0;
+    bool is_expect = true;
+    while (index < text.size()) {
+        int byte = text.byte_at(index);
+        if (is_expect) {
+            if (byte == 119) {
+                total = total + 1;
+                index = index + 1;
+                is_expect = false;
+            } else if ((byte == 118 || byte == 104) && index + 1 < text.size() && text.byte_at(index + 1) == 40) {
+                stack.push(total);
+                total = 0;
+                index = index + 2;
+            } else {
+                return -1;
+            }
+        } else if (byte == 44) {
+            index = index + 1;
+            is_expect = true;
+        } else if (byte == 41) {
+            if (stack.size() == 0) {
+                return -1;
+            }
+            total = stack.pop() + total;
+            index = index + 1;
+        } else {
+            return -1;
+        }
+    }
+    if (stack.size() != 0 || is_expect || total == 0) {
+        return -1;
+    }
+    return total;
 }
 
 pub bool is_valid_name(str name) {

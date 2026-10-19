@@ -551,6 +551,155 @@ List<MED_session.Entry> App.session_entries() {
     return out;
 }
 
+/// The layout of the windows as MED_session writes it: `w`, or `v(...)` / `h(...)` of layouts.
+str App.layout_text(MED_window.Node node) {
+    if (MED_window.is_leaf(node)) {
+        return "w";
+    }
+    List<str> kids = [];
+    for (MED_window.Node kid in node.kids) {
+        kids.push(layout_text(kid));
+    }
+    str kind = "h";
+    if (node.is_vertical) {
+        kind = "v";
+    }
+    return kind + "(" + kids.join(",") + ")";
+}
+
+/// The tab pages of the session: their window layouts and what each window shows. Empty when there is a single window
+/// (the buffers and their cursors are all there is to keep then) or when a window shows something that is not a file.
+List<MED_session.Page> App.session_pages() {
+    List<MED_session.Page> out = [];
+    save_page();
+    bool is_worth = pages.size() > 1;
+    for (MED_window.Page page in pages) {
+        if (MED_window.leaves(page.layout).size() > 1) {
+            is_worth = true;
+        }
+    }
+    if (!is_worth) {
+        return out;
+    }
+    for (MED_window.Page page in pages) {
+        MED_session.Page record = MED_session.Page();
+        record.layout = layout_text(page.layout);
+        List<int> order = MED_window.leaves(page.layout);
+        for (int position in 0 .. order.size()) {
+            if (order[position] == page.current_win) {
+                record.current = position;
+            }
+            str window_path = "";
+            int row = 0;
+            int col = 0;
+            for (MED_window.Win win in page.wins) {
+                if (win.id == order[position]) {
+                    int slot_position = index_of(win.buffer_id);
+                    if (slot_position >= 0) {
+                        Slot slot = slots[slot_position];
+                        if (!slot.is_listing && slot.title.size() == 0 && slot.path.size() > 0) {
+                            window_path = absolute_of(slot.path);
+                        }
+                        row = win.row;
+                        col = win.col;
+                    }
+                }
+            }
+            if (window_path.size() == 0) {
+                // a window on a listing or a terminal comes back showing the buffer that was current
+                if (path.size() == 0) {
+                    return [];
+                }
+                window_path = absolute_of(path);
+            }
+            record.windows.push(MED_session.Entry(window_path, row: row, col: col));
+        }
+        out.push(record);
+    }
+    return out;
+}
+
+/// Rebuild the tab pages and windows a session had (the buffers are open already; windows whose file is not is shown
+/// the first buffer). A session without a layout leaves what is there.
+pub void App.apply_session_layout(MED_session.Session session) {
+    if (session.pages.size() == 0) {
+        return;
+    }
+    save_active();
+    List<MED_window.Page> built = [];
+    for (MED_session.Page record in session.pages) {
+        if (MED_session.layout_windows(record.layout) != record.windows.size()) {
+            continue;
+        }
+        List<MED_window.Win> placed_wins = [];
+        MED_window.Node page_layout = parse_layout(record.layout, record, placed_wins);
+        int current = record.current;
+        if (current < 0 || current >= placed_wins.size()) {
+            current = 0;
+        }
+        built.push(MED_window.Page(wins: placed_wins, layout: page_layout, current_win: placed_wins[current].id));
+    }
+    if (built.size() == 0) {
+        return;
+    }
+    pages = built;
+    page_index = session.page_index;
+    if (page_index < 0 || page_index >= built.size()) {
+        page_index = 0;
+    }
+    wins = built[page_index].wins;
+    layout = built[page_index].layout;
+    current_win = -1;
+    focus_window(built[page_index].current_win);
+    previous_win = 0;
+}
+
+// The windows of a layout string: ids from `next_win`, each showing the buffer of the session's window of that leaf.
+MED_window.Node App.parse_layout(str text, MED_session.Page record, List<MED_window.Win> placed_wins) {
+    List<MED_window.Node> stack = [];
+    List<bool> kinds = [];
+    MED_window.Node result = MED_window.leaf(0);
+    int index = 0;
+    while (index < text.size()) {
+        int byte = text.byte_at(index);
+        if (byte == 119) {
+            int id = next_win;
+            next_win = id + 1;
+            MED_session.Entry entry = record.windows[placed_wins.size()];
+            int buffer_id = current_id;
+            for (Slot slot in slots) {
+                if (slot.path.size() > 0 && absolute_of(slot.path) == entry.path) {
+                    buffer_id = slot.id;
+                }
+            }
+            placed_wins.push(MED_window.Win(id, buffer_id, row: entry.row, col: entry.col));
+            MED_window.Node node = MED_window.leaf(id);
+            if (stack.size() == 0) {
+                result = node;
+            } else {
+                stack[stack.size() - 1].kids.push(node);
+            }
+            index = index + 1;
+        } else if (byte == 118 || byte == 104) {
+            MED_window.Node split_node = MED_window.Node();
+            split_node.is_vertical = byte == 118;
+            stack.push(split_node);
+            index = index + 2;
+        } else if (byte == 41) {
+            MED_window.Node done_node = stack.pop();
+            if (stack.size() == 0) {
+                result = done_node;
+            } else {
+                stack[stack.size() - 1].kids.push(done_node);
+            }
+            index = index + 1;
+        } else {
+            index = index + 1;
+        }
+    }
+    return result;
+}
+
 /// Write the session `name` ("" is the one of the current directory).
 pub void App.save_session(str name) {
     if (state_directory.size() == 0) {
@@ -564,7 +713,7 @@ pub void App.save_session(str name) {
     if (path.size() > 0) {
         active = absolute_of(path);
     }
-    MED_session.save(state_directory, MED_session.file_for(name, MED_projconf.absolute_path(".")), MED_session.encode(entries, active));
+    MED_session.save(state_directory, MED_session.file_for(name, MED_projconf.absolute_path(".")), MED_session.encode(entries, active, session_pages(), page_index));
 }
 
 /// `:Session save|load|delete|list [NAME]`.
@@ -618,6 +767,7 @@ void App.run_session(str arg) {
         }
         edit(session.active, false);
         apply_session_cursors(session);
+        apply_session_layout(session);
         notice = "Session loaded: " + session.entries.size().to_str() + " buffers";
     }
 }
