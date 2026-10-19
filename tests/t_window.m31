@@ -128,4 +128,18 @@ check.eq_str("exchanged", ids(sized), "1,3,2");
 sized = MED_window.moved_to_edge(sized, 2, MED_window.GO_LEFT);
 check.eq_str("moved to the left edge", ids(sized), "2,1,3");
 check.ok("as a vertical branch", sized.is_vertical);
+// the tab line: labels are drawn as " label " one after the other from column 0
+List<str> tabs = ["a", "bb", "c d"];
+check.eq_int("first column of the first label", MED_window.tab_at(tabs, 80, 0), 0);
+check.eq_int("last column of the first label", MED_window.tab_at(tabs, 80, 2), 0);
+check.eq_int("first column of the second", MED_window.tab_at(tabs, 80, 3), 1);
+check.eq_int("last column of the second", MED_window.tab_at(tabs, 80, 6), 1);
+check.eq_int("the third", MED_window.tab_at(tabs, 80, 7), 2);
+check.eq_int("its last column", MED_window.tab_at(tabs, 80, 11), 2);
+check.eq_int("past the last label", MED_window.tab_at(tabs, 80, 12), -1);
+check.eq_int("a label the line has no room for is not drawn", MED_window.tab_at(tabs, 10, 8), -1);
+check.eq_int("the one before it still is", MED_window.tab_at(tabs, 10, 4), 1);
+check.eq_int("wide characters take two columns", MED_window.tab_at(["\u{65e5}\u{672c}", "x"], 80, 6), 1);
+check.eq_int("and the label before is hit across them", MED_window.tab_at(["\u{65e5}\u{672c}", "x"], 80, 5), 0);
+check.eq_int("no labels", MED_window.tab_at([], 80, 0), -1);
 check.finish("t_window");

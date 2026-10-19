@@ -465,6 +465,9 @@ pub type Editor {
     pub int snip_now = 0;
     /// The absolute path of the file, for $TM_FILEPATH and $TM_DIRECTORY.
     pub str snip_path = "";
+    /// How many tab pages there are and which is active (1-based), for ranges such as `:2tabnew` and `:$tab split`.
+    pub int tab_count = 1;
+    pub int tab_current = 1;
     /// Manual folds, and whether folding is on at all (zn / zN / zi).
     pub List<Fold> folds = [];
     pub bool is_fold_off = false;

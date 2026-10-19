@@ -83,7 +83,10 @@ On Alpine (musl) the installer picks the `-musl` Linux asset built by `scripts/c
   shrinks the last window first (checked against nvim by `tests/oracles/oracle_windows.py`).
 - Tab pages: `:tabnew :tabedit :tabnext :tabprev :tabNext :tabfirst :tablast :tabclose :tabonly :tabmove :tabs`,
   `gt` / `gT` (and `3gt`), `<C-w>T`; a tab line shows the window count, `+` and the name; each page keeps its own
-  windows; `:q` / `:close` on the last window of a page closes the page.
+  windows; `:q` / `:close` on the last window of a page closes the page. `:[N]tab split|vsplit|new|vnew [file]` opens the
+  window in a new page, and a count on `:tabnew`, `:tabedit`, `:tabnext`, `:tabclose`, `:tabonly` and `:tabmove` is a tab
+  page number (`:0tabnew` first, `:2tabnew` after page 2, `:$tab split` last; `.`, `$`, `+N`, `-N` as in nvim); a left click
+  on a tab label shows that page.
 - Pickers: files, buffers, live grep, commands, keymap help, explorer; `.gitignore` aware.
 - Syntax highlighting for 77 languages (c, cpp, go, javascript/typescript, json, m31, markdown,
   python, rust, sh, toml, yaml, html, css, sql, java, ruby, lua, ...), by the shared

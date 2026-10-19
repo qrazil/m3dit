@@ -19,6 +19,8 @@
 // Pure data and arithmetic, no terminal: the front end (MED_app) owns the
 // buffers and asks this module where everything goes.
 
+import engine.MED_text;
+
 /// One window: the buffer it shows and, while it is not the active window,
 /// where its cursor and view are. (The active window's own values live in the
 /// editor and are stored back here whenever the front end saves its state.)
@@ -1340,4 +1342,21 @@ pub Node moved_to_edge(Node root, int id, int direction) {
         }
     }
     return result;
+}
+
+/// The tab page whose label the column `x` of the tab line falls on, or -1. The labels are drawn as ` label ` one
+/// after the other from column 0 (MED_app.draw_tabline); one the line has no room for is not drawn, so not hit.
+pub int tab_at(List<str> labels, int width, int x) {
+    int start = 0;
+    for (int index in 0 .. labels.size()) {
+        int size = MED_text.line_width(" " + labels[index] + " ", 4);
+        if (start + size > width) {
+            return -1;
+        }
+        if (x >= start && x < start + size) {
+            return index;
+        }
+        start = start + size;
+    }
+    return -1;
 }

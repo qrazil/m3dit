@@ -65,6 +65,10 @@ Each row: scope; reference behaviour; test; dependencies; size; decision.
 
 ### 0.8.0 Editing depth
 
+> Status (branch `next`, built from `822a0b0`): 7 beyond manual (indent and marker folds, `foldlevel`, `foldlevelstart`,
+> counted line operators over closed folds) is done except marker folds with a jump level (`{{{3`); 8, 9, 10 and 11 are
+> done. See the Unreleased entries of CHANGELOG.md and `tests/oracles/known_divergences.txt`.
+
 | # | Item | Reference | Test | Deps | Size | Decision and reason |
 |---|---|---|---|---|---|---|
 | 7 | Folds beyond manual: `foldmethod=indent|marker`, `foldlevel`, `foldminlines`, `zx zX zm zM zr zR zn zN zc zo` level semantics, `foldlevelstart`, `foldtext` default | nvim | nvim corpus (`pending/folds.txt` becomes real corpus, plus indent/marker fuzz) | | M | `expr` and `syntax` methods stay unsupported (need `expr`/syntax groups); `diff` arrives with a diff view, not here. Reason: indent and marker cover real use and are oracle-checkable |

@@ -386,6 +386,28 @@ def tab_pages(binary, root):
 
 
 @scenario
+def tab_click_and_modifier(binary, root):
+    s = Session(binary, root, ["hello.txt"])
+    try:
+        assert s.wait_for("hello world")
+        s.send(":tabnew src/main.py\r", settle=0.4)
+        assert s.wait_for("return 42"), s.text()
+        # the tab line is " hello.txt  src/main.py ": a click on the first label shows its page
+        s.send("\x1b[<0;3;1M\x1b[<0;3;1m", settle=0.4)
+        assert "hello world" in s.text() and "return 42" not in s.text(), s.text()
+        s.send("\x1b[<0;16;1M\x1b[<0;16;1m", settle=0.4)
+        assert "return 42" in s.text(), "click on the second label:\n" + s.text()
+        # :tab split opens the page after the current one, :0tab split before the first
+        s.send(":tab split\r", settle=0.4)
+        s.send(":0tab split\r", settle=0.4)
+        first = s.text().split("\n")[0]
+        assert first.count("src/main.py") == 3 and "hello.txt" in first, "tab line:\n" + first
+        assert first.index("src/main.py") < first.index("hello.txt"), first
+    finally:
+        s.close()
+
+
+@scenario
 def state_recent_harpoon_position(binary, root):
     keymap = os.path.join(root, "empty.vim")
     open(keymap, "w").close()

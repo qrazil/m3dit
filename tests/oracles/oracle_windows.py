@@ -115,6 +115,30 @@ CASES = [
     ":tabnew" + CR + ":split" + CR + ":tabnew" + CR + ":vsplit" + CR + "gt" + CW + "j",
     ":tabnew" + CR + CW + "T",
     ":split" + CR + CW + "T",
+    # :tab {cmd} opens the window the command makes in a new tab page; a count says where; :{N}tabnew too
+    ":tab split" + CR, ":tab vsplit" + CR, ":tab new" + CR, ":tab vnew" + CR, ":tab sp" + CR, ":tab vs" + CR,
+    ":split" + CR + ":tab split" + CR, ":vsplit" + CR + ":tab split" + CR, ":split" + CR + ":vsplit" + CR + ":tab vsplit" + CR,
+    ":tab split" + CR + ":vsplit" + CR, ":tab split" + CR + ":tab split" + CR, ":tab split" + CR + "gt", ":tab split" + CR + "gT",
+    ":0tab split" + CR, ":1tab split" + CR, ":2tab split" + CR, ":$tab split" + CR, ":.tab split" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":0tab split" + CR, ":tabnew" + CR + ":tabnew" + CR + ":1tab split" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":2tab vsplit" + CR, ":tabnew" + CR + ":tabnew" + CR + ":$tab split" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":.tab split" + CR, ":tabnew" + CR + ":tabnew" + CR + ":-tab split" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":+tab split" + CR, ":0tabnew" + CR, ":1tabnew" + CR, ":2tabnew" + CR,
+    ":tabnew" + CR + ":0tabnew" + CR, ":tabnew" + CR + ":1tabnew" + CR, ":tabnew" + CR + ":2tabnew" + CR, ":tabnew" + CR + ":3tabnew" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":1tabnew" + CR, ":tabnew" + CR + ":tabnew" + CR + ":$tabnew" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":.tabnew" + CR, ":tabnew" + CR + ":tabnew" + CR + ":0tabedit hello" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":1tabedit hello" + CR, ":tabnew" + CR + ":tabnew" + CR + ":2tabnext" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":$tabnext" + CR, ":tabnew" + CR + ":tabnew" + CR + ":1tabnext" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":tabnext 1" + CR, ":tabnew" + CR + ":tabnew" + CR + ":2tabclose" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":$tabclose" + CR, ":tabnew" + CR + ":tabnew" + CR + ":1tabclose" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":tabclose 2" + CR, ":tabnew" + CR + ":tabnew" + CR + ":2tabonly" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":tabonly" + CR, ":tabnew" + CR + ":tabnew" + CR + ":1tabprevious" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":2tabprevious" + CR, ":tabnew" + CR + ":tabnew" + CR + ":tabprevious 2" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":tabNext 1" + CR, ":tab edit hello" + CR, ":tab enew" + CR, ":tab close" + CR,
+    ":tab tabnew" + CR, ":tabnew" + CR + ":tab only" + CR, ":tab split" + CR + ":tab only" + CR,
+    ":tab split | vsplit" + CR, ":tab split|vsplit" + CR, ":tab new | split" + CR, ":tab tabnew | split" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":99tabnew" + CR, ":tabnew" + CR + ":tabnew" + CR + ":99tab split" + CR,
+    ":tabnew" + CR + ":tabnew" + CR + ":tabnew" + CR + "2gt", ":tabnew" + CR + ":tabnew" + CR + "9gt",
 ]
 
 
@@ -145,7 +169,8 @@ for _, r in ipairs(rects) do table.insert(parts, r[3]) end
 local out = table.concat(parts, ';') .. '|' .. cur .. '|' .. vim.fn.tabpagenr() .. '/' .. vim.fn.tabpagenr('$')
 local bottom = 0
 for _, w in ipairs(wins) do local p = vim.api.nvim_win_get_position(w); local b = p[1] + vim.api.nvim_win_get_height(w) + 1; if b > bottom then bottom = b end end
-if vim.o.cmdheight ~= 1 or bottom ~= vim.o.lines - 1 - (vim.fn.tabpagenr('$') > 1 and 1 or 0) then out = 'cmdheight' end
+-- (nvim 0.11 counts the tab line in a window's position, so the windows always end just above the command line)
+if vim.o.cmdheight ~= 1 or bottom ~= vim.o.lines - 1 then out = 'cmdheight' end
 io.stdout:write(out .. '\\n')
 """
     with tempfile.NamedTemporaryFile("w", suffix=".lua", delete=False) as f:
@@ -183,7 +208,8 @@ def main():
                   CW + "_", CW + "|", CW + "+", CW + "-", CW + "<", CW + ">", CW + "5_", CW + "7|", CW + "3+",
                   CW + "4-", CW + "6<", CW + "9>", ":resize 6" + CR, ":resize +2" + CR, ":resize -2" + CR,
                   ":vertical resize 30" + CR, ":vertical resize +4" + CR, ":only" + CR,
-                  ":tabnew" + CR, "gt", "gT", CW + "T"]
+                  ":tabnew" + CR, "gt", "gT", CW + "T", ":tab split" + CR, ":0tab split" + CR, ":1tab vsplit" + CR,
+                  ":$tabnew" + CR, ":0tabnew" + CR, ":tab new" + CR, ":1tabclose" + CR, ":2tabnext" + CR]
         cases = []
         for _ in range(args.fuzz):
             keys = "".join(rng.choice([":split" + CR, ":vsplit" + CR]) for _ in range(rng.randint(1, 3)))

@@ -1402,11 +1402,12 @@ void App.draw_tabline(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
             if (position == page_index) {
                 look = current;
             }
-            if (x + label.size() > area.x + area.width) {
+            int label_cells = MED_text.line_width(label, 4);
+            if (x + label_cells > area.x + area.width) {
                 break;
             }
             buffer.set_str(x, area.y, label, look);
-            x = x + label.size();
+            x = x + label_cells;
         }
         return;
     }
@@ -1853,7 +1854,7 @@ void App.go_page(int target) {
 }
 
 /// `:tabnew [file]`: a page after the active one (or at `place`) with one window.
-void App.new_page(str arg, int place) {
+void App.new_page(str arg, int place, bool is_empty) {
     save_page();
     int id = next_win;
     next_win = id + 1;
@@ -1869,7 +1870,7 @@ void App.new_page(str arg, int place) {
     go_page(position);
     if (arg.trim().size() > 0) {
         edit(arg, false);
-    } else {
+    } else if (is_empty) {
         new_buffer();
     }
 }
@@ -1988,7 +1989,22 @@ void App.run_tab_command(str name, str arg, bool is_forced) {
     int count = page_count();
     str word = arg.trim();
     if (name == "tabnew" || name == "tabedit") {
-        new_page(word, -1);
+        int place = -1;
+        str file = word;
+        if (word.starts_with("#")) {
+            // `:2tabnew file` arrives as "#2 file": the page goes after page 2
+            int space = word.index_of(" ").or(word.size());
+            place = word.substr(1, space).parse_int().or(-1);
+            file = word.substr(space, word.size()).trim();
+        }
+        new_page(file, place, true);
+    } else if (name == "tabcmd") {
+        // `:[N]tab split|vsplit|new|vnew [file]` arrives as "N command file"
+        List<str> parts = word.split(" ");
+        int place = parts[0].parse_int().or(-1);
+        str sub = parts[1];
+        str file = parts.slice(2, parts.size()).join(" ").trim();
+        new_page(file, place, sub == "new" || sub == "vnew");
     } else if (name == "tabnext") {
         if (word.size() > 0) {
             if (word.byte_at(0) == 43 || word.byte_at(0) == 45) {
@@ -3897,6 +3913,8 @@ pub TUI_app.Action App.handle(term.Event event) {
     editor.file_name = path;
     editor.user_commands = ext_commands;
     note_snippet_context();
+    editor.tab_count = page_count();
+    editor.tab_current = page_index + 1;
     map_ms = 0;
     prefix_ms = 0;
     is_prefix_help = false;
@@ -4079,6 +4097,14 @@ pub TUI_app.Action App.handle_mouse(TUI_mouse.Routed routed) {
     }
     match (gesture.kind) {
         case Press: {
+            if (gesture.button == 0 && pages.size() >= 2 && gesture.y == 0) {
+                // the tab line: a click on a label makes that page the active one
+                int tab_target = MED_window.tab_at(tab_labels(), screen_rect().width, gesture.x);
+                if (tab_target >= 0 && tab_target != page_index) {
+                    go_page(tab_target);
+                }
+                return TUI_app.Action.Redraw;
+            }
             if (gesture.button == 0) {
                 is_dragging = true;
                 edge_total_ms = 0;
