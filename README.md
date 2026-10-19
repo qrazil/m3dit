@@ -371,8 +371,8 @@ Colour depth follows `COLORTERM` / `TERM`; `--no-mouse` (or `M3_NO_MOUSE=1`) lea
 
 Needs m31 v0.4.3 or later (the `proc` module); the first compile fetches the pinned `tui`, `syntax` and `m31git`
 into `.m31-deps/` (the commits are in `deps`, recorded in `deps.lock`). `m31git` (github.com/qrazil/m31git) is the
-git library the editor reads repositories with; its pinned `tui` must be the same commit as ours (m31 allows one source
-per dependency), see docs/ROADMAP.md item 12.
+git library the editor reads repositories with; its `deps` pins the same `tui` and `syntax` commits as ours (m31 allows
+one source per dependency, so bump them together).
 
 ## Test
 

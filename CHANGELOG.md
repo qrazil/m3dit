@@ -1,17 +1,17 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
 
 Git in process: docs/ROADMAP.md items 12 to 14, decision D3 (m3 depends on `m31git`, github.com/qrazil/m31git, as a
 pinned git dependency, v0.27.0). The git gutter, blame, hunk staging and the new `:Git` read commands no longer start a
 `git` process; a repository the library cannot read goes to `git` as before.
 
-- Dependency: `deps` and `deps.lock` pin `m31git` v0.27.0 (`f40dc27`). Build cost, measured on this machine with m31
-  v0.6.0 (clean `scripts/build.sh`, two runs each): binary 3,185,296 to 3,744,784 bytes (+17.6 percent; stripped
-  2,682,048 to 3,152,960), build 61.3 / 65.6 s to 69.3 / 70.7 s (+6.5 s, +10 percent; nearly all of it is the C
-  compiler, `m31c` itself takes about one second). Under the thresholds set with D3 (30 percent size, 40 s), so the
-  library is the default and there is no build switch. **A clean build needs m31git to pin the same `tui` as m3**: v0.27.0
-  pins `tui` v0.8.0 and m3 needs v0.9.1 or later, and m31 refuses two sources for one dependency; see the roadmap note.
+- Dependencies: `deps` and `deps.lock` pin `m31git` v0.27.1 (`41be583`), `tui` v0.11.0 (`e156723`) and `syntax`
+  (`e49e01c`), one source per name (m31 allows no more). Build cost of the library, measured with m31 v0.6.0 on tui
+  v0.11.0 (clean `scripts/build.sh`, two runs each): binary 3,210,960 to 3,770,976 bytes (+17.4 percent; stripped
+  2,703,232 to 3,174,336), build 54.5 / 54.2 s to 64.2 / 68.8 s (+12.2 s on the means). Under the thresholds set with
+  D3 (30 percent size, 40 s), so the library is the default and there is no build switch. The tui change itself is
+  from `0b132ce` (what 0.11.0 pinned) to v0.11.0, with no change in m3 beyond the pin.
 - Gutter and `<Space>gB`: the base text (index, else HEAD) and the blame of a line are read from the object store
   (`ui/MED_gitlib.m31`: loose and packed objects, linked worktrees, SHA-256 repositories). A version 4 index, a missing
   object (partial clone) or a non-UTF-8 file falls back to `git show` / `git blame`. A line the buffer changed says
@@ -33,8 +33,9 @@ pinned git dependency, v0.27.0). The git gutter, blame, hunk staging and the new
   for hunk stage / reset / undo compared with `git add|restore|reset -p` on index, work tree, refs and status, `fsck`,
   a linked worktree, SHA-256, a version 4 index, a 100,000-line timing check), `tests/git_pty.py` (the commands in the
   real binary).
-- Known limits: the index is rewritten without its extensions (`TREE`, `UNTR`, `link`), as the library writes it, and
-  without `index.lock` (the call refuses when one exists); a hunk is staged from the buffer, so a buffer that dropped
+- Known limits: the index is rewritten without its extensions (`TREE`, `UNTR`; an index that needs one, such as a split
+  index, is left to `git`), under `index.lock`; a locked or concurrently changed index is reported by `:Hunk stage`
+  and nothing is written; a hunk is staged from the buffer, so a buffer that dropped
   its final newline stages the file's line ends as the index had them; `:Git show` of a merge shows the first-parent
   diff, not git's combined diff.
 
