@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.0
 
 Language intelligence completion: docs/ROADMAP.md items 15 to 17 (item 18, DAP, is not started).
 
