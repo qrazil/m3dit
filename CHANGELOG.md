@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+Language intelligence completion: docs/ROADMAP.md items 15 to 17 (item 18, DAP, is not started).
+
+- Completion popup that follows the cursor (item 15): `:set lspcomplete=auto` (default `manual`: CTRL-Space keeps
+  opening the picker) shows the server's items under the word being typed, asked for after trigger characters and
+  identifier characters (a 25 ms pause after the last key, so typing never waits for a server) and narrowed on every
+  further key by `filterText` (same-case prefix, prefix, word start, substring, in-order letters; ties by the server's
+  `sortText`; matched letters highlighted). `<Tab> <C-n> <Down>` and `<S-Tab> <C-p> <Up>` select (past the end nothing is
+  selected, as in nvim's menu), `<C-y>` and `<CR>` on a selected row accept (`<CR>` on none is a line break), `<C-e>`
+  closes, `<Esc>` closes and leaves Insert mode, a commit character accepts the selected row and is then typed.
+  A documentation side panel (on the right, else on the left) shows `detail` and `documentation` of the selected item,
+  fetched with `completionItem/resolve` after an 80 ms pause; accepting resolves first when it must (auto-import
+  `additionalTextEdits`), applies the item's `textEdit` or `insertText`, and moves the cursor past edits made above it.
+  Snippet items go through the snippet engine (tabstops, placeholders, choices). An outdated request is cancelled with
+  `$/cancelRequest`; an `isIncomplete` list is asked for again as you type. Drawn with `ui.menu` / `ui.menu.selected` /
+  `ui.picker.match` / `ui.popup`; every string is cleaned of control characters before it reaches a cell. New module
+  `ui/MED_pum.m31`; `ui/MED_app.m31` has one delimited section. The client now declares completion capabilities
+  (snippets, markdown documentation, resolve properties, label details, commit characters) at `initialize`.
+- LSP client: `Server.await` (a response within a deadline, other messages kept for `poll`), `Server.cancel`,
+  `map_point`, trigger and commit characters.
+- Tests: `tests/t_pum.m31` (parsing, matching tiers, ranking, narrowing, selection, placement, drawing of hostile
+  labels), `tests/lsp_pty.py` against `tests/fake_lsp_complete.py` (frame integrity against a from-scratch redraw,
+  control characters, placement above the cursor, resize, cancel, resolve, snippets, additional edits) and, with
+  `M3_LSP_REAL=1`, against real clangd and pyright with an nvim cross-check (`tests/oracle_lsp.py`).
+
 ## 0.12.0
 
 Git in process: docs/ROADMAP.md items 12 to 14, decision D3 (m3 depends on `m31git`, github.com/qrazil/m31git, as a

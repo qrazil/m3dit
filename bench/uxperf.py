@@ -2,7 +2,7 @@
 """Latency and frame-quality harness for m3 (docs/UX-PERF.md).
 
     python3 bench/uxperf.py --m3d ./m3 [--rows 60 --cols 200] [--runs 30]
-                            [--only key,hold,resize,storm,idle,wrap] [--json OUT]
+                            [--only key,hold,resize,storm,idle,wrap,pum] [--json OUT]
                             [--env M3_NO_ANIM=1] [--check] [--no-sync-reply]
 
 Everything runs the real binary in a pty. A "frame" is one burst of output: the
@@ -389,6 +389,39 @@ def run_key_actions(binary, args, root):
     return results
 
 
+def run_pum(binary, args, root):
+    """Key to frame with the completion popup open (`:set lspcomplete=auto`, the scripted server of
+    tests/fake_lsp_complete.py): a typed character that narrows the list, a backspace that widens it, and
+    <Tab> moving the selection (which also starts the documentation fetch)."""
+    fake = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fake_lsp_complete.py")
+    path = os.path.join(root, "pum.py")
+    with open(path, "w") as f:
+        f.write("x = 1\n\n")
+    env = dict(args.env or {}, PWD=root, GIT_CEILING_DIRECTORIES=os.path.dirname(root))
+    ed = Editor(binary, root, [path], args.rows, args.cols, env=env, sync_reply=args.sync_reply)
+    results = {}
+    try:
+        ed.settle(0.4, 10)
+        ed.key(":Lsp server python python3 %s\r" % os.path.abspath(fake), quiet=0.2)
+        ed.key(":set lspcomplete=auto\r", quiet=0.2)
+        ed.key(":Lsp start\r", quiet=0.8)
+        ed.key("jA", quiet=0.2)
+        ed.key("hel", quiet=0.6)
+        ed.settle(0.4)
+        for name, keys, undo in (("popup open: type a char (narrows)", "l", "\x7f"),
+                                 ("popup open: backspace (widens)", "\x7f", "l"),
+                                 ("popup open: <Tab> (select next)", "\t", None)):
+            samples = []
+            for _ in range(args.runs):
+                samples.append(ed.key(keys, quiet=0.12))
+                if undo:
+                    ed.key(undo, quiet=0.12)
+            results[name] = samples
+    finally:
+        ed.close()
+    return results
+
+
 def run_hold(binary, args, root):
     """Hold a key with auto-repeat: frames/s, bytes/frame, key->frame latency."""
     out = {}
@@ -638,6 +671,16 @@ def main():
                 failures.append("one-cell move writes %d bytes" % statistics.median(one))
             for name in ("j (one line down)", "type a char (insert x)"):
                 p = percentile([s["first_frame"] for s in res.get(name, []) if s["first_frame"] is not None], 0.99)
+                if p == p and p > GROSS["key_first_frame_p99"]:
+                    failures.append("%s: key->frame p99 %.0f ms" % (name, p * 1000))
+        if "pum" in only:
+            res = run_pum(binary, args, root)
+            report["pum"] = res
+            print("### Completion popup open (%dx%d)\n" % (args.cols, args.rows))
+            print(table_key(res))
+            print()
+            for name, samples in res.items():
+                p = percentile([s["first_frame"] for s in samples if s["first_frame"] is not None], 0.99)
                 if p == p and p > GROSS["key_first_frame_p99"]:
                     failures.append("%s: key->frame p99 %.0f ms" % (name, p * 1000))
         if "hold" in only:

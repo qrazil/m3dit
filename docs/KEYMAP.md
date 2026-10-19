@@ -314,6 +314,11 @@ A plugin can be switched off with `:PluginDisable NAME`; its rows then disappear
 | `<Tab>` | Insert | Insert and Select mode: jump to the next snippet tabstop (an active snippet; nvim 0.11's default) | core | vim |
 | `<S-Tab>` | Insert | Insert and Select mode: jump to the previous snippet tabstop (Insert mode types a Tab otherwise, as nvim does) | core | vim |
 | `<Tab>` | Insert | Insert mode: expand the snippet whose prefix stands before the cursor (snippets.json, VS Code format, next to the keymap file) | core | m3 |
+| `<C-Space>` | Insert | Insert mode: ask the language server for completions (a picker; with :set lspcomplete=auto the popup) | lsp | m3 |
+| `<Tab>/<C-n>/<Down>` | Insert | Insert mode, completion popup open: select the next item (past the last one nothing is selected) | lsp | m3 |
+| `<S-Tab>/<C-p>/<Up>` | Insert | Insert mode, completion popup open: select the previous item | lsp | m3 |
+| `<C-y>/<CR>` | Insert | Insert mode, completion popup open: accept the selected item (<CR> with nothing selected is a line break) | lsp | m3 |
+| `<C-e>` | Insert | Insert mode, completion popup open: close it and keep what was typed (<Esc> closes it and leaves Insert mode) | lsp | m3 |
 | `Select` | Insert | Select mode (after a jump onto a placeholder): a typed character or <CR> replaces it, <BS> and <Del> remove it, <Esc> leaves, <C-g> turns it into Visual mode | core | vim |
 
 ## Built-in plugins

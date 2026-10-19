@@ -1,0 +1,770 @@
+// The completion popup that follows the cursor (nvim's pum, blink.cmp's menu): the items a language
+// server offered, narrowed and ranked by what is typed after the anchor, one selected row, a scroll
+// window, a documentation panel beside the list, and the drawing of both.
+//
+// Everything here is plain data and drawing: no server, no editor. `ui/MED_app.m31` owns the state
+// (one `Pum`), feeds it the items of a `textDocument/completion` answer and the text typed since,
+// and calls `draw` from `render`. Cells only ever get text that went through `clean`, so a label or
+// a documentation string with a control character in it can never reach the terminal as one.
+//
+// API
+// ---
+//   MED_pum.parse(list)                     List<Item> of a completion result (an array)
+//   MED_pum.fit(prefix, text)               Match: score (-1 none) and the matched byte offsets
+//   MED_pum.open(items, row, anchor, prefix, is_incomplete)    Pum
+//   pum.refilter(prefix)                    narrow and rank for the text typed so far
+//   pum.move(delta)                         the selection (-1 is none; it wraps through none)
+//   pum.item()                              the selected Item (label "" when none)
+//   MED_pum.place(pum, anchor_x, cursor_y, bounds, doc_lines)    Layout
+//   MED_pum.draw(buffer, pum, layout, styles ...)
+
+import encoding.json;
+import tui.core.TUI_buffer;
+import tui.core.TUI_geometry;
+import tui.core.TUI_style;
+import tui.core.TUI_text;
+import ui.MED_lsp;
+
+/// Rows of the list position most, and the width bounds of list and documentation panel.
+pub const int MAX_ROWS = 10;
+pub const int MAX_WIDTH = 60;
+pub const int MIN_WIDTH = 14;
+pub const int DOC_MIN = 24;
+pub const int DOC_MAX = 56;
+pub const int DOC_ROWS = 14;
+/// Items kept from one answer.
+pub const int MAX_ITEMS = 3000;
+
+/// One completion item of a server's answer.
+pub type Item {
+    pub str label;
+    /// What the typed text is matched against (`filterText`, else the label).
+    pub str filter;
+    /// What orders equal matches (`sortText`, else the label).
+    pub str sort;
+    pub int kind = 0;
+    pub str detail = "";
+    pub str doc = "";
+    /// Its place in the server's list (the tie-break of last resort).
+    pub int index = 0;
+    pub bool is_preselect = false;
+    pub bool is_snippet = false;
+    /// `completionItem/resolve` has been answered for it (or was not needed).
+    pub bool is_resolved = false;
+    pub json.Value raw = json.Value.Null;
+}
+
+/// How well a typed prefix fits a text.
+pub type Match {
+    pub int score;
+    pub List<int> marks;
+}
+
+/// An item that survived the filter: where it is in `Pum.all` and how it matched.
+pub type Ranked {
+    pub int position;
+    pub int score;
+    pub List<int> marks;
+}
+
+pub type Pum {
+    pub bool is_open = false;
+    pub List<Item> all = [];
+    pub List<Ranked> shown = [];
+    /// The selected row of `shown`; -1 selects nothing (Enter then types a line break).
+    pub int selected = -1;
+    pub int top = 0;
+    /// Where the filter text begins: a buffer row and a byte column.
+    pub int row = 0;
+    pub int anchor = 0;
+    pub str prefix = "";
+    pub bool is_incomplete = false;
+}
+
+/// Narrow and rank for `typed` (the text from the anchor to the cursor). A prefix that only grew narrows the
+/// rows already shown (a longer prefix never matches more); anything else rescans every item. The selection is
+/// kept on the same item when it is still shown, else cleared; an item the server preselected starts selected.
+pub void Pum.refilter(str typed) {
+    str kept = "";
+    if (selected >= 0 && selected < shown.size()) {
+        kept = all[shown[selected].position].label;
+    }
+    bool is_narrowing = prefix != "\u{1}" && typed.starts_with(prefix) && !is_incomplete;
+    List<Ranked> source = [];
+    if (is_narrowing) {
+        source = shown;
+    } else {
+        for (int index in 0 .. all.size()) {
+            source.push(Ranked(index, 0, []));
+        }
+    }
+    List<Ranked> kept_rows = [];
+    for (Ranked one in source) {
+        Item item = all[one.position];
+        Match found = fit(typed, item.filter);
+        if (found.score < 0) {
+            continue;
+        }
+        Ranked ranked = Ranked(one.position, found.score, []);
+        if (item.filter == item.label) {
+            ranked.marks = found.marks;
+        }
+        int low = 0;
+        int high = kept_rows.size();
+        while (low < high) {
+            int middle = (low + high) / 2;
+            if (is_better(all, ranked, kept_rows[middle])) {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        kept_rows.insert(low, ranked);
+    }
+    prefix = typed;
+    shown = kept_rows;
+    selected = -1;
+    top = 0;
+    if (kept.size() > 0) {
+        for (int index in 0 .. shown.size()) {
+            if (all[shown[index].position].label == kept) {
+                selected = index;
+            }
+        }
+    }
+    if (selected < 0 && typed.size() == 0) {
+        for (int index in 0 .. shown.size()) {
+            if (all[shown[index].position].is_preselect) {
+                selected = index;
+                break;
+            }
+        }
+    }
+    keep_selection_visible(MAX_ROWS);
+}
+
+/// The scroll window follows the selection.
+pub void Pum.keep_selection_visible(int rows) {
+    if (selected < 0) {
+        if (top > 0 && top + rows > shown.size()) {
+            top = shown.size() - rows;
+        }
+        if (top < 0) {
+            top = 0;
+        }
+        return;
+    }
+    if (selected < top) {
+        top = selected;
+    }
+    if (selected >= top + rows) {
+        top = selected - rows + 1;
+    }
+    if (top < 0) {
+        top = 0;
+    }
+}
+
+/// Move the selection by `delta` rows. -1 (nothing selected) sits before the first row and after the last, as
+/// in nvim's menu: CTRL-N past the end goes back to what was typed.
+pub void Pum.move(int delta) {
+    if (shown.size() == 0) {
+        selected = -1;
+        return;
+    }
+    int next = selected + delta;
+    if (selected < 0 && delta < 0) {
+        next = shown.size() + delta;
+        if (next < 0) {
+            next = 0;
+        }
+    } else if (next >= shown.size()) {
+        next = -1;
+        if (delta > 1 && selected < shown.size() - 1) {
+            // a page that overshoots stops on the last row
+            next = shown.size() - 1;
+        }
+    } else if (next < 0) {
+        next = -1;
+        if (delta < -1 && selected > 0) {
+            next = 0;
+        }
+    }
+    selected = next;
+    keep_selection_visible(MAX_ROWS);
+}
+
+/// The selected item (an Item with an empty label when nothing is selected).
+pub Item Pum.item() {
+    if (selected < 0 || selected >= shown.size()) {
+        return Item("", "", "");
+    }
+    return all[shown[selected].position];
+}
+
+/// Replace the item at position `position` of `all` (its `completionItem/resolve` answer).
+pub void Pum.update(int position, Item fresh) {
+    if (position >= 0 && position < all.size()) {
+        all[position] = fresh;
+    }
+}
+
+/// The position in `all` of the selected item, -1 for none.
+pub int Pum.selected_at() {
+    if (selected < 0 || selected >= shown.size()) {
+        return -1;
+    }
+    return shown[selected].position;
+}
+
+/// Where the list and the documentation panel go, in screen cells.
+pub type Layout {
+    pub int x = 0;
+    pub int y = 0;
+    pub int width = 0;
+    pub int height = 0;
+    pub bool is_above = false;
+    pub int doc_x = 0;
+    pub int doc_y = 0;
+    pub int doc_width = 0;
+    pub int doc_height = 0;
+}
+
+/// The styles `draw` uses.
+pub type Styles {
+    pub TUI_style.Style base;
+    pub TUI_style.Style chosen;
+    pub TUI_style.Style marked;
+    pub TUI_style.Style dim;
+    pub TUI_style.Style doc;
+}
+
+// ---------------------------------------------------------------- text safety
+
+/// `text` with every control character (C0, DEL, C1) turned into a space, so a cell never holds one.
+pub str clean(str text) {
+    bool is_clean = true;
+    for (int byte in text.to_bytes()) {
+        if (byte < 32 || byte == 127 || byte == 194) {
+            is_clean = false;
+        }
+    }
+    if (is_clean) {
+        return text;
+    }
+    List<int> codes = [];
+    for (int code in text.chars()) {
+        if (code < 32 || code == 127 || (code >= 128 && code < 160)) {
+            codes.push(32);
+        } else {
+            codes.push(code);
+        }
+    }
+    return str.from_chars(codes);
+}
+
+// ---------------------------------------------------------------- parsing
+
+/// The Items of a completion result's item array (position most MAX_ITEMS; items without a label are dropped).
+pub List<Item> parse(List<json.Value> raw_items) {
+    List<Item> out = [];
+    for (int index in 0 .. raw_items.size()) {
+        if (out.size() >= MAX_ITEMS) {
+            break;
+        }
+        json.Value one = raw_items[index];
+        str label = clean(MED_lsp.text_of(MED_lsp.member(one, "label")));
+        if (label.size() == 0) {
+            continue;
+        }
+        out.push(item_of(one, label, index));
+    }
+    return out;
+}
+
+/// The Item of one raw completion item (`label` already cleaned).
+pub Item item_of(json.Value one, str label, int index) {
+    str filter = clean(MED_lsp.text_of(MED_lsp.member(one, "filterText")));
+    if (filter.size() == 0) {
+        filter = label;
+    }
+    str sort = MED_lsp.text_of(MED_lsp.member(one, "sortText"));
+    if (sort.size() == 0) {
+        sort = label;
+    }
+    Item item = Item(label, filter, sort);
+    item.kind = MED_lsp.int_of(MED_lsp.member(one, "kind"), 0);
+    // the signature part of the label (`labelDetails.detail`), then the item's own detail
+    json.Value extra = MED_lsp.member(one, "labelDetails");
+    item.detail = clean(MED_lsp.text_of(MED_lsp.member(extra, "detail")).trim());
+    str own = clean(MED_lsp.text_of(MED_lsp.member(one, "detail")));
+    if (own.size() == 0) {
+        own = clean(MED_lsp.text_of(MED_lsp.member(extra, "description")));
+    }
+    if (item.detail.size() > 0 && own.size() > 0) {
+        item.detail = item.detail + " " + own;
+    } else if (own.size() > 0) {
+        item.detail = own;
+    }
+    item.doc = MED_lsp.documentation_text(MED_lsp.member(one, "documentation"));
+    item.index = index;
+    item.is_preselect = MED_lsp.is_true(MED_lsp.member(one, "preselect"));
+    item.is_snippet = MED_lsp.int_of(MED_lsp.member(one, "insertTextFormat"), 1) == 2;
+    item.raw = one;
+    return item;
+}
+
+/// One letter for the kind of an item (no icon font is assumed).
+pub str kind_glyph(int kind) {
+    str letters = " tmfndvCIMpuVEksc" + "FrDeKSxoT";
+    if (kind < 1 || kind >= letters.size()) {
+        return " ";
+    }
+    return letters.substr(kind, kind + 1);
+}
+
+// ---------------------------------------------------------------- matching and ranking
+
+int lower_of(int byte) {
+    if (byte >= 65 && byte <= 90) {
+        return byte + 32;
+    }
+    return byte;
+}
+
+bool is_upper(int byte) {
+    return byte >= 65 && byte <= 90;
+}
+
+bool is_word_byte(int byte) {
+    return (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte >= 128;
+}
+
+// A word starts at `position`: the first byte, after a separator, or a capital after a lower-case letter.
+bool is_boundary(bytes text, int position) {
+    if (position == 0) {
+        return true;
+    }
+    int before = text[position - 1];
+    if (!is_word_byte(before)) {
+        return true;
+    }
+    return is_upper(text[position]) && !is_upper(before);
+}
+
+/// How `prefix` fits `text`: -1 for no match; otherwise higher is better. Tiers: the same prefix with the same
+/// case, the prefix ignoring case, a substring position a word start, any substring, then (for two or more typed
+/// characters) the characters in order, rewarding word starts and runs. `marks` are the matched byte offsets.
+pub Match fit(str prefix, str text) {
+    bytes typed = prefix.to_bytes();
+    bytes full = text.to_bytes();
+    List<int> none = [];
+    if (typed.size() == 0) {
+        return Match(0, none);
+    }
+    if (typed.size() > full.size()) {
+        return Match(-1, none);
+    }
+    bool is_exact = true;
+    bool is_folded = true;
+    for (int index in 0 .. typed.size()) {
+        if (typed[index] != full[index]) {
+            is_exact = false;
+        }
+        if (lower_of(typed[index]) != lower_of(full[index])) {
+            is_folded = false;
+        }
+    }
+    if (is_exact || is_folded) {
+        List<int> marks = [];
+        for (int index in 0 .. typed.size()) {
+            marks.push(index);
+        }
+        int base = 90000;
+        if (is_exact) {
+            base = 100000;
+        }
+        return Match(base - (full.size() - typed.size()), marks);
+    }
+    // a substring (ignoring case), the earliest word start first
+    int best_at = -1;
+    bool is_best_word = false;
+    for (int position in 1 .. full.size() - typed.size() + 1) {
+        bool is_here = true;
+        for (int index in 0 .. typed.size()) {
+            if (lower_of(typed[index]) != lower_of(full[position + index])) {
+                is_here = false;
+                break;
+            }
+        }
+        if (!is_here) {
+            continue;
+        }
+        bool is_word = is_boundary(full, position);
+        if (best_at < 0 || (is_word && !is_best_word)) {
+            best_at = position;
+            is_best_word = is_word;
+        }
+        if (is_word) {
+            break;
+        }
+    }
+    if (best_at >= 0) {
+        List<int> marks = [];
+        for (int index in 0 .. typed.size()) {
+            marks.push(best_at + index);
+        }
+        if (is_best_word) {
+            return Match(70000 - best_at, marks);
+        }
+        if (typed.size() >= 2) {
+            return Match(60000 - best_at, marks);
+        }
+        return Match(-1, none);
+    }
+    if (typed.size() < 2) {
+        return Match(-1, none);
+    }
+    // the characters in order
+    List<int> marks = [];
+    int from = 0;
+    int score = 10000;
+    int previous = -2;
+    for (int index in 0 .. typed.size()) {
+        int found = -1;
+        // a word start is preferred over the first hit when it comes within the text
+        int first_hit = -1;
+        for (int position in from .. full.size()) {
+            if (lower_of(full[position]) == lower_of(typed[index])) {
+                if (first_hit < 0) {
+                    first_hit = position;
+                }
+                if (is_boundary(full, position) || position == previous + 1) {
+                    found = position;
+                    break;
+                }
+            }
+        }
+        if (found < 0) {
+            found = first_hit;
+        }
+        if (found < 0) {
+            return Match(-1, none);
+        }
+        if (is_boundary(full, found)) {
+            score = score + 300;
+        }
+        if (found == previous + 1) {
+            score = score + 200;
+        } else if (previous >= 0) {
+            score = score - (found - previous);
+        }
+        marks.push(found);
+        previous = found;
+        from = found + 1;
+    }
+    return Match(score, marks);
+}
+
+// Whether the ranked entry `one` goes before `other`: score, then the server's sort text, then its order.
+bool is_better(List<Item> all, Ranked one, Ranked other) {
+    if (one.score != other.score) {
+        return one.score > other.score;
+    }
+    Item left = all[one.position];
+    Item right = all[other.position];
+    if (left.sort != right.sort) {
+        return MED_lsp.is_before(left.sort, right.sort);
+    }
+    return left.index < right.index;
+}
+
+/// A Pum showing `items`, narrowed by `prefix`.
+pub Pum open(List<Item> items, int row, int anchor, str prefix, bool is_incomplete) {
+    Pum pum = Pum();
+    pum.all = items;
+    pum.row = row;
+    pum.anchor = anchor;
+    pum.is_incomplete = is_incomplete;
+    pum.prefix = "\u{1}";
+    pum.refilter(prefix);
+    pum.is_open = pum.shown.size() > 0;
+    return pum;
+}
+
+// ---------------------------------------------------------------- documentation text
+
+/// The documentation panel's lines for `item`: its detail (a signature) and its documentation, wrapped to
+/// `width` cells; Markdown fences are dropped and the text is cleaned. Empty when the item has neither.
+pub List<str> doc_lines(Item item, int width) {
+    List<str> out = [];
+    if (width < 4) {
+        return out;
+    }
+    List<str> parts = [];
+    if (item.detail.size() > 0) {
+        parts.push(item.detail);
+    }
+    str doc = item.doc.trim();
+    if (doc.size() > 0) {
+        if (parts.size() > 0) {
+            parts.push("");
+        }
+        for (str line in doc.split("\n")) {
+            if (line.trim().starts_with("```")) {
+                continue;
+            }
+            parts.push(clean(line));
+        }
+    }
+    for (str part in parts) {
+        if (part.size() == 0) {
+            out.push("");
+            continue;
+        }
+        for (str row in TUI_text.wrap(part, width)) {
+            out.push(row);
+        }
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------- layout
+
+/// The list's width: the longest label (and a trimmed detail) among the rows, inside the bounds.
+pub int list_width(Pum pum, int limit) {
+    int widest = 0;
+    int count = pum.shown.size();
+    if (count > 300) {
+        count = 300;
+    }
+    for (int index in 0 .. count) {
+        Item item = pum.all[pum.shown[index].position];
+        int cells = 3 + TUI_text.width(item.label) + 1;
+        if (item.detail.size() > 0) {
+            int detail_cells = TUI_text.width(item.detail);
+            if (detail_cells > 24) {
+                detail_cells = 24;
+            }
+            cells = cells + 1 + detail_cells;
+        }
+        if (cells > widest) {
+            widest = cells;
+        }
+    }
+    int width = widest + 1;
+    if (pum.shown.size() > MAX_ROWS) {
+        width = width + 1;
+    }
+    if (width > MAX_WIDTH) {
+        width = MAX_WIDTH;
+    }
+    if (width < MIN_WIDTH) {
+        width = MIN_WIDTH;
+    }
+    if (width > limit) {
+        width = limit;
+    }
+    return width;
+}
+
+/// Where the list goes for a cursor position screen row `cursor_y` and an anchor position screen column `anchor_x`, inside
+/// `bounds`: under the cursor row when it fits (or when there is more room under than over), else over it,
+/// never on the cursor row. `doc` are the documentation lines of the selected item (the panel is placed beside
+/// the list, on the right when it fits, else on the left, else not position all).
+pub Layout place(Pum pum, int anchor_x, int cursor_y, TUI_geometry.Rect bounds, List<str> doc) {
+    Layout out = Layout();
+    int right = bounds.x + bounds.width;
+    int bottom = bounds.y + bounds.height;
+    int below = bottom - (cursor_y + 1);
+    int above = cursor_y - bounds.y;
+    int wanted = pum.shown.size();
+    if (wanted > MAX_ROWS) {
+        wanted = MAX_ROWS;
+    }
+    if (wanted < 1 || bounds.width < 8 || (below < 1 && above < 1)) {
+        return out;
+    }
+    int height = wanted;
+    if (below >= wanted || below >= above) {
+        if (height > below) {
+            height = below;
+        }
+        out.y = cursor_y + 1;
+        out.is_above = false;
+    } else {
+        if (height > above) {
+            height = above;
+        }
+        out.y = cursor_y - height;
+        out.is_above = true;
+    }
+    out.height = height;
+    out.width = list_width(pum, bounds.width);
+    out.x = anchor_x;
+    if (out.x + out.width > right) {
+        out.x = right - out.width;
+    }
+    if (out.x < bounds.x) {
+        out.x = bounds.x;
+    }
+    if (doc.size() > 0) {
+        int room_right = right - (out.x + out.width);
+        int room_left = out.x - bounds.x;
+        int panel = 0;
+        for (str line in doc) {
+            int cells = TUI_text.width(line) + 2;
+            if (cells > panel) {
+                panel = cells;
+            }
+        }
+        if (panel < DOC_MIN) {
+            panel = DOC_MIN;
+        }
+        if (panel > DOC_MAX) {
+            panel = DOC_MAX;
+        }
+        if (room_right >= DOC_MIN) {
+            out.doc_width = panel;
+            if (out.doc_width > room_right) {
+                out.doc_width = room_right;
+            }
+            out.doc_x = out.x + out.width;
+        } else if (room_left >= DOC_MIN) {
+            out.doc_width = panel;
+            if (out.doc_width > room_left) {
+                out.doc_width = room_left;
+            }
+            out.doc_x = out.x - out.doc_width;
+        }
+        if (out.doc_width > 0) {
+            int rows = doc.size();
+            if (rows > DOC_ROWS) {
+                rows = DOC_ROWS;
+            }
+            int available = bottom - out.y;
+            if (out.is_above) {
+                available = (out.y + out.height) - bounds.y;
+            }
+            if (rows > available) {
+                rows = available;
+            }
+            if (rows < 1) {
+                out.doc_width = 0;
+            } else {
+                out.doc_height = rows;
+                out.doc_y = out.y;
+                if (out.is_above) {
+                    out.doc_y = out.y + out.height - rows;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------- drawing
+
+// `text` written position (x, y) one cluster position a time inside `columns` cells; true when all of it fit.
+bool did_put(TUI_buffer.Buffer buffer, int x, int y, str text, int columns, TUI_style.Style style) {
+    int used = 0;
+    for (str cluster in TUI_text.clusters(text)) {
+        int cells = TUI_text.width(cluster);
+        if (used + cells > columns) {
+            return false;
+        }
+        buffer.set_str(x + used, y, cluster, style, max: cells);
+        used = used + cells;
+    }
+    return true;
+}
+
+/// Draw the list and, when `layout` has room for one, the documentation panel `doc`.
+pub void draw(TUI_buffer.Buffer buffer, Pum pum, Layout layout, List<str> doc, Styles styles) {
+    if (layout.width == 0 || layout.height == 0) {
+        return;
+    }
+    bool has_bar = pum.shown.size() > layout.height;
+    int text_width = layout.width - 1;
+    if (has_bar) {
+        text_width = layout.width - 2;
+    }
+    int thumb_from = 0;
+    int thumb_size = layout.height;
+    if (has_bar) {
+        thumb_size = layout.height * layout.height / pum.shown.size();
+        if (thumb_size < 1) {
+            thumb_size = 1;
+        }
+        thumb_from = pum.top * layout.height / pum.shown.size();
+        if (thumb_from + thumb_size > layout.height) {
+            thumb_from = layout.height - thumb_size;
+        }
+    }
+    for (int line in 0 .. layout.height) {
+        int y = layout.y + line;
+        int position = pum.top + line;
+        TUI_style.Style row_style = styles.base;
+        if (position == pum.selected) {
+            row_style = styles.chosen;
+        }
+        buffer.fill(TUI_geometry.Rect(layout.x, y, layout.width, 1), " ", row_style);
+        if (position >= pum.shown.size()) {
+            continue;
+        }
+        Ranked ranked = pum.shown[position];
+        Item item = pum.all[ranked.position];
+        buffer.set_str(layout.x + 1, y, kind_glyph(item.kind), styles.dim.merged(TUI_style.Style(background: row_style.background)), max: 1);
+        int cursor = layout.x + 3;
+        int limit = layout.x + text_width;
+        int offset = 0;
+        for (str cluster in TUI_text.clusters(item.label)) {
+            int cells = TUI_text.width(cluster);
+            if (cursor + cells > limit) {
+                // does not fit: an ellipsis marks the cut
+                buffer.set_str(cursor, y, TUI_text.ELLIPSIS, row_style, max: 1);
+                cursor = limit;
+                break;
+            }
+            TUI_style.Style look = row_style;
+            if (is_marked(ranked.marks, offset, cluster.size())) {
+                look = row_style.merged(styles.marked);
+            }
+            buffer.set_str(cursor, y, cluster, look, max: cells);
+            cursor = cursor + cells;
+            offset = offset + cluster.size();
+        }
+        if (item.detail.size() > 0 && cursor + 3 < limit) {
+            str shown_detail = TUI_text.truncate(item.detail, limit - cursor - 1);
+            did_put(buffer, cursor + 1, y, shown_detail, limit - cursor - 1, styles.dim.merged(TUI_style.Style(background: row_style.background)));
+        }
+        if (has_bar) {
+            TUI_style.Style track = styles.base;
+            if (line >= thumb_from && line < thumb_from + thumb_size) {
+                track = styles.chosen;
+            }
+            buffer.set_str(layout.x + layout.width - 1, y, " ", track);
+        }
+    }
+    if (layout.doc_width > 0 && layout.doc_height > 0) {
+        buffer.fill(TUI_geometry.Rect(layout.doc_x, layout.doc_y, layout.doc_width, layout.doc_height), " ", styles.doc);
+        for (int line in 0 .. layout.doc_height) {
+            if (line >= doc.size()) {
+                break;
+            }
+            did_put(buffer, layout.doc_x + 1, layout.doc_y + line, doc[line], layout.doc_width - 2, styles.doc);
+        }
+        if (doc.size() > layout.doc_height) {
+            buffer.set_str(layout.doc_x + layout.doc_width - 2, layout.doc_y + layout.doc_height - 1, TUI_text.ELLIPSIS, styles.dim.merged(TUI_style.Style(background: styles.doc.background)), max: 1);
+        }
+    }
+}
+
+bool is_marked(List<int> marks, int offset, int size) {
+    for (int one in marks) {
+        if (one >= offset && one < offset + size) {
+            return true;
+        }
+    }
+    return false;
+}

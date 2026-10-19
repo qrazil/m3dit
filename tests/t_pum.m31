@@ -1,0 +1,167 @@
+// Unit checks for MED_pum: item parsing, matching and ranking, the selection, placement and drawing.
+
+import encoding.json;
+import tests.MED_check;
+import tui.core.TUI_buffer;
+import tui.core.TUI_geometry;
+import tui.core.TUI_style;
+import ui.MED_lsp;
+import ui.MED_pum;
+
+MED_check.Check check = MED_check.Check();
+
+json.Value parsed(str text) {
+    match (json.parse(text)) {
+        case Ok(json.Value value): {
+            return value;
+        }
+        case Err(json.Error error): {
+            return json.Value.Null;
+        }
+    }
+}
+
+List<str> labels(MED_pum.Pum pum) {
+    List<str> out = [];
+    for (MED_pum.Ranked one in pum.shown) {
+        out.push(pum.all[one.position].label);
+    }
+    return out;
+}
+
+// parsing
+List<MED_pum.Item> items = MED_pum.parse(MED_lsp.items_of(parsed("[{\"label\":\"hello_world\",\"kind\":3,\"detail\":\"fn()\",\"sortText\":\"b\"},{\"label\":\"help\",\"sortText\":\"a\",\"documentation\":{\"kind\":\"markdown\",\"value\":\"Show help\"}},{\"label\":\"\"},{\"label\":\"snip\",\"insertTextFormat\":2,\"filterText\":\"sn\"},{\"label\":\"pre\",\"preselect\":true}]")));
+check.eq_int("empty labels are dropped", items.size(), 4);
+check.eq_int("kind", items[0].kind, 3);
+check.eq_str("detail", items[0].detail, "fn()");
+check.eq_str("documentation text of markup", items[1].doc, "Show help");
+check.eq_str("filter text", items[2].filter, "sn");
+check.ok("snippet format", items[2].is_snippet);
+check.ok("preselect", items[3].is_preselect);
+check.eq_int("index is the server's position", items[3].index, 4);
+check.eq_str("a control character in a label is a space", MED_pum.clean("a\u{1b}[31mb\nc\u{85}d\u{7f}"), "a [31mb c d ");
+check.eq_str("clean leaves text alone", MED_pum.clean("h\u{e9}llo \u{4e2d}\u{6587}"), "h\u{e9}llo \u{4e2d}\u{6587}");
+check.eq_str("kind glyph", MED_pum.kind_glyph(3), "f");
+check.eq_str("unknown kind", MED_pum.kind_glyph(99), " ");
+// matching tiers
+check.eq_int("empty prefix", MED_pum.fit("", "abc").score, 0);
+check.ok("same case prefix beats folded prefix", MED_pum.fit("He", "Help").score > MED_pum.fit("he", "Help").score);
+check.ok("folded prefix beats word-start substring", MED_pum.fit("wor", "WORLD").score > MED_pum.fit("wor", "hello_world").score);
+check.ok("word-start substring beats inner substring", MED_pum.fit("wor", "hello_world").score > MED_pum.fit("orl", "hello_world").score);
+check.ok("substring beats scattered", MED_pum.fit("orl", "hello_world").score > MED_pum.fit("hwd", "hello_world").score);
+check.eq_int("a letter that is nowhere", MED_pum.fit("z", "hello").score, -1);
+check.eq_int("one typed letter inside a word is no match", MED_pum.fit("d", "hello_wor_ld").score, -1);
+check.ok("two letters in order match", MED_pum.fit("hw", "hello_world").score >= 0);
+check.eq_int("out of order does not", MED_pum.fit("wh", "hello_world").score, -1);
+check.eq_int("longer than the text", MED_pum.fit("helloo", "hello").score, -1);
+check.ok("camel case word start", MED_pum.fit("gS", "getSomething").score > 0);
+check.ok("shorter text ranks higher on the same prefix", MED_pum.fit("he", "help").score > MED_pum.fit("he", "helper").score);
+MED_pum.Match marked = MED_pum.fit("hw", "hello_world");
+check.eq_int("marks count", marked.marks.size(), 2);
+check.eq_int("first mark", marked.marks[0], 0);
+check.eq_int("second mark is the word start", marked.marks[1], 6);
+// ranking and narrowing
+MED_pum.Pum pum = MED_pum.open(items, 0, 0, "", false);
+check.ok("open with items", pum.is_open);
+check.eq_str("empty prefix: server sort order", labels(pum).join(","), "help,hello_world,pre,snip");
+check.eq_int("preselect starts selected", pum.selected, 2);
+pum.refilter("he");
+check.eq_str("prefix narrows", labels(pum).join(","), "help,hello_world");
+check.eq_int("selection cleared when its item went", pum.selected, -1);
+pum.refilter("hello");
+check.eq_str("narrowing again", labels(pum).join(","), "hello_world");
+pum.refilter("h");
+check.eq_int("widening finds both again", pum.shown.size(), 2);
+pum.refilter("sn");
+check.eq_str("filter text is what is matched", labels(pum).join(","), "snip");
+pum.refilter("qq");
+check.eq_int("nothing matches", pum.shown.size(), 0);
+MED_pum.Pum none = MED_pum.open(items, 0, 0, "qq", false);
+check.ok("no match: not open", !none.is_open);
+// selection
+MED_pum.Pum many = MED_pum.open(MED_pum.parse(MED_lsp.items_of(parsed("[{\"label\":\"a1\"},{\"label\":\"a2\"},{\"label\":\"a3\"},{\"label\":\"a4\"},{\"label\":\"a5\"},{\"label\":\"a6\"},{\"label\":\"a7\"},{\"label\":\"a8\"},{\"label\":\"a9\"},{\"label\":\"aa\"},{\"label\":\"ab\"},{\"label\":\"ac\"}]"))), 0, 0, "a", false);
+check.eq_int("none selected at first", many.selected, -1);
+many.move(1);
+check.eq_int("next selects the first", many.selected, 0);
+many.move(-1);
+check.eq_int("previous from the first is none", many.selected, -1);
+many.move(-1);
+check.eq_int("previous from none is the last", many.selected, 11);
+check.eq_int("the window follows", many.top, 2);
+many.move(1);
+check.eq_int("next past the last is none again", many.selected, -1);
+many.move(1);
+many.move(1);
+check.eq_str("item", many.item().label, "a2");
+// layout: never on the cursor row, inside the bounds
+TUI_geometry.Rect screen = TUI_geometry.Rect(0, 0, 80, 24);
+MED_pum.Layout below = MED_pum.place(many, 10, 5, screen, []);
+check.eq_int("below the cursor", below.y, 6);
+check.eq_int("ten rows at most", below.height, 10);
+check.ok("has no panel without docs", below.doc_width == 0);
+MED_pum.Layout above = MED_pum.place(many, 10, 20, screen, []);
+check.ok("above when it does not fit below", above.is_above);
+check.eq_int("ends on the row over the cursor", above.y + above.height, 20);
+MED_pum.Layout edge = MED_pum.place(many, 78, 5, screen, []);
+check.ok("shifted left to fit", edge.x + edge.width <= 80);
+MED_pum.Layout top_row = MED_pum.place(many, 10, 0, screen, []);
+check.ok("below on the first row", !top_row.is_above && top_row.y == 1);
+MED_pum.Layout tiny = MED_pum.place(many, 0, 0, TUI_geometry.Rect(0, 0, 80, 1), []);
+check.eq_int("no room: nothing drawn", tiny.height, 0);
+List<str> doc = MED_pum.doc_lines(MED_pum.Item("x", "x", "x"), 30);
+check.eq_int("no docs, no lines", doc.size(), 0);
+MED_pum.Item documented = MED_pum.Item("x", "x", "x");
+documented.detail = "fn x(a: i32)";
+documented.doc = "First line\n```rust\nlet x = 1;\n```\nSecond line that is quite a bit longer than the panel is wide";
+List<str> lines = MED_pum.doc_lines(documented, 20);
+check.eq_str("detail first", lines[0], "fn x(a: i32)");
+check.eq_str("blank between", lines[1], "");
+check.ok("fences dropped", !lines.join("|").contains("```"));
+check.ok("wrapped to the width", lines.size() > 5);
+MED_pum.Layout with_panel = MED_pum.place(many, 10, 5, screen, lines);
+check.ok("panel on the right", with_panel.doc_width >= 24 && with_panel.doc_x == with_panel.x + with_panel.width);
+MED_pum.Layout left_panel = MED_pum.place(many, 60, 5, screen, lines);
+check.ok("panel on the left when the right is short", left_panel.doc_width >= 24 && left_panel.doc_x + left_panel.doc_width == left_panel.x);
+MED_pum.Layout no_room = MED_pum.place(many, 5, 5, TUI_geometry.Rect(0, 0, 30, 24), lines);
+check.eq_int("no panel when neither side fits", no_room.doc_width, 0);
+// drawing: a row is a full row of the popup's own cells, nothing outside, no control characters
+TUI_style.Style base = TUI_style.Style(background: TUI_style.Colour.Rgb(20, 20, 30));
+TUI_style.Style chosen = TUI_style.Style(background: TUI_style.Colour.Rgb(60, 60, 90));
+MED_pum.Styles styles = MED_pum.Styles(base, chosen, TUI_style.Style(foreground: TUI_style.Colour.Rgb(255, 200, 0)), TUI_style.Style(foreground: TUI_style.Colour.Rgb(120, 120, 120)), base);
+TUI_buffer.Buffer buffer = TUI_buffer.Buffer.sized(80, 24);
+many.selected = 1;
+many.top = 0;
+MED_pum.draw(buffer, many, below, [], styles);
+check.eq_str("first row", buffer.row_text(6).substr(10, 10 + below.width).trim(), "a1");
+check.eq_str("second row", buffer.row_text(7).substr(10, 10 + below.width).trim(), "a2");
+check.eq_int("selected row has the chosen style", buffer.style_at(12, 7), chosen.pack());
+check.eq_int("others have the base style", buffer.style_at(12, 6), base.pack());
+check.eq_int("the row is fully covered (right edge)", buffer.style_at(10 + below.width - 2, 6), base.pack());
+check.eq_str("nothing left of the list", buffer.row_text(6).substr(0, 10).trim(), "");
+check.eq_str("nothing right of the list", buffer.row_text(6).substr(10 + below.width, 80).trim(), "");
+check.eq_str("nothing on the cursor row", buffer.row_text(5).trim(), "");
+check.eq_str("nothing below the list", buffer.row_text(16).trim(), "");
+// a hostile label: wide characters, a control character, a very long one, an ESC sequence
+MED_pum.Pum hostile = MED_pum.open(MED_pum.parse(MED_lsp.items_of(parsed("[{\"label\":\"\u{4e2d}\u{6587}\u{4e2d}\u{6587}\u{4e2d}\u{6587}\"},{\"label\":\"a\\u001b[2Jb\",\"detail\":\"x\\ny\"},{\"label\":\"" + "w".repeat(200) + "\"}]"))), 0, 0, "", false);
+TUI_buffer.Buffer second = TUI_buffer.Buffer.sized(40, 12);
+MED_pum.Layout spot = MED_pum.place(hostile, 30, 2, TUI_geometry.Rect(0, 0, 40, 12), []);
+MED_pum.draw(second, hostile, spot, [], styles);
+bool has_control = false;
+for (int y in 0 .. 12) {
+    for (int byte in second.row_text(y).to_bytes()) {
+        if (byte < 32 || byte == 127) {
+            has_control = true;
+        }
+    }
+}
+check.ok("no control character in any cell", !has_control);
+check.ok("list inside the screen", spot.x >= 0 && spot.x + spot.width <= 40);
+check.ok("a wide label is whole", second.row_text(5).contains("\u{4e2d}\u{6587}\u{4e2d}\u{6587}\u{4e2d}\u{6587}"));
+check.ok("the long one is cut with an ellipsis", second.row_text(4).contains("\u{2026}"));
+// the panel
+many.selected = 0;
+TUI_buffer.Buffer third = TUI_buffer.Buffer.sized(80, 24);
+MED_pum.draw(third, many, with_panel, lines, styles);
+check.ok("panel text drawn", third.row_text(with_panel.doc_y).contains("fn x(a: i32)"));
+check.eq_str("nothing right of the panel", third.row_text(with_panel.doc_y).substr(with_panel.doc_x + with_panel.doc_width, 80).trim(), "");
+check.finish("t_pum");

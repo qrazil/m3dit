@@ -264,7 +264,10 @@ Servers that are not on `$PATH` are also looked for in Neovim's mason directory
 (`~/.local/share/nvim/mason/bin`). Tested against real servers (pty scenarios in `tests/e2e.py`, skipped when a
 server is not installed): pyright, clangd, typescript-language-server, lua-language-server, rust-analyzer;
 the per-server table is in DESIGN.md section 13. The status line shows `LSP: ...` while a server reports progress
-(indexing). CTRL-Space in Insert mode completes from the server (a picker; Enter accepts).
+(indexing). CTRL-Space in Insert mode completes from the server (a picker; Enter accepts). `:set lspcomplete=auto`
+turns on the completion popup that follows the cursor: it opens as you type (trigger and identifier characters), narrows
+with every key, shows documentation beside the list; `<Tab>`/`<C-n>` and `<S-Tab>`/`<C-p>` select, `<C-y>` (or `<CR>` on a
+selected row) accepts, `<C-e>` closes. Snippet items expand through the snippet engine.
 
 ## Themes
 

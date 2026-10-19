@@ -45,6 +45,7 @@ import encoding.json;
 import proc;
 import timer;
 import ui.MED_lsp;
+import ui.MED_pum;
 import ui.MED_glide;
 import ui.MED_picker;
 import ui.MED_vt;
@@ -212,6 +213,19 @@ pub type App {
     /// Per document: the buffer tick last sent and the document version.
     Map<str, int> lsp_ticks = {};
     int lsp_quiet_ms = 0;
+    // >>> completion popup state (ui/MED_pum.m31; the methods are in the "completion popup" section)
+    MED_pum.Pum pum = MED_pum.Pum();
+    int pum_request = 0;
+    int pum_row = 0;
+    int pum_word = 0;
+    int pum_wait_ms = -1;
+    int pum_kind = 1;
+    str pum_char = "";
+    int pum_resolve_id = 0;
+    int pum_resolve_at = -1;
+    int pum_resolve_wait = -1;
+    int pum_shown_at = -2;
+    // <<< completion popup state
     /// Inlay hints: by absolute file path, row -> the hints of that row as one
     /// text; shown after the end of the line while `is_hints_on`.
     pub Map<str, Map<str, str>> hints = {};
@@ -3789,9 +3803,14 @@ bool App.should_quit_after(int key) {
         is_window_key = true;
         return false;
     }
+    // >>> completion popup keys (see the "completion popup" section)
+    if (editor.mode == MED_editor.INSERT && pum.is_open && did_use_pum_key(key)) {
+        return did_finish();
+    }
+    // <<<
     if (editor.mode == MED_editor.INSERT && (key == MED_key.NUL || key == (MED_key.MOD_CTRL | 32)) && has_server_here()) {
         // CTRL-Space: language server completion
-        run_lsp_command("complete", "");
+        lsp_complete_key();
         return did_finish();
     }
     if (editor.mode == MED_editor.INSERT && key == 19 && has_server_here()) {
@@ -3927,7 +3946,9 @@ bool App.should_quit_after(int key) {
         }
         MED_ex.feed(editor, 103);
     }
+    bool was_insert = editor.mode == MED_editor.INSERT;
     MED_ex.feed(editor, sent);
+    pum_typed(sent, was_insert);
     if (is_in_listing()) {
         keep_listing_read_only();
     }
@@ -5408,6 +5429,7 @@ pub void App.render(TUI_buffer.Buffer buffer, TUI_geometry.Rect full) {
     if (overlay.size() > 0) {
         draw_overlay(buffer, area, rows);
     }
+    draw_pum(buffer, area, rows);
     int popup_kind = 0;
     if ((is_leader && is_which_key) || jump_stage == 2 || (is_prefix_help && !is_leader)) {
         popup_kind = 1;
@@ -6788,6 +6810,7 @@ str App.text_of_slot(Slot slot) {
 /// changed.
 bool App.did_tick_lsp(int elapsed_ms) {
     bool is_changed = false;
+    pum_tick(elapsed_ms);
     str lang_here = lsp_language_here();
     if (lang_here.size() > 0 && server_for(lang_here) < 0 && is_lsp_wanted()) {
         start_server(lang_here);
@@ -6936,6 +6959,10 @@ bool App.did_handle_server_message(int position, MED_lsp.Message message) {
             return false;
         }
         lsp_pending.remove(key);
+        if (message.is_error && purpose.starts_with("pum")) {
+            // a cancelled or outdated completion request is no news
+            return false;
+        }
         if (message.is_error) {
             if (message.error_code == -32801 || message.error_code == -32800) {
                 notice = "LSP: the server was busy, try again";
@@ -7247,6 +7274,10 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
     int bar = purpose_and_file.index_of("|").or(purpose_and_file.size());
     str purpose = purpose_and_file.substr(0, bar);
     str file = purpose_and_file.substr(bar + 1, purpose_and_file.size());
+    if (purpose.starts_with("pum")) {
+        pum_answer(purpose, result);
+        return;
+    }
     if (purpose == "hover") {
         str text_value = MED_lsp.hover_text(result).trim();
         if (text_value.size() == 0) {
@@ -7401,6 +7432,368 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
     }
 }
 
+// >>> completion popup (ui/MED_pum.m31) ------------------------------------------------------------------
+// `:set lspcomplete=auto` shows the popup while typing (trigger characters and identifier characters); CTRL-Space
+// asks for it at once. With the default `manual`, CTRL-Space opens the picker as before. Keys while it is open:
+// <Tab> <C-n> <Down> next, <S-Tab> <C-p> <Up> previous, <C-y> accept, <CR> accept the selected row, <C-e> close,
+// <Esc> close and leave Insert mode.
+
+/// `:set lspcomplete=auto`: the popup follows the typing.
+bool App.is_pum_auto() {
+    return editor.opts.get("lspcomplete").or("manual") == "auto";
+}
+
+/// The server of the active buffer when it can complete, else -1.
+int App.pum_server() {
+    if (!has_server_here()) {
+        return -1;
+    }
+    int found = server_for(lsp_language_here());
+    if (found < 0 || !servers[found].is_ready || !servers[found].can_do("completionProvider")) {
+        return -1;
+    }
+    return found;
+}
+
+/// CTRL-Space in Insert mode.
+void App.lsp_complete_key() {
+    if (is_pum_auto() && pum_server() >= 0) {
+        pum_send(1, "");
+        return;
+    }
+    run_lsp_command("complete", "");
+}
+
+/// Close the popup and drop a request still in flight (the server is told: `$/cancelRequest`).
+void App.pum_close() {
+    if (!pum.is_open && pum_request == 0 && pum_wait_ms < 0 && pum_resolve_wait < 0) {
+        return;
+    }
+    if (pum_request > 0) {
+        int found = server_for(lsp_language_here());
+        if (found >= 0 && !servers[found].is_dead) {
+            servers[found].cancel(pum_request);
+            lsp_pending.remove(servers[found].name + "#" + pum_request.to_str());
+        }
+        pum_request = 0;
+    }
+    pum = MED_pum.Pum();
+    pum_wait_ms = -1;
+    pum_resolve_wait = -1;
+    pum_shown_at = -2;
+}
+
+/// Ask for completions at the cursor now (`kind` 1 invoked, 2 trigger character, 3 incomplete list).
+void App.pum_send(int kind, str trigger) {
+    int found = pum_server();
+    if (found < 0) {
+        return;
+    }
+    MED_lsp.Server server = servers[found];
+    if (pum_request > 0) {
+        server.cancel(pum_request);
+        lsp_pending.remove(server.name + "#" + pum_request.to_str());
+        pum_request = 0;
+    }
+    str line_text = editor.buffer.line(editor.row);
+    int word_start = editor.col;
+    while (word_start > 0 && is_completion_byte(line_text.byte_at(word_start - 1))) {
+        word_start = word_start - 1;
+    }
+    pum_row = editor.row;
+    pum_word = word_start;
+    // Insert mode holds back didChange: the server must see what was typed
+    lsp_flush_document();
+    json.Value base = lsp_position_parameters();
+    json.Value context = MED_lsp.object(["triggerKind"], [MED_lsp.number(kind)]);
+    if (kind == 2) {
+        context = MED_lsp.object(["triggerKind", "triggerCharacter"], [MED_lsp.number(2), MED_lsp.text(trigger)]);
+    }
+    int id = server.request("textDocument/completion", MED_lsp.object(["textDocument", "position", "context"], [MED_lsp.member(base, "textDocument"), MED_lsp.member(base, "position"), context]));
+    pum_request = id;
+    lsp_pending.set(server.name + "#" + id.to_str(), "pum:" + id.to_str() + "|" + absolute_of(path));
+}
+
+/// The answer to a completion request ("pum:ID") or a resolve request ("pumr:ID").
+void App.pum_answer(str purpose, json.Value result) {
+    int colon = purpose.index_of(":").or(purpose.size() - 1);
+    int id = purpose.substr(colon + 1, purpose.size()).parse_int().or(0);
+    if (purpose.starts_with("pumr:")) {
+        if (id == pum_resolve_id && pum.is_open && pum_resolve_at >= 0 && pum_resolve_at < pum.all.size() && !MED_lsp.is_null(result)) {
+            MED_pum.Item old = pum.all[pum_resolve_at];
+            MED_pum.Item fresh = MED_pum.item_of(result, old.label, old.index);
+            fresh.is_resolved = true;
+            pum.update(pum_resolve_at, fresh);
+        }
+        return;
+    }
+    if (id != pum_request) {
+        return;
+    }
+    pum_request = 0;
+    if (editor.mode != MED_editor.INSERT || editor.row != pum_row || editor.col < pum_word) {
+        return;
+    }
+    json.Value list = result;
+    bool is_incomplete = false;
+    if (!MED_lsp.is_null(MED_lsp.member(result, "items"))) {
+        list = MED_lsp.member(result, "items");
+        is_incomplete = MED_lsp.is_true(MED_lsp.member(result, "isIncomplete"));
+    }
+    List<MED_pum.Item> items = MED_pum.parse(MED_lsp.items_of(list));
+    if (items.size() == 0) {
+        pum = MED_pum.Pum();
+        return;
+    }
+    str line_text = editor.buffer.line(editor.row);
+    int anchor = pum_word;
+    // an item's own edit range says where the text it filters on begins
+    int look = items.size();
+    if (look > 20) {
+        look = 20;
+    }
+    for (int index in 0 .. look) {
+        json.Value edit = MED_lsp.member(items[index].raw, "textEdit");
+        json.Value range = MED_lsp.member(edit, "range");
+        if (MED_lsp.is_null(range)) {
+            range = MED_lsp.member(edit, "insert");
+        }
+        json.Value start = MED_lsp.member(range, "start");
+        if (MED_lsp.int_of(MED_lsp.member(start, "line"), -1) == editor.row) {
+            int from = MED_lsp.byte_of(line_text, MED_lsp.int_of(MED_lsp.member(start, "character"), 0));
+            if (from <= editor.col) {
+                anchor = from;
+            }
+            break;
+        }
+    }
+    pum = MED_pum.open(items, editor.row, anchor, line_text.substr(anchor, editor.col), is_incomplete);
+    pum_shown_at = -2;
+    pum_note_selection();
+}
+
+/// A new selection wants its documentation: `completionItem/resolve` goes out after a short pause.
+void App.pum_note_selection() {
+    int spot = pum.selected_at();
+    if (spot == pum_shown_at) {
+        return;
+    }
+    pum_shown_at = spot;
+    pum_resolve_wait = -1;
+    if (spot >= 0 && !pum.all[spot].is_resolved) {
+        pum_resolve_wait = 0;
+    }
+}
+
+/// The debounced work: a due completion request, a due resolve request.
+void App.pum_tick(int elapsed_ms) {
+    if (pum_wait_ms >= 0) {
+        pum_wait_ms = pum_wait_ms + elapsed_ms;
+        if (pum_wait_ms >= 25) {
+            pum_wait_ms = -1;
+            if (editor.mode == MED_editor.INSERT) {
+                pum_send(pum_kind, pum_char);
+            }
+        }
+    }
+    if (pum_resolve_wait >= 0) {
+        pum_resolve_wait = pum_resolve_wait + elapsed_ms;
+        if (pum_resolve_wait >= 80) {
+            pum_resolve_wait = -1;
+            int found = pum_server();
+            int spot = pum.selected_at();
+            if (found >= 0 && spot >= 0 && pum.is_open && MED_lsp.is_true(MED_lsp.member(MED_lsp.member(servers[found].capabilities, "completionProvider"), "resolveProvider"))) {
+                int id = servers[found].request("completionItem/resolve", pum.all[spot].raw);
+                pum_resolve_id = id;
+                pum_resolve_at = spot;
+                lsp_pending.set(servers[found].name + "#" + id.to_str(), "pumr:" + id.to_str() + "|" + absolute_of(path));
+            }
+        }
+    }
+}
+
+/// A key typed in Insert mode while the popup is open, before the engine sees it. True when the popup used it.
+bool App.did_use_pum_key(int key) {
+    if (!pum.is_open) {
+        return false;
+    }
+    if (pum.row != editor.row || editor.col < pum.anchor) {
+        pum_close();
+        return false;
+    }
+    if (key == MED_key.TAB || key == 14 || key == MED_key.DOWN) {
+        pum.move(1);
+        pum_note_selection();
+        return true;
+    }
+    if (key == (MED_key.MOD_SHIFT | MED_key.TAB) || key == 16 || key == MED_key.UP_KEY) {
+        pum.move(-1);
+        pum_note_selection();
+        return true;
+    }
+    if (key == MED_key.PAGE_DOWN || key == MED_key.PAGE_UP) {
+        int step = MED_pum.MAX_ROWS - 1;
+        if (key == MED_key.PAGE_UP) {
+            step = 0 - step;
+        }
+        pum.move(step);
+        pum_note_selection();
+        return true;
+    }
+    if (key == 25 || key == MED_key.CARRIAGE_RETURN) {
+        if (pum.selected >= 0) {
+            pum_accept();
+            return true;
+        }
+        if (key == MED_key.CARRIAGE_RETURN) {
+            pum_close();
+        }
+        return false;
+    }
+    if (key == 5) {
+        pum_close();
+        return true;
+    }
+    if (key == MED_key.ESC) {
+        pum_close();
+        return false;
+    }
+    if (pum.selected >= 0 && key > 32 && key < 127) {
+        int found = pum_server();
+        if (found >= 0 && servers[found].is_commit_character(pum.item().raw, str.from_chars([key]))) {
+            // a commit character takes the selected item, then is typed
+            pum_accept();
+        }
+    }
+    return false;
+}
+
+/// A key the engine has just handled in Insert mode: narrow the popup, close it, or ask for one. `was_insert`:
+/// Insert mode was already on (the key that starts it is not typing).
+void App.pum_typed(int key, bool was_insert) {
+    if (editor.mode != MED_editor.INSERT || !was_insert) {
+        pum_close();
+        return;
+    }
+    if (pum.is_open) {
+        if (editor.row != pum.row || editor.col < pum.anchor) {
+            pum_close();
+            return;
+        }
+        bool is_char = key > 32 && key != MED_key.BACKSPACE && key < 63000;
+        if (is_char && !is_completion_byte(key) && key < 128) {
+            pum_close();
+            pum_wanted(key);
+            return;
+        }
+        if (key == MED_key.SPACE || key == MED_key.CARRIAGE_RETURN || key == MED_key.TAB || key == MED_key.LEFT || key == MED_key.RIGHT || key == MED_key.HOME || key == MED_key.END) {
+            pum_close();
+            return;
+        }
+        str before = pum.prefix;
+        pum.refilter(editor.buffer.line(editor.row).substr(pum.anchor, editor.col));
+        if (pum.shown.size() == 0) {
+            pum_close();
+            return;
+        }
+        pum_note_selection();
+        if (pum.is_incomplete && pum.prefix != before) {
+            pum_wait_ms = 0;
+            pum_kind = 3;
+            pum_char = "";
+        }
+        return;
+    }
+    pum_wanted(key);
+}
+
+// With the popup closed, a typed character may ask for one: after `lspcomplete=auto` only.
+void App.pum_wanted(int key) {
+    if (!is_pum_auto() || key < 33 || key >= 63000 || pum_server() < 0) {
+        return;
+    }
+    int found = pum_server();
+    str typed = str.from_chars([key]);
+    for (str one in servers[found].trigger_characters()) {
+        if (one == typed) {
+            pum_wait_ms = 0;
+            pum_kind = 2;
+            pum_char = typed;
+            return;
+        }
+    }
+    if (is_completion_byte(key) || key >= 128) {
+        pum_wait_ms = 0;
+        pum_kind = 1;
+        pum_char = "";
+    }
+}
+
+/// The raw item with what `completionItem/resolve` adds (its documentation, `additionalTextEdits`): the answer
+/// already in hand, else one asked for now and waited for a moment.
+json.Value App.pum_resolved(MED_pum.Item item) {
+    int found = pum_server();
+    if (item.is_resolved || found < 0 || !MED_lsp.is_true(MED_lsp.member(MED_lsp.member(servers[found].capabilities, "completionProvider"), "resolveProvider"))) {
+        return item.raw;
+    }
+    int id = servers[found].request("completionItem/resolve", item.raw);
+    match (servers[found].await(id, 300)) {
+        case Some(MED_lsp.Message reply): {
+            if (!reply.is_error && !MED_lsp.is_null(reply.body)) {
+                return reply.body;
+            }
+        }
+        case None: {
+            servers[found].cancel(id);
+        }
+    }
+    return item.raw;
+}
+
+/// Take the selected item: its edit (or its text over the typed word), additional edits, a snippet through the
+/// snippet engine, then the command it names when the server announced it.
+void App.pum_accept() {
+    MED_pum.Item item = pum.item();
+    if (item.label.size() == 0) {
+        return;
+    }
+    json.Value raw = pum_resolved(item);
+    lsp_completion_row = pum.row;
+    lsp_completion_byte = pum.anchor;
+    pum_close();
+    accept_completion_item(raw);
+    json.Value command = MED_lsp.member(raw, "command");
+    str name = MED_lsp.text_of(MED_lsp.member(command, "command"));
+    int found = server_for(lsp_language_here());
+    if (name.size() > 0 && found >= 0) {
+        for (json.Value known in MED_lsp.items_of(MED_lsp.member(MED_lsp.member(servers[found].capabilities, "executeCommandProvider"), "commands"))) {
+            if (MED_lsp.text_of(known) == name) {
+                run_action_command(raw);
+            }
+        }
+    }
+}
+
+/// Draw the popup and its documentation panel over the text, beside the cursor.
+void App.draw_pum(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows) {
+    if (!pum.is_open || editor.mode != MED_editor.INSERT || has_picker || overlay.size() > 0) {
+        return;
+    }
+    if (pum.row != editor.row || editor.col < pum.anchor) {
+        return;
+    }
+    str typed = editor.buffer.line(editor.row).substr(pum.anchor, editor.col);
+    int anchor_x = cursor_x - MED_text.line_width(typed, editor.tab);
+    List<str> doc = MED_pum.doc_lines(pum.item(), MED_pum.DOC_MAX - 2);
+    MED_pum.Layout spot = MED_pum.place(pum, anchor_x, cursor_y, TUI_geometry.Rect(area.x, area.y, area.width, rows), doc);
+    pum.keep_selection_visible(spot.height);
+    TUI_style.Style base = theme.look("ui.menu");
+    MED_pum.Styles styles = MED_pum.Styles(base, theme.look("ui.menu.selected"), theme.look("ui.picker.match"), theme.look("ui.text.inactive"), theme.look("ui.popup"));
+    MED_pum.draw(buffer, pum, spot, doc, styles);
+}
+
+// <<< completion popup -----------------------------------------------------------------------------------
+
 // ---------------------------------------------------------------- snippets (engine/MED_snippet.m31, MED_snipops.m31)
 
 /// Read the user's snippets: `snippets.json` and `snippets/LANGUAGE.json` (entries that apply to that language) next to
@@ -7477,10 +7870,17 @@ void App.note_snippet_context() {
 /// Insert completion item `which` in place of the word before the cursor
 /// (or over the item's own `textEdit` range), cursor after the text.
 void App.accept_completion(int which) {
-    if (which < 0 || which >= lsp_completions.size() || lsp_completion_row >= editor.buffer.line_count()) {
+    if (which < 0 || which >= lsp_completions.size()) {
         return;
     }
-    json.Value item = lsp_completions[which];
+    accept_completion_item(lsp_completions[which]);
+}
+
+/// Insert one completion item where `lsp_completion_row` / `lsp_completion_byte` say the word began.
+void App.accept_completion_item(json.Value item) {
+    if (lsp_completion_row >= editor.buffer.line_count()) {
+        return;
+    }
     str line_text = editor.buffer.line(lsp_completion_row);
     int from_units = MED_lsp.units_of(line_text, lsp_completion_byte);
     int to_units = MED_lsp.units_of(line_text, editor.col);
@@ -7518,14 +7918,17 @@ void App.accept_completion(int which) {
         inserted = "";
     }
     List<MED_lsp.TextEdit> edits = [MED_lsp.TextEdit(row_from, from_units, row_to, to_units, inserted)];
-    for (MED_lsp.TextEdit extra in MED_lsp.edits_of(MED_lsp.member(item, "additionalTextEdits"))) {
+    List<MED_lsp.TextEdit> extras = MED_lsp.edits_of(MED_lsp.member(item, "additionalTextEdits"));
+    for (MED_lsp.TextEdit extra in extras) {
         edits.push(extra);
     }
     if (!did_apply_file_edits(absolute_of(path), edits)) {
         return;
     }
-    // the cursor goes after the inserted text
-    int start_byte = MED_lsp.byte_of(line_text, from_units);
+    // the cursor goes after the inserted text (an import added above moves it down)
+    List<int> moved = MED_lsp.map_point(extras, row_from, from_units);
+    row_from = moved[0];
+    int start_byte = MED_lsp.byte_of(editor.buffer.line(row_from), moved[1]);
     if (is_snippet) {
         editor.row = row_from;
         editor.col = start_byte;

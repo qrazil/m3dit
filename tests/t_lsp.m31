@@ -107,4 +107,47 @@ MED_lsp.Message hints = MED_lsp.decode("{\"jsonrpc\":\"2.0\",\"id\":2,\"result\"
 List<json.Value> hint_items = MED_lsp.items_of(hints.body);
 check.eq_str("a string label", MED_lsp.inlay_label(hint_items[0]), "x:");
 check.eq_str("a label of parts", MED_lsp.inlay_label(hint_items[1]), "a: int");
+// positions moved by edits made elsewhere (additionalTextEdits of a completion)
+List<int> moved = MED_lsp.map_point([MED_lsp.TextEdit(0, 0, 0, 0, "import x\n")], 4, 7);
+check.eq_int("an import above moves the line", moved[0], 5);
+check.eq_int("and leaves the column", moved[1], 7);
+moved = MED_lsp.map_point([MED_lsp.TextEdit(3, 0, 3, 0, "a\nb\n")], 3, 4);
+check.eq_int("an insert at the same row start", moved[0], 5);
+check.eq_int("moves the column to the new last line", moved[1], 4);
+moved = MED_lsp.map_point([MED_lsp.TextEdit(2, 1, 2, 3, "xxxx")], 2, 6);
+check.eq_int("same line, before the point", moved[0], 2);
+check.eq_int("column grows by the difference", moved[1], 8);
+moved = MED_lsp.map_point([MED_lsp.TextEdit(5, 0, 6, 0, "")], 8, 1);
+check.eq_int("a deleted line moves it up", moved[0], 7);
+moved = MED_lsp.map_point([MED_lsp.TextEdit(9, 0, 9, 0, "late\n")], 4, 2);
+check.eq_int("an edit after the point does nothing", moved[0], 4);
+check.ok("is_true", MED_lsp.is_true(json.Value.Bool(true)) && !MED_lsp.is_true(json.Value.Null) && !MED_lsp.is_true(json.Value.Int(1)));
+check.eq_int("utf16 size of an astral char", MED_lsp.utf16_size("a\u{1f600}"), 3);
+// await, the backlog and $/cancelRequest, against a scripted server
+str waiter = "import sys, json\n" + "last = [None]\n" + "def read():\n" + "    h = sys.stdin.buffer.readline()\n" + "    if not h: return None\n" + "    n = int(h.split(b':')[1])\n" + "    sys.stdin.buffer.readline()\n" + "    return json.loads(sys.stdin.buffer.read(n))\n" + "def send(o):\n" + "    b = json.dumps(o).encode()\n" + "    sys.stdout.buffer.write(b'Content-Length: %d\\r\\n\\r\\n' % len(b) + b); sys.stdout.buffer.flush()\n" + "while True:\n" + "    m = read()\n" + "    if m is None: break\n" + "    t = m.get('method')\n" + "    if t == 'initialize': send({'jsonrpc':'2.0','id':m['id'],'result':{'capabilities':{'completionProvider':{'triggerCharacters':['.',':'],'allCommitCharacters':[';']}}}})\n" + "    elif t == '$/cancelRequest': last[0] = m['params']['id']\n" + "    elif t == 'x/ping':\n" + "        send({'jsonrpc':'2.0','method':'x/note','params':{}})\n" + "        send({'jsonrpc':'2.0','id':m['id'],'result':{'cancelled':last[0]}})\n" + "    elif t == 'shutdown': send({'jsonrpc':'2.0','id':m['id'],'result':None})\n" + "    elif t == 'exit': break\n";
+MED_lsp.Server waiting = MED_lsp.start("fake", ["python3", "-c", waiter], "/tmp");
+check.ok("second server started", !waiting.is_dead);
+check.ok("it is ready", waiting.await(waiting.initialize_id, 5000).is_some());
+waiting.capabilities = json.Value.Object({"completionProvider": MED_lsp.object(["triggerCharacters", "allCommitCharacters"], [json.Value.Array([MED_lsp.text("."), MED_lsp.text(":")]), json.Value.Array([MED_lsp.text(";")])])});
+int stalled = waiting.request("x/stall", json.Value.Null);
+waiting.cancel(stalled);
+int ping = waiting.request("x/ping", json.Value.Null);
+match (waiting.await(ping, 5000)) {
+    case Some(MED_lsp.Message reply): {
+        check.eq_int("the server saw the cancel of the right id", MED_lsp.int_of(MED_lsp.member(reply.body, "cancelled"), -1), stalled);
+    }
+    case None: {
+        check.ok("await answered", false);
+    }
+}
+List<MED_lsp.Message> kept = waiting.poll();
+check.eq_int("what arrived meanwhile is kept for poll", kept.size(), 1);
+check.eq_str("the notification", kept[0].method, "x/note");
+check.eq_int("and only once", waiting.poll().size(), 0);
+check.ok("await times out", waiting.await(9999, 150).is_none());
+check.eq_str("trigger characters", waiting.trigger_characters().join(""), ".:");
+check.ok("an all-commit character", waiting.is_commit_character(json.Value.Null, ";"));
+check.ok("not a commit character", !waiting.is_commit_character(json.Value.Null, ","));
+check.ok("an item's own commit characters win", !waiting.is_commit_character(MED_lsp.object(["commitCharacters"], [json.Value.Array([MED_lsp.text("(")])]), ";"));
+waiting.stop();
 check.finish("t_lsp");

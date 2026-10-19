@@ -98,6 +98,7 @@ const List<str> SPECS = [
     "surround::bool:true",
     "jk_escape::bool:true",
     "lsp::bool:true",
+    "lspcomplete::str:manual",
     "indentguides::bool:true",
     "todohl::bool:true",
     "bufferline::bool:true",

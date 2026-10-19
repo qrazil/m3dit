@@ -671,12 +671,22 @@ whatever a server wrote (a read with a deadline that has already passed fails at
   itself (so tsserver and proc-macro servers go with it), then kills it.
 * Completion: CTRL-Space in Insert mode (or `:Lsp complete`) syncs the buffer, sends `textDocument/completion` and
   lists the items in the picker, ordered by `sortText`, pre-filtered by the typed word; Enter accepts (its
-  `textEdit` or `insertText`, snippets flattened to their defaults, `additionalTextEdits` such as clangd's
-  includes), the cursor lands after the text. A popup that follows the cursor and completes as you type
-  (trigger characters, `completionItem/resolve`, snippet tab stops) is the next step.
-* Not done: signature help, inlay hints, semantic tokens, incremental sync, dynamic registration, formatting on
-  save, `didClose`.
-* Tests: `tests/t_lsp.m31` (framing, decoding, URIs, columns, edits, ids, a round trip with a scripted server);
+  `textEdit` or `insertText`, snippets through the snippet engine, `additionalTextEdits` such as clangd's
+  includes), the cursor lands after the text (past edits made above it: `MED_lsp.map_point`).
+* The completion popup (`ui/MED_pum.m31`, `:set lspcomplete=auto`; `manual` is the default until it has soaked):
+  `Pum` holds the items of one answer, the typed text after the anchor (the start of the word, or of the first item's
+  own edit range), the ranked rows and the selection (-1 none). A request is sent 25 ms after the last typed
+  identifier or trigger character and flushes the buffer first (Insert mode holds `didChange` back); the answer is
+  dropped when the cursor left the word. Filtering is ours: a prefix that only grew narrows the rows already shown,
+  anything else rescans; `isIncomplete` lists are requested again (triggerKind 3). Ranking tiers: same-case prefix,
+  prefix, word-start substring, substring, in-order letters (two typed characters at least), then the server's
+  `sortText`. Selection does not change the text (nvim's `noinsert`); `<CR>` on no selection is a line break. The
+  selected item's documentation comes from `completionItem/resolve` after 80 ms of rest; accepting waits up to 300 ms
+  for a resolve it still needs (`additionalTextEdits`). Placement: under the cursor row when it fits, else above;
+  the documentation panel on the right of the list when 24 cells fit, else on the left. Cells only get text through
+  `MED_pum.clean`. `Server.cancel` sends `$/cancelRequest` for a request that was overtaken. Divergences from nvim:
+  nvim inserts the selected text live and `<C-e>` restores it; here nothing is inserted until accept.
+* Tests: `tests/t_pum.m31` and `tests/lsp_pty.py` (the popup), `tests/t_lsp.m31` (framing, decoding, URIs, columns, edits, ids, a round trip with a scripted server);
   the `lsp_client` pty scenario of `tests/e2e.py` against `tests/fake_lsp.py` (server requests with string ids,
   an stderr flood, lazy and command code actions); and `lsp_real_*` pty scenarios against real servers (skipped
   when a binary is missing). Each of the latter waits for diagnostics, then hover, definition, references and

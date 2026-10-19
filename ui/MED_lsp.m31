@@ -209,6 +209,33 @@ pub bool is_null(json.Value value) {
     }
 }
 
+/// Whether a value is the boolean true (false for anything else, null included).
+pub bool is_true(json.Value value) {
+    match (value) {
+        case Bool(bool flag): {
+            return flag;
+        }
+        case Null: {
+            return false;
+        }
+        case Int(int whole): {
+            return false;
+        }
+        case Float(float real): {
+            return false;
+        }
+        case Str(str words): {
+            return false;
+        }
+        case Array(List<json.Value> items): {
+            return false;
+        }
+        case Object(Map<str, json.Value> members): {
+            return false;
+        }
+    }
+}
+
 // ---------------------------------------------------------------- framing
 
 /// `body` with its Content-Length header.
@@ -436,6 +463,52 @@ pub List<TextEdit> edits_of(json.Value value) {
     return out;
 }
 
+/// UTF-16 units of `text`.
+pub int utf16_size(str text) {
+    return units_of(text, text.size());
+}
+
+int count_of(str text, str piece) {
+    return text.split(piece).size() - 1;
+}
+
+/// Where the point (line, character) of the original document is after `edits` (all in original coordinates,
+/// as the LSP defines them) are applied: edits that end at or before the point move it, the rest leave it.
+pub List<int> map_point(List<TextEdit> edits, int line, int character) {
+    List<TextEdit> ordered = [];
+    for (TextEdit one in edits) {
+        if (one.end_line > line || (one.end_line == line && one.end_character > character)) {
+            continue;
+        }
+        int place = ordered.size();
+        for (int index in 0 .. ordered.size()) {
+            TextEdit other = ordered[index];
+            if (one.line < other.line || (one.line == other.line && one.character < other.character)) {
+                place = index;
+                break;
+            }
+        }
+        ordered.insert(place, one);
+    }
+    int moved_lines = 0;
+    int shift = 0;
+    for (TextEdit one in ordered) {
+        int added = count_of(one.new_text, "\n");
+        moved_lines = moved_lines + added - (one.end_line - one.line);
+        if (one.end_line == line) {
+            if (added > 0) {
+                List<str> parts = one.new_text.split("\n");
+                shift = utf16_size(parts[parts.size() - 1]) - one.end_character;
+            } else if (one.line == one.end_line) {
+                shift = shift + utf16_size(one.new_text) - (one.end_character - one.character);
+            } else {
+                shift = one.character + utf16_size(one.new_text) - one.end_character;
+            }
+        }
+    }
+    return [line + moved_lines, character + shift];
+}
+
 /// A location: file path, line and UTF-16 column (path "" when the value is
 /// not one). Accepts Location and LocationLink.
 pub type Place {
@@ -621,6 +694,8 @@ pub type Server {
     pub Map<str, str> tokens = {};
     /// Why the server stopped, when it did by itself.
     pub str exit_note = "";
+    /// Messages that arrived while `await` waited for another one; `poll` returns them first.
+    List<Message> backlog = [];
 }
 
 void Server.transmit(str body) {
@@ -695,6 +770,30 @@ pub bool Server.can_do(str feature) {
     }
 }
 
+/// The characters after which the server wants completion requested (its `completionProvider`).
+pub List<str> Server.trigger_characters() {
+    List<str> out = [];
+    for (json.Value one in items_of(member(member(capabilities, "completionProvider"), "triggerCharacters"))) {
+        out.push(text_of(one));
+    }
+    return out;
+}
+
+/// Whether typing `typed` commits the selected completion item `item` (its own `commitCharacters`, else the
+/// server's `allCommitCharacters`).
+pub bool Server.is_commit_character(json.Value item, str typed) {
+    List<json.Value> own = items_of(member(item, "commitCharacters"));
+    if (own.size() == 0) {
+        own = items_of(member(member(capabilities, "completionProvider"), "allCommitCharacters"));
+    }
+    for (json.Value one in own) {
+        if (text_of(one) == typed) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Read and keep the tail of what the server wrote to standard error.
 void Server.drain_log() {
     if (children.size() == 0) {
@@ -720,17 +819,29 @@ void Server.drain_log() {
     }
 }
 
-/// The messages that have arrived.
+/// The messages that have arrived (those `await` set aside first).
 pub List<Message> Server.poll() {
+    List<Message> out = backlog;
+    backlog = [];
+    for (Message one in read_messages(20000)) {
+        out.push(one);
+    }
+    return out;
+}
+
+// Read what the server wrote, waiting at most `wait_ns` for the first bytes.
+List<Message> Server.read_messages(int wait_ns) {
     List<Message> out = [];
     if (is_dead || children.size() == 0) {
         return out;
     }
     drain_log();
     int rounds = 0;
+    int wait = wait_ns;
     while (rounds < 16) {
         rounds = rounds + 1;
-        children[0].stdout.set_deadline_ns(timer.monotonic_ns() + 20000);
+        children[0].stdout.set_deadline_ns(timer.monotonic_ns() + wait);
+        wait = 20000;
         match (children[0].stdout.read(65536)) {
             case Ok(bytes data): {
                 if (data.size() == 0) {
@@ -752,6 +863,31 @@ pub List<Message> Server.poll() {
         }
     }
     return out;
+}
+
+/// Wait up to `timeout_ms` for the response to request `id`. Everything else that arrives meanwhile is kept
+/// for the next `poll`. None when the time ran out or the server died.
+pub Option<Message> Server.await(int id, int timeout_ms) {
+    int deadline = timer.monotonic_ns() + timeout_ms * 1000000;
+    Option<Message> found = Option<Message>.None;
+    while (!is_dead && timer.monotonic_ns() < deadline) {
+        for (Message one in read_messages(2000000)) {
+            if (found.is_none() && one.kind == "response" && one.id == id) {
+                found = Option<Message>.Some(one);
+            } else {
+                backlog.push(one);
+            }
+        }
+        if (found.is_some()) {
+            break;
+        }
+    }
+    return found;
+}
+
+/// Tell the server the answer to request `id` is no longer wanted (`$/cancelRequest`).
+pub void Server.cancel(int id) {
+    notify("$/cancelRequest", object(["id"], [number(id)]));
 }
 
 /// Ask the server to shut down, then kill it.
@@ -800,7 +936,9 @@ pub Server start(str name, List<str> argv, str root) {
     json.Value markup = object(["contentFormat"], [json.Value.Array([text("markdown"), text("plaintext")])]);
     json.Value diagnostics = object(["relatedInformation", "versionSupport"], [json.Value.Bool(false), json.Value.Bool(true)]);
     json.Value signature = object(["signatureInformation"], [object(["documentationFormat", "parameterInformation"], [json.Value.Array([text("plaintext")]), object(["labelOffsetSupport"], [json.Value.Bool(true)])])]);
-    json.Value document_capabilities = object(["synchronization", "hover", "signatureHelp", "inlayHint", "definition", "references", "rename", "codeAction", "formatting", "publishDiagnostics"], [synchronization, markup, signature, object(["dynamicRegistration"], [json.Value.Bool(false)]), object(["linkSupport"], [json.Value.Bool(false)]), object([], []), object(["prepareSupport"], [json.Value.Bool(false)]), object(["isPreferredSupport", "dataSupport", "resolveSupport"], [json.Value.Bool(false), json.Value.Bool(true), object(["properties"], [json.Value.Array([text("edit")])])]), object([], []), diagnostics]);
+    json.Value completion_item = object(["snippetSupport", "documentationFormat", "resolveSupport", "insertReplaceSupport", "commitCharactersSupport", "labelDetailsSupport", "preselectSupport"], [json.Value.Bool(true), json.Value.Array([text("markdown"), text("plaintext")]), object(["properties"], [json.Value.Array([text("documentation"), text("detail"), text("additionalTextEdits")])]), json.Value.Bool(true), json.Value.Bool(true), json.Value.Bool(true), json.Value.Bool(true)]);
+    json.Value completion = object(["contextSupport", "completionItem"], [json.Value.Bool(true), completion_item]);
+    json.Value document_capabilities = object(["completion", "synchronization", "hover", "signatureHelp", "inlayHint", "definition", "references", "rename", "codeAction", "formatting", "publishDiagnostics"], [completion, synchronization, markup, signature, object(["dynamicRegistration"], [json.Value.Bool(false)]), object(["linkSupport"], [json.Value.Bool(false)]), object([], []), object(["prepareSupport"], [json.Value.Bool(false)]), object(["isPreferredSupport", "dataSupport", "resolveSupport"], [json.Value.Bool(false), json.Value.Bool(true), object(["properties"], [json.Value.Array([text("edit")])])]), object([], []), diagnostics]);
     // workspaceFolders is deliberately not declared: pyright then never starts
     // analysing (the root is passed as rootUri and as one workspace folder)
     json.Value workspace_capabilities = object(["applyEdit", "workspaceEdit"], [json.Value.Bool(true), object(["documentChanges"], [json.Value.Bool(false)])]);
