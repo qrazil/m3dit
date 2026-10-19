@@ -21,6 +21,10 @@ else
     for seed in 1 2 3; do
         oracle_run t_regex_run tests/t_regex_run.m31 python3 tests/oracles/oracle_regex.py --fuzz --seed "$seed" --cases 2000
     done
+    # marker fold structure: random marker texts, with and without jump levels
+    for mode in plain simple wild; do
+        oracle_run t_fold_run tests/t_fold_run.m31 python3 tests/oracles/oracle_folds.py --mode "$mode" --cases 250
+    done
     # snippets: expansion, tabstops, mirrors and Select mode against nvim's vim.snippet
     oracle_run t_snippet_run tests/t_snippet_run.m31 python3 tests/oracles/oracle_snippet.py
     # window layouts: :split, CTRL-W commands, :resize, tab pages, terminal size

@@ -25,6 +25,7 @@
 // friends where nvim would edit the markers or refuse).
 
 import engine.MED_editor;
+import engine.MED_num;
 import engine.MED_text;
 
 /// The method in force: "manual", "indent" or "marker" (the others are stored but behave as manual).
@@ -163,17 +164,13 @@ int marker_number(str line, int from) {
     return value;
 }
 
-/// The folds of foldmethod=marker (nvim's foldlevelMarker): `{{{` and `}}}` with optional levels.
-pub List<MED_editor.Fold> marker_folds(MED_editor.Editor editor) {
-    str markers = editor.opts.get("foldmarker").or("{{{,}}}");
-    int comma = markers.index_of(",").or(-1);
-    if (comma <= 0 || comma >= markers.size() - 1) {
-        return [];
-    }
-    str open_marker = markers.substr(0, comma);
-    str close_marker = markers.substr(comma + 1, markers.size());
-    int nest_max = editor.option_number("foldnestmax", 20);
-    List<MED_editor.Fold> out = [];
+const int MARKER_MAX_LEVEL = 20;
+
+// The fold levels of the lines of foldmethod=marker: for each line the level it has (`levels`), the level after it
+// (`nexts`) and how many folds start on it (`starts`), as nvim's foldlevelMarker finds them.
+pub List<List<int>> marker_levels(MED_editor.Editor editor, str open_marker, str close_marker) {
+    List<int> levels = [];
+    List<int> nexts = [];
     List<int> starts = [];
     int level = 0;
     for (int row in 0 .. editor.buffer.line_count()) {
@@ -223,26 +220,111 @@ pub List<MED_editor.Fold> marker_folds(MED_editor.Editor editor) {
         if (lvl_next < 0) {
             lvl_next = 0;
         }
-        if (lvl > nest_max) {
-            lvl = nest_max;
-        }
-        // folds that start on this line
-        if (start > 0) {
-            while (starts.size() < lvl) {
-                starts.push(row);
-            }
-        }
-        // folds that end on this line (the level drops after it)
-        while (starts.size() > lvl_next) {
-            int start_row = starts.pop();
-            out.push(MED_editor.Fold(start: start_row, end: row, is_closed: true, is_level: true));
-        }
+        levels.push(MED_num.smaller(lvl, MARKER_MAX_LEVEL));
+        nexts.push(lvl_next);
+        starts.push(start);
         level = lvl_next;
     }
-    // a fold still open at the end of the buffer runs to the last line
-    while (starts.size() > 0) {
-        int start_row = starts.pop();
-        out.push(MED_editor.Fold(start: start_row, end: editor.buffer.line_count() - 1, is_closed: true, is_level: true));
+    return [levels, nexts, starts];
+}
+
+/// The folds of foldmethod=marker: `{{{` and `}}}` with optional levels, built the way nvim's foldUpdateIEMS does for a
+/// whole buffer (checked against nvim by a fuzz over marker lines with and without jump levels, corpus 112+).
+///
+/// A fold of depth d is the line a fold of that depth starts on (a start marker that reaches depth d) and every later line
+/// whose level is at least d, up to the next start of depth d. A line at level d with no start marker belongs to the
+/// last fold of that depth when it lies in the same fold one depth up and nothing has re-entered that fold in between
+/// (lines below the level d - 1 between two runs of the parent break it, unless the fold reaches the end of the run before).
+pub List<MED_editor.Fold> marker_folds(MED_editor.Editor editor) {
+    str markers = editor.opts.get("foldmarker").or("{{{,}}}");
+    int comma = markers.index_of(",").or(-1);
+    if (comma <= 0 || comma >= markers.size() - 1) {
+        return [];
+    }
+    str open_marker = markers.substr(0, comma);
+    str close_marker = markers.substr(comma + 1, markers.size());
+    List<List<int>> scan = marker_levels(editor, open_marker, close_marker);
+    List<int> levels = scan[0];
+    List<int> starts = scan[2];
+    int count = levels.size();
+    int top_level = 0;
+    for (int lvl in levels) {
+        if (lvl > top_level) {
+            top_level = lvl;
+        }
+    }
+    List<MED_editor.Fold> out = [];
+    List<int> parent_firsts = [];
+    List<int> parent_lasts = [];
+    for (int depth in 1 .. top_level + 1) {
+        // the runs of lines at the level one up (what the parent's loop scans in one call)
+        List<int> run_of = [];
+        List<int> run_last = [];
+        int run = -1;
+        bool is_in_run = false;
+        int parent_level = depth - 1;
+        for (int row in 0 .. count) {
+            if (levels[row] >= parent_level) {
+                if (!is_in_run) {
+                    run = run + 1;
+                    run_last.push(row);
+                }
+                run_of.push(run);
+                run_last[run] = row;
+                is_in_run = true;
+            } else {
+                run_of.push(-1);
+                is_in_run = false;
+            }
+        }
+        List<int> firsts = [];
+        List<int> lasts = [];
+        int current_first = -1;
+        int current_last = -1;
+        for (int row in 0 .. count) {
+            if (levels[row] < depth) {
+                continue;
+            }
+            bool is_start = starts[row] > 0 && depth > levels[row] - starts[row];
+            bool is_attached = false;
+            if (current_first >= 0 && !is_start) {
+                if (depth == 1) {
+                    is_attached = true;
+                } else {
+                    int parent_first = -1;
+                    for (int position in 0 .. parent_firsts.size()) {
+                        if (parent_firsts[position] <= row && row <= parent_lasts[position]) {
+                            parent_first = parent_firsts[position];
+                        }
+                    }
+                    if (current_first >= parent_first) {
+                        if (run_of[current_last] == run_of[row]) {
+                            is_attached = true;
+                        } else if (run_of[current_last] == run_of[row] - 1 && current_last == run_last[run_of[row] - 1]) {
+                            is_attached = true;
+                        }
+                    }
+                }
+            }
+            if (!is_attached) {
+                if (current_first >= 0) {
+                    firsts.push(current_first);
+                    lasts.push(current_last);
+                }
+                current_first = row;
+            }
+            // (one assignment after the branch: m31 v0.6.0 drops `x = v` written in both arms of an if / else)
+            current_last = row;
+        }
+        if (current_first >= 0) {
+            firsts.push(current_first);
+            lasts.push(current_last);
+        }
+        for (int position in 0 .. firsts.size()) {
+            out.push(MED_editor.Fold(start: firsts[position], end: lasts[position], is_closed: true, is_level: true));
+        }
+        parent_firsts = firsts;
+        parent_lasts = lasts;
     }
     return sorted(out);
 }
@@ -355,14 +437,48 @@ pub void sync(MED_editor.Editor editor) {
     }
     bool is_new_method = method != editor.fold_method;
     if (!is_new_method) {
-        // keep what the user did to a fold that is still there (same first and last row)
+        // keep what the user did to a fold that is still there (same first and last row; of several folds with the
+        // same rows, the one at the same depth: they come in the same order)
         for (int slot in 0 .. fresh.size()) {
             MED_editor.Fold now = fresh[slot];
+            int earlier = 0;
+            for (int before in 0 .. slot) {
+                if (fresh[before].start == now.start && fresh[before].end == now.end) {
+                    earlier = earlier + 1;
+                }
+            }
+            int seen = 0;
+            bool is_matched = false;
             for (MED_editor.Fold old in editor.folds) {
                 if (old.start == now.start && old.end == now.end) {
-                    now.is_level = old.is_level;
-                    now.is_closed = old.is_closed;
-                    break;
+                    if (seen == earlier) {
+                        now.is_level = old.is_level;
+                        now.is_closed = old.is_closed;
+                        is_matched = true;
+                        break;
+                    }
+                    seen = seen + 1;
+                }
+            }
+            if (!is_matched) {
+                // an edit changed where the fold ends (a marker typed or removed): it is still the fold that starts on
+                // that row, as nvim's foldUpdate keeps the fold and moves its end
+                int earlier_start = 0;
+                for (int before in 0 .. slot) {
+                    if (fresh[before].start == now.start) {
+                        earlier_start = earlier_start + 1;
+                    }
+                }
+                int seen_start = 0;
+                for (MED_editor.Fold old in editor.folds) {
+                    if (old.start == now.start) {
+                        if (seen_start == earlier_start) {
+                            now.is_level = old.is_level;
+                            now.is_closed = old.is_closed;
+                            break;
+                        }
+                        seen_start = seen_start + 1;
+                    }
                 }
             }
         }

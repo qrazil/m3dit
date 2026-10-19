@@ -1,0 +1,50 @@
+// The engine half of the fold structure oracle (tests/oracles/oracle_folds.py).
+//
+// Usage: t_fold_run CASES_FILE METHOD
+//
+// Each line of CASES_FILE is one text with its lines joined by a literal backslash-n. For every case this builds an
+// Editor, sets 'foldmethod' to METHOD and 'foldminlines' to 0, and prints which folds are closed at 'foldlevel' 0 to 6
+// as nvim's foldclosed() / foldclosedend() show them: `level:first-last` (1-based), space separated. Folds are numbered
+// the way nvim shows them: at 'foldlevel' k the outermost closed fold of each line is the fold of depth k + 1.
+
+import engine.MED_editor;
+import engine.MED_autofold;
+import io;
+import os;
+
+List<str> arguments = os.arguments();
+match (io.read(arguments[1])) {
+    case Ok(str content): {
+        for (str line in content.split("\n")) {
+            if (line.size() == 0) {
+                continue;
+            }
+            MED_editor.Editor editor = MED_editor.new("");
+            editor.opts.set("foldmethod", arguments[2]);
+            editor.opts.set("foldminlines", "0");
+            editor.buffer.lines = line.split("\\n").join("\n").split("\n");
+            editor.init_marks();
+            List<str> parts = [];
+            for (int level in 0 .. 7) {
+                editor.opts.set("foldlevel", level.to_str());
+                MED_autofold.sync(editor);
+                int row = 0;
+                while (row < editor.buffer.line_count()) {
+                    int last = editor.fold_end_of(row);
+                    if (last >= 0) {
+                        int first = editor.fold_start_of(row);
+                        parts.push(level.to_str() + ":" + (first + 1).to_str() + "-" + (last + 1).to_str());
+                        row = last + 1;
+                    } else {
+                        row = row + 1;
+                    }
+                }
+            }
+            print(parts.join(" "));
+        }
+    }
+    case Err(io.Error error): {
+        print("cannot read " + arguments[1]);
+        os.exit(2);
+    }
+}

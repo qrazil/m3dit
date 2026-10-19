@@ -65,9 +65,9 @@ Each row: scope; reference behaviour; test; dependencies; size; decision.
 
 ### 0.8.0 Editing depth
 
-> Status (branch `next`, built from `822a0b0`): 7 beyond manual (indent and marker folds, `foldlevel`, `foldlevelstart`,
-> counted line operators over closed folds) is done except marker folds with a jump level (`{{{3`); 8, 9, 10 and 11 are
-> done. See the Unreleased entries of CHANGELOG.md and `tests/oracles/known_divergences.txt`.
+> Status (branch `next`, built from `822a0b0`): items 7 to 11 are done (7: indent and marker folds including jump
+> levels such as `{{{3`, `foldlevel`, `foldlevelstart`, counted line operators over closed folds). See the Unreleased
+> entries of CHANGELOG.md and `tests/oracles/known_divergences.txt`.
 
 | # | Item | Reference | Test | Deps | Size | Decision and reason |
 |---|---|---|---|---|---|---|

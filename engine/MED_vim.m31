@@ -6016,12 +6016,13 @@ pub void feed(MED_editor.Editor editor, int key) {
     MED_autofold.sync(editor);
     editor.is_restart_skip = false;
     int tick_before = editor.buffer.tick;
+    int lines_before = editor.buffer.line_count();
     feed_key(editor, key);
     try_restart(editor);
     if (editor.snip.is_active) {
         MED_snipops.after_key(editor);
     }
-    if (editor.buffer.tick != tick_before && editor.mode == MED_editor.NORMAL && editor.folds.size() > 0 && editor.row == editor.buffer.line_count() - 1) {
+    if (editor.buffer.tick != tick_before && editor.buffer.line_count() < lines_before && editor.mode == MED_editor.NORMAL && editor.folds.size() > 0 && editor.row == editor.buffer.line_count() - 1) {
         // lines were deleted below the cursor: nvim's check_cursor_lnum() puts the cursor on the first line of a
         // closed fold that ends the buffer
         int fold_first = editor.fold_start_of(editor.row);

@@ -1,6 +1,0 @@
-# marker folds with a jump level ({{{3) and a few unmatched markers: nvim builds fewer folds than MED_autofold; not yet understood
-a\n{{{\nb\n}}}\n}}}\nc {{{\nd	0,0	:set fdm=marker<CR>[z[zzNGx
-{{{3 deep\nx\n}}}3\ny {{{\nz\n}}}	0,0	:set fdm=marker<CR>za:set fdn=2<CR>dd
-{{{1 one\nx\n{{{2 two\ny\n}}}2\nz\n}}}1\nw	6,0	:set fdm=marker<CR>zaxx2k
-{{{3 deep\nx\n}}}3\ny {{{\nz\n}}}	2,0	:set fdm=marker<CR>[zzrzC}ddzk
-{{{3 deep\nx\n}}}3\ny {{{\nz\n}}}	1,0	:set fdm=marker<CR>o<Esc>>>3jzozxzCk

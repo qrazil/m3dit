@@ -97,7 +97,7 @@ On Alpine (musl) the installer picks the `-musl` Linux asset built by `scripts/c
   unknown language = plain code colour).
 - Command-line completion: `<Tab>` / `<C-n>` and `<S-Tab>` / `<C-p>` complete ex
   commands, option names (long and short), file and directory names and buffers.
-- Folds: manual (`zf` `zF` `:fold`, `zd zD zE`) and `:set foldmethod=indent|marker`; `zo zO zc zC za zA zv zR zM zm zr zx zX zn zN zi zj zk [z ]z`, `foldlevel`.
+- Folds: manual (`zf` `zF` `:fold`, `zd zD zE`) and `:set foldmethod=indent|marker` (marker levels such as `{{{3` and `}}}2` as nvim builds them); `zo zO zc zC za zA zv zR zM zm zr zx zX zn zN zi zj zk [z ]z`, `foldlevel`, `foldlevelstart`.
 - Persistence and project settings: undo files, `.editorconfig` and `.m3.toml`, outside-change reload, `autowriteall`, `autosave`, `:Session`.
 - File tree sidebar (neo-tree style): `<Space>e` toggles it, `<Space>E` reveals the
   current file, `:Neotree [toggle|show|focus|close|reveal|refresh|DIR]`. Rows are
