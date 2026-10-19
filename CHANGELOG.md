@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0
 
 Editing depth: the 0.8.0 group of docs/ROADMAP.md (items 7 to 11) and the part of item 6 that 0.7.0 left, each checked
 against `nvim --headless -u NONE` where nvim can answer. Nothing here changes a default except that `<S-Tab>` in Insert
