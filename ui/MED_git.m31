@@ -14,6 +14,7 @@
 import fs;
 import io;
 import engine.MED_shell;
+import ui.MED_gitlib;
 
 pub const int NONE = 0;
 pub const int ADDED = 1;
@@ -63,10 +64,22 @@ pub str name_of(str path) {
 
 /// The file as the index has it (what the working tree is compared with), or
 /// as the last commit has it when the index has no entry. None when git is
-/// missing, the directory is no repository or the file is untracked.
+/// missing, the directory is no repository or the file is untracked. Read in
+/// process through the m31git library; a repository the library cannot read
+/// (a version 4 index, a missing object of a partial clone) goes to `git`.
 pub Option<List<str>> head_lines(str path) {
     str directory = directory_of(path);
     str name = name_of(path);
+    match (MED_gitlib.base_of(directory, name)) {
+        case Lines(List<str> lines): {
+            return Option<List<str>>.Some(lines);
+        }
+        case Untracked: {
+            return Option<List<str>>.None;
+        }
+        case Failed: {
+        }
+    }
     match (MED_shell.output(["git", "-C", directory, "show", ":./" + name], "")) {
         case Some(str text): {
             return Option<List<str>>.Some(MED_shell.split_lines(text));
@@ -464,4 +477,59 @@ pub List<str> hunk_preview(Hunks hunks, int index, List<str> base, List<str> cur
         out.push("+" + current[from + offset]);
     }
     return out;
+}
+
+/// The row of HEAD's file that buffer row `row` is, given the hunks of the buffer against HEAD; -1 for a row
+/// the buffer added or changed.
+pub int head_row_of(Hunks hunks, int row) {
+    int shift = 0;
+    for (int index in 0 .. hunks.froms.size()) {
+        int from = hunks.froms[index];
+        int count = hunks.counts[index];
+        if (count > 0 && row >= from && row < from + count) {
+            return -1;
+        }
+        bool is_before = from + count <= row;
+        if (count == 0) {
+            is_before = from <= row;
+        }
+        if (is_before) {
+            shift = shift + count - hunks.base_counts[index];
+        }
+    }
+    return row - shift;
+}
+
+/// `git blame` of buffer row `row`, in process: `^abcdef01 (Author 3 days ago 12) text`, or "Not committed yet"
+/// for a row the buffer changed. None when the library cannot answer (the caller then runs `git blame`).
+pub Option<str> blame_row(str path, List<str> buffer, int row) {
+    str directory = directory_of(path);
+    str name = name_of(path);
+    List<str> head = [];
+    match (MED_gitlib.head_lines_of(directory, name)) {
+        case Lines(List<str> lines): {
+            head = lines;
+        }
+        case Untracked: {
+            return Option<str>.Some("Not committed yet");
+        }
+        case Failed: {
+            return Option<str>.None;
+        }
+    }
+    int position = head_row_of(diff(head, buffer), row);
+    if (position < 0) {
+        return Option<str>.Some("Not committed yet");
+    }
+    match (MED_gitlib.blame_of(directory, name)) {
+        case Some(List<MED_gitlib.BlameLine> lines): {
+            if (position >= lines.size() || lines.size() != head.size()) {
+                return Option<str>.None;
+            }
+            return Option<str>.Some(MED_gitlib.blame_text(lines[position], position + 1));
+        }
+        case None: {
+            return Option<str>.None;
+        }
+    }
 }

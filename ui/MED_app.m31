@@ -6150,6 +6150,15 @@ void App.run_git_action(str action) {
     if (action == "blame") {
         str name = MED_git.name_of(path);
         int line = editor.row + 1;
+        // in process first (m31git); `git blame` when the library cannot answer
+        match (MED_git.blame_row(path, editor.buffer.lines, editor.row)) {
+            case Some(str said): {
+                notice = said;
+                return;
+            }
+            case None: {
+            }
+        }
         match (MED_shell.output(["git", "-C", file_directory(), "blame", "-L", line.to_str() + "," + line.to_str(), "--date=relative", "--", name], "")) {
             case Some(str text): {
                 notice = text.trim();

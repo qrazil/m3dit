@@ -1,0 +1,1077 @@
+// Git without a `git` process: the file as the index or HEAD has it, blame, history, show, diff and the
+// index write behind "stage hunk", all over the pinned `m31git` library (decision D3, docs/ROADMAP.md).
+//
+// API
+// ---
+//   MED_gitlib.open(directory)                  Option<Repo>: the repository around `directory`, with its work tree
+//   MED_gitlib.base_of(directory, name)         Base: the file as the index has it (HEAD when the index has no entry)
+//   MED_gitlib.head_lines_of(directory, name)   Base: the file as HEAD has it
+//   MED_gitlib.blame_of(directory, name)        Option<List<BlameLine>>: `git blame` of HEAD's file
+//   MED_gitlib.log_of(repo, rel, from, to)      Option<List<GIT_log.Entry>>: `git log [-L from,to:rel] -- rel`
+//   MED_gitlib.show_lines(directory, rev)       Option<List<str>>: `git show --stat --patch rev`
+//   MED_gitlib.diff_lines(directory, what)      Option<List<str>>: `git diff` of "working", "index" or "head"
+//   MED_gitlib.stage_content(...)               Result text: put new file content into the index entry of a path
+//
+// Every function answers `None` / `Failed` for a repository or object the library cannot read (a v4 index,
+// a missing object of a partial clone, a locked index), and the callers then run the `git` subprocess they ran
+// before. A `Base.Untracked` is an answer: the repository is readable and has no such file.
+
+import fs;
+import io;
+import date;
+import text.diff;
+import engine.MED_shell;
+import m31git.core.GIT_refs;
+import m31git.core.GIT_revparse;
+import m31git.core.GIT_object;
+import m31git.core.GIT_index;
+import m31git.core.GIT_repository;
+import m31git.core.GIT_hash;
+import m31git.core.GIT_log;
+import m31git.core.GIT_status;
+import m31git.diff.GIT_blame;
+import m31git.diff.GIT_filelog;
+import m31git.diff.GIT_udiff;
+import m31git.diff.GIT_xdiff;
+
+/// A repository: the git directory (`.git`, or what a `.git` file names) and the work tree.
+pub type Repo {
+    pub str gitdir;
+    pub str root;
+}
+
+/// What the library found for one file.
+pub enum Base {
+    Lines(List<str>);
+    /// The repository is readable and the file is in neither the index nor HEAD.
+    Untracked;
+    /// Ask `git` instead.
+    Failed;
+}
+
+/// The repository around `directory`, or None.
+pub Option<Repo> open(str directory) {
+    str current = directory;
+    if (current.size() == 0) {
+        current = ".";
+    }
+    match (fs.realpath(current)) {
+        case Ok(str real): {
+            current = real;
+        }
+        case Err(io.Error error): {
+            return Option<Repo>.None;
+        }
+    }
+    for (int guard in 0 .. 64) {
+        if (fs.is_present(current + "/.git")) {
+            str gitdir = GIT_repository.find(current);
+            if (gitdir == "") {
+                return Option<Repo>.None;
+            }
+            return Option<Repo>.Some(Repo(gitdir, current));
+        }
+        int slash = -1;
+        for (int index in 0 .. current.size()) {
+            if (current.byte_at(index) == 47) {
+                slash = index;
+            }
+        }
+        if (slash <= 0) {
+            return Option<Repo>.None;
+        }
+        current = current.substr(0, slash);
+    }
+    return Option<Repo>.None;
+}
+
+/// `name` (a file directly in `directory`) as a path from the work tree root.
+pub str relative_to(Repo repo, str directory, str name) {
+    str real = directory;
+    match (fs.realpath(directory)) {
+        case Ok(str resolved): {
+            real = resolved;
+        }
+        case Err(io.Error error): {
+        }
+    }
+    if (real == repo.root) {
+        return name;
+    }
+    if (real.starts_with(repo.root + "/")) {
+        return real.substr(repo.root.size() + 1, real.size()) + "/" + name;
+    }
+    return name;
+}
+
+Option<GIT_object.Object> read_object(str gitdir, str id) {
+    match (GIT_object.read(gitdir, id)) {
+        case Ok(GIT_object.Object object): {
+            return Option<GIT_object.Object>.Some(object);
+        }
+        case Err(GIT_object.Error error): {
+            return Option<GIT_object.Object>.None;
+        }
+    }
+}
+
+/// The tree id of `commit`, "" when it is not readable.
+pub str tree_of(str gitdir, str commit) {
+    match (read_object(gitdir, commit)) {
+        case Some(GIT_object.Object object): {
+            match (object.body) {
+                case Commit(GIT_object.Commit parsed): {
+                    return parsed.tree;
+                }
+                case Blob: {
+                }
+                case Tree: {
+                }
+                case Tag: {
+                }
+            }
+        }
+        case None: {
+        }
+    }
+    return "";
+}
+
+/// What HEAD names: "" for an unborn branch, "!" when HEAD cannot be read.
+pub str head_commit(str gitdir) {
+    match (GIT_refs.head(gitdir)) {
+        case Ok(GIT_refs.Head head): {
+            match (head) {
+                case Unborn(str name): {
+                    return "";
+                }
+                case Born(str name, str id): {
+                    return id;
+                }
+                case Detached(str id): {
+                    return id;
+                }
+            }
+        }
+        case Err(GIT_refs.Error error): {
+            return "!";
+        }
+    }
+}
+
+/// The entry `rel` names in the tree `tree`, one subtree read per path segment.
+pub Option<GIT_object.Entry> find_in_tree(str gitdir, str tree, str relative) {
+    str current = tree;
+    List<str> parts = relative.split("/");
+    for (int index in 0 .. parts.size()) {
+        match (read_object(gitdir, current)) {
+            case Some(GIT_object.Object object): {
+                match (object.body) {
+                    case Tree(List<GIT_object.Entry> entries): {
+                        bool is_found = false;
+                        for (GIT_object.Entry entry in entries) {
+                            if (entry.name.utf8().or("") == parts[index]) {
+                                if (index == parts.size() - 1) {
+                                    return Option<GIT_object.Entry>.Some(entry);
+                                }
+                                if (!entry.is_tree()) {
+                                    return Option<GIT_object.Entry>.None;
+                                }
+                                current = entry.id;
+                                is_found = true;
+                                break;
+                            }
+                        }
+                        if (!is_found) {
+                            return Option<GIT_object.Entry>.None;
+                        }
+                    }
+                    case Blob: {
+                        return Option<GIT_object.Entry>.None;
+                    }
+                    case Commit: {
+                        return Option<GIT_object.Entry>.None;
+                    }
+                    case Tag: {
+                        return Option<GIT_object.Entry>.None;
+                    }
+                }
+            }
+            case None: {
+                return Option<GIT_object.Entry>.None;
+            }
+        }
+    }
+    return Option<GIT_object.Entry>.None;
+}
+
+/// A blob's bytes.
+pub Option<bytes> blob_bytes(str gitdir, str id) {
+    match (read_object(gitdir, id)) {
+        case Some(GIT_object.Object object): {
+            return Option<bytes>.Some(object.raw);
+        }
+        case None: {
+            return Option<bytes>.None;
+        }
+    }
+}
+
+/// Some(entry) when the index has `rel` at stage 0; None.. inside `found` tells the index was read.
+pub type IndexRead {
+    pub bool is_ok = false;
+    pub Option<GIT_index.Entry> entry = Option<GIT_index.Entry>.None;
+    pub bool has_conflict = false;
+}
+
+pub IndexRead index_entry(str gitdir, str relative) {
+    IndexRead out = IndexRead();
+    match (GIT_index.read(gitdir)) {
+        case Ok(GIT_index.Index index): {
+            out.is_ok = true;
+            for (GIT_index.Entry entry in index.entries) {
+                if (entry.path.utf8().or("") == relative) {
+                    if (entry.stage == 0) {
+                        out.entry = Option<GIT_index.Entry>.Some(entry);
+                    } else {
+                        out.has_conflict = true;
+                    }
+                }
+            }
+        }
+        case Err(GIT_index.Error error): {
+            match (error) {
+                case NotFound: {
+                    out.is_ok = true;
+                }
+                case Io: {
+                }
+                case BadSignature: {
+                }
+                case BadVersion: {
+                }
+                case Truncated: {
+                }
+                case BadExtension: {
+                }
+                case Checksum: {
+                }
+            }
+        }
+    }
+    return out;
+}
+
+bool is_missing(GIT_index.Error error) {
+    match (error) {
+        case NotFound: {
+            return true;
+        }
+        case Io: {
+        }
+        case BadSignature: {
+        }
+        case BadVersion: {
+        }
+        case Truncated: {
+        }
+        case BadExtension: {
+        }
+        case Checksum: {
+        }
+    }
+    return false;
+}
+
+pub Base lines_base(bytes content) {
+    match (content.utf8()) {
+        case Some(str text): {
+            return Base.Lines(MED_shell.split_lines(text));
+        }
+        case None: {
+            return Base.Failed;
+        }
+    }
+}
+
+/// The file as HEAD has it.
+pub Base head_lines_of(str directory, str name) {
+    match (open(directory)) {
+        case Some(Repo repo): {
+            return head_base(repo, relative_to(repo, directory, name));
+        }
+        case None: {
+            return Base.Failed;
+        }
+    }
+}
+
+Base head_base(Repo repo, str relative) {
+    str commit = head_commit(repo.gitdir);
+    if (commit == "!") {
+        return Base.Failed;
+    }
+    if (commit == "") {
+        return Base.Untracked;
+    }
+    str tree = tree_of(repo.gitdir, commit);
+    if (tree == "") {
+        return Base.Failed;
+    }
+    match (find_in_tree(repo.gitdir, tree, relative)) {
+        case Some(GIT_object.Entry entry): {
+            if (entry.is_tree()) {
+                return Base.Untracked;
+            }
+            match (blob_bytes(repo.gitdir, entry.id)) {
+                case Some(bytes content): {
+                    return lines_base(content);
+                }
+                case None: {
+                    return Base.Failed;
+                }
+            }
+        }
+        case None: {
+            return Base.Untracked;
+        }
+    }
+}
+
+/// The file as the index has it, or as HEAD has it when the index has no entry (what the gutter compares with).
+pub Base base_of(str directory, str name) {
+    match (open(directory)) {
+        case Some(Repo repo): {
+            str relative = relative_to(repo, directory, name);
+            IndexRead read = index_entry(repo.gitdir, relative);
+            if (!read.is_ok || read.has_conflict) {
+                return Base.Failed;
+            }
+            match (read.entry) {
+                case Some(GIT_index.Entry entry): {
+                    match (blob_bytes(repo.gitdir, entry.id)) {
+                        case Some(bytes content): {
+                            return lines_base(content);
+                        }
+                        case None: {
+                            return Base.Failed;
+                        }
+                    }
+                }
+                case None: {
+                    return head_base(repo, relative);
+                }
+            }
+        }
+        case None: {
+            return Base.Failed;
+        }
+    }
+}
+
+/// The bytes of the index entry of `rel` (None when the path is not staged or the index is unreadable).
+pub Option<bytes> index_bytes(Repo repo, str relative) {
+    IndexRead read = index_entry(repo.gitdir, relative);
+    match (read.entry) {
+        case Some(GIT_index.Entry entry): {
+            return blob_bytes(repo.gitdir, entry.id);
+        }
+        case None: {
+            return Option<bytes>.None;
+        }
+    }
+}
+
+/// Put `content` into the index as the new blob of `rel` (the entry keeps its mode; a new entry is a regular
+/// file). The stat fields are zero, as `git update-index --cacheinfo` leaves them: git then compares the file's
+/// content with the blob instead of trusting a snapshot (a size that is not zero but wrong, like the -1 that
+/// m31git's own client writes, makes `git status` report the file as modified for good). "" on success, else
+/// why not.
+pub str stage_content(Repo repo, str relative, bytes content) {
+    if (fs.is_present(fs.join(repo.gitdir, "index.lock"))) {
+        return "the index is locked (index.lock exists)";
+    }
+    GIT_index.Index index = GIT_index.Index([]);
+    match (GIT_index.read(repo.gitdir)) {
+        case Ok(GIT_index.Index found): {
+            index = found;
+        }
+        case Err(GIT_index.Error error): {
+            if (!is_missing(error)) {
+                return "index: " + error.to_str();
+            }
+        }
+    }
+    str id = "";
+    match (GIT_object.write_blob(repo.gitdir, content)) {
+        case Ok(str written): {
+            id = written;
+        }
+        case Err(GIT_object.Error error): {
+            return "object: " + error.to_str();
+        }
+    }
+    int mode = 0o100644;
+    bool is_replaced = false;
+    for (int slot in 0 .. index.entries.size()) {
+        if (index.entries[slot].stage == 0 && index.entries[slot].path.utf8().or("") == relative) {
+            mode = index.entries[slot].mode;
+            index.entries[slot] = GIT_index.Entry(0, 0, 0, 0, 0, 0, mode, 0, 0, 0, id, 0, false, relative.to_bytes());
+            is_replaced = true;
+        }
+    }
+    if (!is_replaced) {
+        index.entries.push(GIT_index.Entry(0, 0, 0, 0, 0, 0, mode, 0, 0, 0, id, 0, false, relative.to_bytes()));
+    }
+    match (GIT_index.write(repo.gitdir, index)) {
+        case Ok: {
+            return "";
+        }
+        case Err(GIT_index.Error error): {
+            return "index write: " + error.to_str();
+        }
+    }
+}
+
+// ------------------------------------------------------------------ blame
+
+/// One line of `git blame`.
+pub type BlameLine {
+    pub str commit;
+    pub str author;
+    pub int when;
+    pub str summary;
+    pub str text;
+    pub bool is_boundary;
+}
+
+pub str text_of(bytes raw) {
+    match (raw.utf8()) {
+        case Some(str text): {
+            return text;
+        }
+        case None: {
+        }
+    }
+    str out = "";
+    for (int slot in 0 .. raw.size()) {
+        int byte = raw[slot];
+        if (byte < 128) {
+            out = out + str.from_chars([byte]);
+        } else {
+            out = out + "?";
+        }
+    }
+    return out;
+}
+
+/// `text` without its trailing blanks and carriage returns.
+pub str trim_end(str text) {
+    int stop = text.size();
+    while (stop > 0 && (text.byte_at(stop - 1) == 32 || text.byte_at(stop - 1) == 13 || text.byte_at(stop - 1) == 9)) {
+        stop = stop - 1;
+    }
+    return text.substr(0, stop);
+}
+
+pub str first_line_of(bytes message) {
+    str text = text_of(message);
+    int newline = text.index_of("\n").or(text.size());
+    return text.substr(0, newline);
+}
+
+/// `git blame HEAD -- name`, every line; None when the library cannot do it.
+pub Option<List<BlameLine>> blame_of(str directory, str name) {
+    match (open(directory)) {
+        case Some(Repo repo): {
+            return blame_in(repo, relative_to(repo, directory, name));
+        }
+        case None: {
+            return Option<List<BlameLine>>.None;
+        }
+    }
+}
+
+pub Option<List<BlameLine>> blame_in(Repo repo, str relative) {
+    match (GIT_blame.blame(repo.gitdir, "HEAD", relative, GIT_blame.Quiet())) {
+        case Ok(List<GIT_blame.Line> lines): {
+            Map<str, GIT_object.Commit> known = {};
+            List<BlameLine> out = [];
+            for (GIT_blame.Line line in lines) {
+                str author = "Not Committed Yet";
+                int when = 0;
+                str summary = "";
+                if (line.commit != "") {
+                    if (!known.contains(line.commit)) {
+                        match (read_object(repo.gitdir, line.commit)) {
+                            case Some(GIT_object.Object object): {
+                                match (object.body) {
+                                    case Commit(GIT_object.Commit parsed): {
+                                        known.set(line.commit, parsed);
+                                    }
+                                    case Blob: {
+                                    }
+                                    case Tree: {
+                                    }
+                                    case Tag: {
+                                    }
+                                }
+                            }
+                            case None: {
+                            }
+                        }
+                    }
+                    match (known.get(line.commit)) {
+                        case Some(GIT_object.Commit parsed): {
+                            author = text_of(parsed.author.name);
+                            when = parsed.author.when;
+                            summary = first_line_of(parsed.message);
+                        }
+                        case None: {
+                            author = "?";
+                        }
+                    }
+                }
+                out.push(BlameLine(line.commit, author, when, summary, trim_end(text_of(line.text)), line.is_boundary));
+            }
+            return Option<List<BlameLine>>.Some(out);
+        }
+        case Err(GIT_blame.Error error): {
+            return Option<List<BlameLine>>.None;
+        }
+    }
+}
+
+/// "3 days ago", the way `git blame --date=relative` says it.
+pub str ago(int now, int then) {
+    int seconds = now - then;
+    if (seconds < 0) {
+        seconds = 0;
+    }
+    if (seconds < 90) {
+        return seconds.to_str() + " seconds ago";
+    }
+    int minutes = (seconds + 30) / 60;
+    if (minutes < 90) {
+        return minutes.to_str() + " minutes ago";
+    }
+    int hours = (minutes + 30) / 60;
+    if (hours < 36) {
+        return hours.to_str() + " hours ago";
+    }
+    int days = (hours + 12) / 24;
+    if (days < 14) {
+        return days.to_str() + " days ago";
+    }
+    if (days < 70) {
+        return ((days + 3) / 7).to_str() + " weeks ago";
+    }
+    if (days < 365) {
+        return ((days + 15) / 30).to_str() + " months ago";
+    }
+    return ((days + 182) / 365).to_str() + " years ago";
+}
+
+/// `^abcdef0 (Author 3 days ago 12) text`, the shape of one `git blame` line.
+pub str blame_text(BlameLine line, int number) {
+    if (line.commit == "") {
+        return "00000000 (Not Committed Yet " + number.to_str() + ") " + line.text;
+    }
+    str mark = "";
+    if (line.is_boundary) {
+        mark = "^";
+    }
+    return mark + line.commit.substr(0, 8) + " (" + line.author + " " + ago(date.now(), line.when) + " " + number.to_str() + ") " + line.text;
+}
+
+// ------------------------------------------------------------------ history
+
+/// The commits of `HEAD` that changed `relative`, newest first. With `first_line` > 0 only those that touched
+/// lines `first_line` to `last_line` (1-based, inclusive, in HEAD's version of the file): the range is followed
+/// down the first parents the way `git log --first-parent -L first,last:relative` does (no rename following, no
+/// side branches of merges). `limit` stops after that many commits, negative for all.
+pub Option<List<GIT_log.Entry>> log_of(Repo repo, str relative, int first_line, int last_line, int limit) {
+    List<GIT_log.Entry> history = [];
+    match (GIT_filelog.history(repo.gitdir, "HEAD", relative, -1)) {
+        case Ok(List<GIT_log.Entry> found): {
+            history = found;
+        }
+        case Err(GIT_log.Error error): {
+            return Option<List<GIT_log.Entry>>.None;
+        }
+    }
+    if (first_line <= 0) {
+        if (limit >= 0 && history.size() > limit) {
+            return Option<List<GIT_log.Entry>>.Some(history.slice(0, limit));
+        }
+        return Option<List<GIT_log.Entry>>.Some(history);
+    }
+    // the range as 0-based [low, high) in the version of the file under the commit being looked at, followed
+    // down the first parents first_line HEAD
+    int low = first_line - 1;
+    int high = last_line;
+    List<GIT_log.Entry> kept = [];
+    str id = head_commit(repo.gitdir);
+    if (id == "" || id == "!") {
+        return Option<List<GIT_log.Entry>>.None;
+    }
+    for (int guard in 0 .. 100000) {
+        if (limit >= 0 && kept.size() >= limit) {
+            break;
+        }
+        GIT_object.Commit commit = GIT_object.Commit("", [], GIT_object.Ident([], [], 0, 0, ""), GIT_object.Ident([], [], 0, 0, ""), [], []);
+        match (read_object(repo.gitdir, id)) {
+            case Some(GIT_object.Object object): {
+                match (object.body) {
+                    case Commit(GIT_object.Commit parsed): {
+                        commit = parsed;
+                    }
+                    case Blob: {
+                        return Option<List<GIT_log.Entry>>.None;
+                    }
+                    case Tree: {
+                        return Option<List<GIT_log.Entry>>.None;
+                    }
+                    case Tag: {
+                        return Option<List<GIT_log.Entry>>.None;
+                    }
+                }
+            }
+            case None: {
+                return Option<List<GIT_log.Entry>>.None;
+            }
+        }
+        str after_id = entry_id(repo, commit.tree, relative);
+        str before_id = "";
+        if (commit.parents.size() > 0) {
+            before_id = entry_id(repo, tree_of(repo.gitdir, commit.parents[0]), relative);
+        }
+        if (after_id == "" && before_id == "") {
+            break;
+        }
+        if (after_id != before_id) {
+            bytes after = [];
+            if (after_id != "") {
+                after = blob_bytes(repo.gitdir, after_id).or([]);
+            }
+            bytes before = [];
+            if (before_id != "") {
+                before = blob_bytes(repo.gitdir, before_id).or([]);
+            }
+            Range moved = trace(before, after, low, high);
+            if (moved.is_touched) {
+                kept.push(GIT_log.Entry(id, commit));
+            }
+            low = moved.low;
+            high = moved.high;
+            if (high <= low) {
+                break;
+            }
+        }
+        if (commit.parents.size() == 0) {
+            break;
+        }
+        id = commit.parents[0];
+    }
+    return Option<List<GIT_log.Entry>>.Some(kept);
+}
+
+/// The blob id `rel` has in `tree`, "" when it has none.
+pub str entry_id(Repo repo, str tree, str relative) {
+    if (tree == "") {
+        return "";
+    }
+    match (find_in_tree(repo.gitdir, tree, relative)) {
+        case Some(GIT_object.Entry entry): {
+            return entry.id;
+        }
+        case None: {
+            return "";
+        }
+    }
+}
+
+pub bytes file_at(Repo repo, str tree, str relative) {
+    if (tree == "") {
+        return [];
+    }
+    match (find_in_tree(repo.gitdir, tree, relative)) {
+        case Some(GIT_object.Entry entry): {
+            return blob_bytes(repo.gitdir, entry.id).or([]);
+        }
+        case None: {
+            return [];
+        }
+    }
+}
+
+pub type Range {
+    pub bool is_touched = false;
+    pub int low = 0;
+    pub int high = 0;
+}
+
+/// Lines [low, high) of `after`: does the change from `before` touch them, and where were they in `before`.
+pub Range trace(bytes before, bytes after, int low, int high) {
+    Range out = Range();
+    out.low = low;
+    out.high = high;
+    match (GIT_xdiff.diff_text(before, after)) {
+        case Binary: {
+            out.is_touched = true;
+            return out;
+        }
+        case Lines(List<diff.Op> ops): {
+            int old_at = 0;
+            int new_at = 0;
+            int old_low = -1;
+            int old_high = -1;
+            // where the current run of changed lines started in the old file, and whether the range ends in it
+            int run_start = 0;
+            bool is_in_run = false;
+            bool is_high_pending = false;
+            for (diff.Op operation in ops) {
+                bool is_keep = false;
+                bool is_add = false;
+                match (operation.kind) {
+                    case Keep: {
+                        is_keep = true;
+                    }
+                    case Add: {
+                        is_add = true;
+                    }
+                    case Remove: {
+                    }
+                }
+                if (is_keep) {
+                    if (is_high_pending) {
+                        old_high = old_at;
+                        is_high_pending = false;
+                    }
+                    is_in_run = false;
+                    if (new_at == low) {
+                        old_low = old_at;
+                    }
+                    new_at = new_at + 1;
+                    old_at = old_at + 1;
+                    if (new_at == high) {
+                        old_high = old_at;
+                    }
+                    continue;
+                }
+                if (!is_in_run) {
+                    is_in_run = true;
+                    run_start = old_at;
+                }
+                if (is_add) {
+                    if (new_at == low) {
+                        old_low = run_start;
+                    }
+                    if (new_at >= low && new_at < high) {
+                        out.is_touched = true;
+                    }
+                    new_at = new_at + 1;
+                    if (new_at == high) {
+                        is_high_pending = true;
+                    }
+                } else {
+                    // a removal sits between new lines new_at - 1 and new_at
+                    if (new_at > low && new_at < high) {
+                        out.is_touched = true;
+                    }
+                    old_at = old_at + 1;
+                }
+            }
+            if (is_high_pending) {
+                old_high = old_at;
+            }
+            if (old_low < 0) {
+                old_low = old_at;
+            }
+            if (old_high < 0) {
+                old_high = old_at;
+            }
+            out.low = old_low;
+            out.high = old_high;
+            return out;
+        }
+    }
+}
+
+// ------------------------------------------------------------------ show and diff
+
+/// `text` as lines, a final newline not adding an empty one.
+pub List<str> lines_of(bytes raw) {
+    return MED_shell.split_lines(text_of(raw));
+}
+
+pub str ident_text(GIT_object.Ident who) {
+    return text_of(who.name) + " <" + text_of(who.email) + ">";
+}
+
+/// `git show REV`: the commit's header and message, then its patch against the first parent. None when the
+/// library cannot resolve or read it.
+pub Option<List<str>> show_in(Repo repo, str rev) {
+    str id = "";
+    match (GIT_revparse.commit_id(repo.gitdir, rev)) {
+        case Ok(str resolved): {
+            id = resolved;
+        }
+        case Err(GIT_revparse.Error error): {
+            return Option<List<str>>.None;
+        }
+    }
+    match (read_object(repo.gitdir, id)) {
+        case Some(GIT_object.Object object): {
+            match (object.body) {
+                case Commit(GIT_object.Commit commit): {
+                    List<str> out = ["commit " + id];
+                    if (commit.parents.size() > 1) {
+                        List<str> short = [];
+                        for (str parent in commit.parents) {
+                            short.push(parent.substr(0, 7));
+                        }
+                        out.push("Merge: " + short.join(" "));
+                    }
+                    out.push("Author: " + ident_text(commit.author));
+                    out.push("Date:   " + date.iso(commit.author.when));
+                    out.push("");
+                    for (str line in lines_of(commit.message)) {
+                        out.push("    " + line);
+                    }
+                    out.push("");
+                    str parent_tree = "";
+                    if (commit.parents.size() > 0) {
+                        parent_tree = tree_of(repo.gitdir, commit.parents[0]);
+                    }
+                    match (GIT_udiff.trees(repo.gitdir, parent_tree, commit.tree)) {
+                        case Ok(bytes patch): {
+                            for (str line in lines_of(patch)) {
+                                out.push(line);
+                            }
+                        }
+                        case Err(GIT_object.Error error): {
+                            return Option<List<str>>.None;
+                        }
+                    }
+                    return Option<List<str>>.Some(out);
+                }
+                case Blob: {
+                }
+                case Tree: {
+                }
+                case Tag: {
+                }
+            }
+        }
+        case None: {
+        }
+    }
+    return Option<List<str>>.None;
+}
+
+pub Option<List<str>> show_lines(str directory, str rev) {
+    match (open(directory)) {
+        case Some(Repo repo): {
+            return show_in(repo, rev);
+        }
+        case None: {
+            return Option<List<str>>.None;
+        }
+    }
+}
+
+str octal(int mode) {
+    str out = "";
+    int rest = mode;
+    while (rest > 0) {
+        out = (rest % 8).to_str() + out;
+        rest = rest / 8;
+    }
+    return out;
+}
+
+/// The id git gives a blob with this content.
+pub str blob_id(str gitdir, bytes content) {
+    bytes whole = ("blob " + content.size().to_str() + "\u{0}").to_bytes();
+    whole.extend(content);
+    return GIT_hash.hex(GIT_hash.raw_length(gitdir), whole);
+}
+
+/// The diff of one path from `before` (a tree or index leaf, with its bytes) to `after` (the file's bytes, None
+/// when it is gone), in the form `git diff` prints it.
+pub bytes pair_diff(str gitdir, str path, GIT_udiff.Leaf before, bytes old, Option<bytes> after) {
+    bool is_added = before.id == "";
+    bool is_removed = after.is_none();
+    bytes new = after.or([]);
+    GIT_udiff.Leaf next = GIT_udiff.Leaf(0, "");
+    if (!is_removed) {
+        int mode = before.mode;
+        if (is_added) {
+            mode = 0o100644;
+        }
+        next = GIT_udiff.Leaf(mode, blob_id(gitdir, new));
+    }
+    if (before.id == next.id) {
+        return [];
+    }
+    bytes out = [];
+    out.extend(("diff --git a/" + path + " b/" + path + "\n").to_bytes());
+    if (is_added) {
+        out.extend(("new file mode " + octal(next.mode) + "\n").to_bytes());
+    } else if (is_removed) {
+        out.extend(("deleted file mode " + octal(before.mode) + "\n").to_bytes());
+    }
+    str old_short = "0000000";
+    if (!is_added) {
+        old_short = before.id.substr(0, 7);
+    }
+    str new_short = "0000000";
+    if (!is_removed) {
+        new_short = next.id.substr(0, 7);
+    }
+    str index_line = "index " + old_short + ".." + new_short;
+    if (!is_added && !is_removed) {
+        index_line = index_line + " " + octal(next.mode);
+    }
+    out.extend((index_line + "\n").to_bytes());
+    out.extend(GIT_udiff.body_diff(path, old, new, is_added, is_removed));
+    return out;
+}
+
+Map<str, GIT_udiff.Leaf> index_leaves(str gitdir) {
+    Map<str, GIT_udiff.Leaf> out = {};
+    match (GIT_index.read(gitdir)) {
+        case Ok(GIT_index.Index index): {
+            for (GIT_index.Entry entry in index.entries) {
+                if (entry.stage == 0) {
+                    match (entry.path.utf8()) {
+                        case Some(str path): {
+                            out.set(path, GIT_udiff.Leaf(entry.mode, entry.id));
+                        }
+                        case None: {
+                        }
+                    }
+                }
+            }
+        }
+        case Err(GIT_index.Error error): {
+        }
+    }
+    return out;
+}
+
+Option<bytes> worktree_bytes(Repo repo, str path) {
+    str full = fs.join(repo.root, path);
+    if (!fs.is_file(full)) {
+        return Option<bytes>.None;
+    }
+    match (io.read_bytes(full)) {
+        case Ok(bytes content): {
+            return Option<bytes>.Some(content);
+        }
+        case Err(io.Error error): {
+            return Option<bytes>.None;
+        }
+    }
+}
+
+/// `git diff` (what is "working": index to work tree), `git diff --cached` ("index": HEAD to index) or
+/// `git diff HEAD` ("head": HEAD to work tree). None when the library cannot read the repository.
+pub Option<List<str>> diff_in(Repo repo, str what) {
+    str commit = head_commit(repo.gitdir);
+    if (commit == "!") {
+        return Option<List<str>>.None;
+    }
+    Map<str, GIT_udiff.Leaf> head_leaves = {};
+    if (commit != "") {
+        match (GIT_udiff.flat(repo.gitdir, tree_of(repo.gitdir, commit))) {
+            case Ok(Map<str, GIT_udiff.Leaf> found): {
+                head_leaves = found;
+            }
+            case Err(GIT_object.Error error): {
+                return Option<List<str>>.None;
+            }
+        }
+    }
+    Map<str, GIT_udiff.Leaf> staged = index_leaves(repo.gitdir);
+    bytes out = [];
+    if (what == "index") {
+        match (GIT_udiff.flats(repo.gitdir, head_leaves, staged)) {
+            case Ok(bytes patch): {
+                out = patch;
+            }
+            case Err(GIT_object.Error error): {
+                return Option<List<str>>.None;
+            }
+        }
+        return Option<List<str>>.Some(lines_of(out));
+    }
+    match (GIT_status.status(repo.gitdir, repo.root)) {
+        case Ok(GIT_status.Status status): {
+            List<str> paths = [];
+            if (what == "head") {
+                for (GIT_status.Delta delta in status.staged) {
+                    paths.push(delta.path.utf8().or(""));
+                }
+            }
+            for (GIT_status.Delta delta in status.unstaged) {
+                paths.push(delta.path.utf8().or(""));
+            }
+            paths.sort();
+            str last = "";
+            for (str path in paths) {
+                if (path == "" || path == last) {
+                    continue;
+                }
+                last = path;
+                Map<str, GIT_udiff.Leaf> side = staged;
+                if (what == "head") {
+                    side = head_leaves;
+                }
+                GIT_udiff.Leaf before = side.get(path).or(GIT_udiff.Leaf(0, ""));
+                bytes old = [];
+                if (before.id != "") {
+                    old = blob_bytes(repo.gitdir, before.id).or([]);
+                }
+                out.extend(pair_diff(repo.gitdir, path, before, old, worktree_bytes(repo, path)));
+            }
+        }
+        case Err(GIT_status.Error error): {
+            return Option<List<str>>.None;
+        }
+    }
+    return Option<List<str>>.Some(lines_of(out));
+}
+
+pub Option<List<str>> diff_lines(str directory, str what) {
+    match (open(directory)) {
+        case Some(Repo repo): {
+            return diff_in(repo, what);
+        }
+        case None: {
+            return Option<List<str>>.None;
+        }
+    }
+}
+
+/// The lines of `content`, each with its terminator (the last one may have none).
+pub List<bytes> split_ended(bytes content) {
+    return GIT_xdiff.split_lines(content);
+}
+
+/// The bytes HEAD has for `rel`; None when it has none (or HEAD cannot be read).
+pub Option<bytes> head_bytes(Repo repo, str relative) {
+    str commit = head_commit(repo.gitdir);
+    if (commit == "" || commit == "!") {
+        return Option<bytes>.None;
+    }
+    match (find_in_tree(repo.gitdir, tree_of(repo.gitdir, commit), relative)) {
+        case Some(GIT_object.Entry entry): {
+            return blob_bytes(repo.gitdir, entry.id);
+        }
+        case None: {
+            return Option<bytes>.None;
+        }
+    }
+}

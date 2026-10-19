@@ -3,3 +3,4 @@ name m3dit
 version 0.11.0
 tui https://github.com/qrazil/tui 0b132cee758eb266ff9500d10c54fb00f6d5c37d
 syntax https://github.com/qrazil/syntax e49e01c32fba95d23b9ad2267a3cfaa967fb758b
+m31git https://github.com/qrazil/m31git f40dc278a6246aca4c9e0e9e47d3158295bffe0e
