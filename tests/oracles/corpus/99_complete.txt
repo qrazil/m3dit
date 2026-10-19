@@ -544,7 +544,7 @@ x	0,0	:r ./<Tab><Tab><Tab><C-b>"<CR>
 x	0,0	:vs u<Tab><Tab><Tab><C-b>"<CR>
 x	0,0	:edit R<Tab><Tab><Tab><C-b>"<CR>
 x	0,0	:lcd ../<Tab><Tab><Tab><C-b>"<CR>
-x	0,0	:new tests/o<Tab><Tab><C-b>"<CR>
+x	0,0	:new tests/oracles/o<Tab><Tab><C-b>"<CR>
 x	0,0	:sav tests/oracles/<Tab><Tab><Tab><C-b>"<CR>
 x	0,0	:edit tests/oracles/corpus/8<Tab><Tab><C-b>"<CR>
 x	0,0	:e .<Tab><C-b>"<CR>
@@ -558,7 +558,7 @@ x	0,0	:e R<Tab><C-b>"<CR>
 x	0,0	:e .g<Tab><Tab><C-b>"<CR>
 x	0,0	:vs te<Tab><Tab><C-b>"<CR>
 x	0,0	:w u<Tab><Tab><C-b>"<CR>
-x	0,0	:vnew tests/o<Tab><Tab><Tab><C-b>"<CR>
+x	0,0	:vnew tests/oracles/o<Tab><Tab><Tab><C-b>"<CR>
 x	0,0	:up ui/<Tab><C-b>"<CR>
 x	0,0	:so ./<Tab><Tab><Tab><C-b>"<CR>
 x	0,0	:up D<Tab><C-b>"<CR>
