@@ -1,0 +1,64 @@
+// 'foldlevelstart' sets 'foldlevel' for a buffer when it is first shown (nvim's buf_enter / do_ecmd), roadmap item 7.
+// nvim cannot answer this one headless (it needs a second buffer and a window enter), so it is a unit test.
+
+import io;
+import term;
+import tests.MED_check;
+import engine.MED_editor;
+import engine.MED_shell;
+import ui.MED_app;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int code_point in text.chars()) {
+        if (code_point == 10) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(code_point));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+Option<str> made = MED_shell.output(["sh", "-c", "cd \"${TMPDIR:-/tmp}\" && d=$(mktemp -d m3fdls.XXXXXX) && cd \"$d\" && pwd -P"], "");
+if (made.is_some()) {
+    str directory = made.or("").trim();
+    str text = "a\n\tb\n\t\tc\nd\n";
+    str first = directory + "/one.txt";
+    str second = directory + "/two.txt";
+    match (io.write(first, text)) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+            check.ok("write", false);
+        }
+    }
+    match (io.write(second, text)) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+            check.ok("write", false);
+        }
+    }
+    match (MED_app.open(first)) {
+        case Err(str message): {
+            check.ok("open: " + message, false);
+        }
+        case Ok(MED_app.App app): {
+            type_text(app, ":set fdm=indent fdls=1\n");
+            check.eq_int("foldlevel is not touched by :set fdls", app.editor.option_number("foldlevel", 0), 0);
+            type_text(app, ":e " + second + "\n");
+            check.eq_str("the second buffer is shown", app.path, second);
+            check.eq_int("foldlevel follows foldlevelstart", app.editor.option_number("foldlevel", 0), 1);
+            type_text(app, "jj");
+            check.eq_int("level 1 leaves the level 2 fold closed: j j lands on d", app.editor.row, 2);
+        }
+    }
+    MED_shell.output(["rm", "-rf", directory], "");
+} else {
+    check.ok("mktemp", false);
+}
+check.finish("t_foldstart");

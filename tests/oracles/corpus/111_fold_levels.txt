@@ -1,0 +1,36 @@
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zn
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>znjj
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zNjj
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMznjj
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMzNjj
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMznzNjj
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzojdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzOjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjjzvj
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzCjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzCjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzcjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzczcjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzczojdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjjzajzajdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzAjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzajdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMzvjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>:set fdl=1<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzO3jdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzD3jdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzojzd3jdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zRzmzmjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>3zm5jdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMzr2jdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zM2zrjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMzxjjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzo:set fdl=0<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzo:set fdl+=0<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzo:setl fdl=0<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>jzcjzo:set fdl=0<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zRjzc:set fdl=99<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzozXjjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzo:set fdl=1<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzo:set fdl=2<CR>jjdd
+a\n\tb\n\t\tc\n\t\td\n\te\nf\n\tg\n\t\th\ni	0,0	:set fdm=indent<CR>zMjzo:set fdl=1<CR>zMjjdd

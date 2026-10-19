@@ -1,4 +1,3 @@
-# manual folds (zf zc zo ...) are not implemented yet; these cases diverge
 alpha 1\nbeta 22\ngamma 333\ndelta 4444\nepsilon 55555\nzeta 6\neta 77\ntheta 8\niota 9\nkappa 10\nlambda 11\nmu 12\nnu 13\nxi 14	0,0	zfjzcjzo
 alpha 1\nbeta 22\ngamma 333\ndelta 4444\nepsilon 55555\nzeta 6\neta 77\ntheta 8\niota 9\nkappa 10\nlambda 11\nmu 12\nnu 13\nxi 14	0,0	zfjj
 alpha 1\nbeta 22\ngamma 333\ndelta 4444\nepsilon 55555\nzeta 6\neta 77\ntheta 8\niota 9\nkappa 10\nlambda 11\nmu 12\nnu 13\nxi 14	0,0	zfapzcj

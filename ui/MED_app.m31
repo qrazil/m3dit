@@ -489,6 +489,15 @@ pub void App.apply_project_all() {
     is_project_conf = true;
     for (Slot slot in slots) {
         apply_project(slot);
+        apply_fold_start(slot);
+    }
+}
+
+/// 'foldlevelstart' (when 0 or more) sets 'foldlevel' as a buffer is first shown, as nvim does for a buffer it loads.
+void App.apply_fold_start(Slot slot) {
+    int start = slot.editor.option_number("foldlevelstart", -1);
+    if (start >= 0) {
+        slot.editor.opts.set("foldlevel", start.to_str());
     }
 }
 
@@ -498,6 +507,7 @@ void App.adopt(Slot slot) {
     slots.push(slot);
     next_id = slot.id + 1;
     activate(slot.id);
+    apply_fold_start(slot);
     restore_position();
     restore_undo();
     if (!slot.is_listing) {

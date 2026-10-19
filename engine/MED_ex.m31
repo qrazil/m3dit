@@ -2259,6 +2259,10 @@ Step cmd_set(MED_editor.Editor editor, Cmd cmd) {
             return fail(editor, error);
         }
         option_store(editor, spec, count.to_str());
+        if (spec.name == "foldlevel") {
+            // nvim runs newFoldLevel() when 'foldlevel' is set, also to the value it had
+            editor.fold_fdl = -1;
+        }
     }
     if (shown != "") {
         editor.message = shown;

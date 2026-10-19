@@ -2553,6 +2553,14 @@ bool did_operate(MED_editor.Editor editor, str operator, str reg, int count, Lis
             return false;
         }
         int end_row = MED_num.smaller(editor.row + total - 1, last);
+        if (total > 1 && editor.folds.size() > 0 && !editor.is_fold_off) {
+            // nvim's nv_lineop moves with cursor_down: a closed fold counts as one line
+            MED_motion.Motion down = move_vertical(editor, total - 1);
+            if (!down.is_ok) {
+                return false;
+            }
+            end_row = down.row;
+        }
         end = MED_buffer.Pos(end_row, lineop_col(editor, operator, end_row, total > 1));
         is_linewise = true;
     } else if (keys[0] == 105 || keys[0] == 97) {
