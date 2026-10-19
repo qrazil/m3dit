@@ -1,0 +1,54 @@
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>3.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>dgn.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>dgn3.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>2dgn
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>d2gn.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>G$/foo<CR>gn
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>G$?foo<CR>gN
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>/foo<CR>3gn
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>/foo<CR>5gn
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>G$ggdgn
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>u.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>j.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	*cgnX<Esc>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgn<Esc>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnab<C-r>.<Esc>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>2cgnX<Esc>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgNX<Esc>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>/foo<CR>cgnX<Esc>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>/foo<CR>cgnX<Esc>3.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>/foo<CR>dgn...
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>/foo<CR>dgn.....
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>?foo<CR>dgN..
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	:set nows<CR>G?foo<CR>dgn.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>..
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>...
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>....
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>3cgnX<Esc>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>:s/b/c/<CR>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>dgn:normal .<CR>
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>:2,3normal .<CR>
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>gnd.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/o\zso<CR>dgn.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo\|bar<CR>dgn..
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>u<C-r>.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>uu.
+foo bar foo\nbar foo bar\nfoo.baz foo\nthe cat the dog	0,0	/foo<CR>cgnX<Esc>u..u
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>cgnx<Esc>3.
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>3cgnx<Esc>.
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>cgnx<Esc>/bb<CR>.
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>cgnx<Esc>qaq.
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>cgn<C-r>/<Esc>.
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>dgn:normal .<CR>
+aa bb aa\n  aa\nbb aa bb	0,0	/^<CR>cgnX<Esc>.
+aa bb aa\n  aa\nbb aa bb	0,0	/aa\|bb<CR>dgn..
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>cgnX<Esc>u<C-r>.
+aa bb aa\n  aa\nbb aa bb	0,0	/aa<CR>cgnX<Esc>uu.
+x foo\nfoo\n\nfoo x foo	0,0	/foo<CR>cgnX<Esc>..
+x foo\nfoo\n\nfoo x foo	0,0	/foo<CR>dgn..
+x foo\nfoo\n\nfoo x foo	0,0	/^$<CR>cgnX<Esc>.
+x foo\nfoo\n\nfoo x foo	0,0	/x<CR>dgn.
+x foo\nfoo\n\nfoo x foo	0,0	/\n<CR>dgn.
+x foo\nfoo\n\nfoo x foo	0,0	/\n<CR>cgnX<Esc>.
+x foo\nfoo\n\nfoo x foo	0,0	/foo\n<CR>dgn.
+x foo\nfoo\n\nfoo x foo	0,0	/foo\nfoo<CR>dgn.
