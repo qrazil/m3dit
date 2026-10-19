@@ -1,0 +1,114 @@
+// Unit checks for the pure parts of the in-process git: the hunk byte operations, the row maps, the relative
+// dates, the range tracing behind `:Git log -L`, the `ih` / `ah` objects and the `:Git` argument parsing. What
+// needs a repository (the library reading real objects, staging, blame) is checked against real `git` by
+// tests/oracles/oracle_git.py.
+
+import engine.MED_buffer;
+import engine.MED_editor;
+import engine.MED_textobj;
+import ui.MED_git;
+import ui.MED_gitcmd;
+import ui.MED_gitlib;
+import tests.MED_check;
+
+MED_check.Check check = MED_check.Check();
+
+str text_of(bytes content) {
+    return MED_gitlib.text_of(content);
+}
+
+// ---- relative dates, `git blame --date=relative`'s words
+check.eq_str("ago seconds", MED_gitlib.ago(100, 70), "30 seconds ago");
+check.eq_str("ago minutes", MED_gitlib.ago(1000, 400), "10 minutes ago");
+check.eq_str("ago hours", MED_gitlib.ago(100000, 100000 - 5 * 3600), "5 hours ago");
+check.eq_str("ago days", MED_gitlib.ago(10000000, 10000000 - 3 * 86400), "3 days ago");
+check.eq_str("ago weeks", MED_gitlib.ago(100000000, 100000000 - 21 * 86400), "3 weeks ago");
+check.eq_str("ago months", MED_gitlib.ago(100000000, 100000000 - 120 * 86400), "4 months ago");
+check.eq_str("ago years", MED_gitlib.ago(1000000000, 1000000000 - 800 * 86400), "2 years ago");
+check.eq_str("ago never negative", MED_gitlib.ago(10, 50), "0 seconds ago");
+// ---- text and trimming
+check.eq_str("trim_end", MED_gitlib.trim_end("a b \t\r"), "a b");
+check.eq_str("trim_end keeps the indent", MED_gitlib.trim_end("  x  "), "  x");
+check.eq_str("text_of bytes", text_of("héllo".to_bytes()), "héllo");
+check.eq_str("first_line_of", MED_gitlib.first_line_of("subject\n\nbody".to_bytes()), "subject");
+// ---- the hunk byte operations: the index with one hunk of the buffer in it
+List<str> base = ["a", "b", "c", "d", "e"];
+List<str> buffer = ["a", "B", "c", "d", "e", "f"];
+MED_git.Hunks hunks = MED_git.diff(base, buffer);
+check.eq_int("two hunks", hunks.starts.size(), 2);
+bytes index_bytes = "a\nb\nc\nd\ne\n".to_bytes();
+check.eq_str("stage the change", text_of(MED_git.staged_content(hunks, 0, index_bytes, buffer)), "a\nB\nc\nd\ne\n");
+check.eq_str("stage the append", text_of(MED_git.staged_content(hunks, 1, index_bytes, buffer)), "a\nb\nc\nd\ne\nf\n");
+// the last line has no terminator: it stays bare when the hunk reaches the end, and gets one when lines follow it
+List<str> base_bare = ["a", "b"];
+bytes bare_bytes = "a\nb".to_bytes();
+MED_git.Hunks edit_last = MED_git.diff(base_bare, ["a", "B"]);
+check.eq_str("bare end stays bare", text_of(MED_git.staged_content(edit_last, 0, bare_bytes, ["a", "B"])), "a\nB");
+MED_git.Hunks append_after_bare = MED_git.diff(base_bare, ["a", "b", "c"]);
+check.eq_str("append after a bare end", text_of(MED_git.staged_content(append_after_bare, 0, bare_bytes, ["a", "b", "c"])), "a\nb\nc");
+// unstage: the index (base) against HEAD (current), the hunk's lines come from HEAD
+MED_git.Hunks against_head = MED_git.diff(["a", "X", "c"], ["a", "b", "c"]);
+check.eq_str("unstage one hunk", text_of(MED_git.unstaged_content(against_head, 0, "a\nX\nc\n".to_bytes(), "a\nb\nc\n".to_bytes())), "a\nb\nc\n");
+check.eq_int("hunk_at_base on the row", MED_git.hunk_at_base(against_head, 1), 0);
+check.eq_int("hunk_at_base elsewhere", MED_git.hunk_at_base(against_head, 0), -1);
+MED_git.Hunks only_added = MED_git.diff(["a", "c"], ["a", "b", "c"]);
+check.eq_int("hunk_at_base for a pure addition: the row above its gap", MED_git.hunk_at_base(only_added, 0), 0);
+check.eq_int("hunk_at_base for a pure addition: the row below its gap", MED_git.hunk_at_base(only_added, 1), 0);
+// ---- row maps
+List<str> head = ["a", "b", "c", "d", "e", "f", "g"];
+List<str> edited = ["a", "x", "y", "c", "e", "f", "g", "h"];
+MED_git.Hunks to_head = MED_git.diff(head, edited);
+check.eq_int("head row of an added row", MED_git.head_row_of(to_head, 1), -1);
+check.eq_int("head row before any change", MED_git.head_row_of(to_head, 0), 0);
+check.eq_int("head row after an addition and a removal", MED_git.head_row_of(to_head, 4), 4);
+check.eq_int("head row of the last unchanged row", MED_git.head_row_of(to_head, 6), 6);
+check.eq_int("head row of an appended row", MED_git.head_row_of(to_head, 7), -1);
+check.eq_int("index row before the changes", MED_git.index_row_of(to_head, 0), 0);
+check.eq_int("index row inside a change has none", MED_git.index_row_of(to_head, 2), -1);
+check.eq_int("index row after them", MED_git.index_row_of(to_head, 4), 4);
+check.eq_int("spans pair rows and counts", MED_git.spans(to_head).size(), 2 * to_head.froms.size());
+// ---- the finder's `:Git log -L` range and the argument parser
+check.eq_int("range A,B from", MED_gitcmd.parse_range("5,9")[0], 5);
+check.eq_int("range A,B to", MED_gitcmd.parse_range("5,9")[1], 9);
+check.eq_int("range of one line", MED_gitcmd.parse_range("7")[1], 7);
+check.eq_int("bad range", MED_gitcmd.parse_range("9,5")[0], 0);
+check.eq_int("zero start is bad", MED_gitcmd.parse_range("0,3")[0], 0);
+check.eq_str("empty :Git says the choices", MED_gitcmd.run("", "", [], 0).error, "Git: log, show, diff or blame");
+check.ok("unknown subcommand", MED_gitcmd.run("push", "", [], 0).error.starts_with("Git: unknown command push"));
+check.ok("blame without a file", MED_gitcmd.run("blame", "", [], 0).error.starts_with("Git blame: no file"));
+check.ok("log -L needs a start", MED_gitcmd.run("log -L 0,2", "f.txt", [], 0).error.starts_with("Git log -L"));
+check.ok("diff names its choices", MED_gitcmd.run("diff nonsense", "", [], 0).error.starts_with("Git diff:"));
+// ---- tracing a line range back through one change
+bytes before = "1\n2\n3\n4\n5\n".to_bytes();
+bytes after = "1\nx\n2\n3\n4\n5\n".to_bytes();
+MED_gitlib.Range moved = MED_gitlib.trace(before, after, 4, 5);
+check.ok("an untouched range is not touched", !moved.is_touched);
+check.eq_int("it moves up by the inserted line: low", moved.low, 3);
+check.eq_int("it moves up by the inserted line: high", moved.high, 4);
+MED_gitlib.Range replaced = MED_gitlib.trace("1\n2\n3\n".to_bytes(), "1\nTWO\n3\n".to_bytes(), 1, 2);
+check.ok("a replaced line is touched", replaced.is_touched);
+check.eq_int("it maps to the line it replaced: low", replaced.low, 1);
+check.eq_int("it maps to the line it replaced: high", replaced.high, 2);
+MED_gitlib.Range inserted = MED_gitlib.trace("1\n3\n".to_bytes(), "1\n2\n3\n".to_bytes(), 1, 2);
+check.ok("an inserted line is touched", inserted.is_touched);
+check.eq_int("and has nothing before it", inserted.high - inserted.low, 0);
+MED_gitlib.Range cut = MED_gitlib.trace("1\n2\n3\n4\n".to_bytes(), "1\n4\n".to_bytes(), 0, 2);
+check.ok("lines removed inside a range touch it", cut.is_touched);
+check.eq_int("the range grows back to what was there", cut.high - cut.low, 4);
+// ---- ih and ah
+MED_editor.Editor shown = MED_editor.new("one\ntwo\nthree\n\nfive\nsix\n");
+List<int> spans = [1, 2, 4, 1];
+MED_textobj.Sel inner = MED_textobj.select(shown.buffer, MED_buffer.Pos(2, 0), false, MED_buffer.Pos(2, 0), 0, 104, false, 1, hunks: spans);
+check.ok("ih inside a hunk", inner.is_ok && inner.is_linewise);
+check.eq_int("ih starts at the hunk's first row", inner.start.row, 1);
+check.eq_int("ih ends at its last row", inner.end.row, 2);
+MED_textobj.Sel around = MED_textobj.select(shown.buffer, MED_buffer.Pos(1, 0), false, MED_buffer.Pos(1, 0), 0, 104, true, 1, hunks: spans);
+check.eq_int("ah takes the blank rows after the hunk", around.end.row, 3);
+MED_textobj.Sel lone = MED_textobj.select(shown.buffer, MED_buffer.Pos(4, 0), false, MED_buffer.Pos(4, 0), 0, 104, true, 1, hunks: spans);
+check.eq_int("ah with nothing blank after it", lone.end.row, 4);
+check.ok("ih between hunks fails", !MED_textobj.select(shown.buffer, MED_buffer.Pos(0, 0), false, MED_buffer.Pos(0, 0), 0, 104, false, 1, hunks: spans).is_ok);
+check.ok("ih with no hunks fails", !MED_textobj.select(shown.buffer, MED_buffer.Pos(1, 0), false, MED_buffer.Pos(1, 0), 0, 104, false, 1).is_ok);
+check.ok("a removal-only hunk has no rows to select", !MED_textobj.select(shown.buffer, MED_buffer.Pos(2, 0), false, MED_buffer.Pos(2, 0), 0, 104, false, 1, hunks: [2, 0]).is_ok);
+MED_textobj.Sel visual = MED_textobj.select(shown.buffer, MED_buffer.Pos(1, 0), true, MED_buffer.Pos(1, 0), 118, 104, false, 1, hunks: spans);
+check.eq_int("visual ih selects linewise", visual.vmode, 86);
+check.finish("t_gitlib");

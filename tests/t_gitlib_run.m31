@@ -1,0 +1,154 @@
+// The m3 half of the git oracle (tests/oracles/oracle_git.py): the library calls and the App's git commands,
+// run on repositories the python driver built with real `git`.
+//
+// Usage (the current directory is a repository, PWD set by the driver):
+//
+//   t_gitlib_run base FILE            MED_git.head_lines: the gutter's base, or NONE
+//   t_gitlib_run libbase FILE         the library alone: LINES..., UNTRACKED or FAILED
+//   t_gitlib_run blame FILE           one commit id per line of HEAD's file (empty for none)
+//   t_gitlib_run log FILE [FROM TO]   commit ids, newest first (the line range as `git log -L`)
+//   t_gitlib_run show REV             MED_gitlib.show_lines, or NONE
+//   t_gitlib_run diff WHAT            MED_gitlib.diff_lines (working, index, head), or NONE
+//   t_gitlib_run app FILE KEYS        open FILE in the App, type KEYS (Enter is \r, Escape \x1b, a render
+//                                     after every key), print the notice, list entries, overlay and buffer
+//
+// Every output line starts with a tag and a tab, so the driver can compare without guessing.
+
+import fs;
+import io;
+import os;
+import term;
+import tui.core.TUI_buffer;
+import ui.MED_app;
+import ui.MED_git;
+import ui.MED_gitlib;
+import ui.MED_picker;
+import m31git.core.GIT_log;
+
+void emit(str tag, str text) {
+    print(tag + "\t" + text);
+}
+
+void type_keys(MED_app.App app, str keys, TUI_buffer.Buffer screen) {
+    for (int index in 0 .. keys.size()) {
+        int byte = keys.byte_at(index);
+        if (byte == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else if (byte == 27) {
+            app.handle(term.Event.Key(term.Key(term.Code.Escape, 0)));
+        } else {
+            app.handle(term.Event.Key(term.Key(term.Code.Char(byte), 0)));
+        }
+        app.render(screen, screen.area());
+    }
+}
+
+void run_app(str file, str keys) {
+    match (MED_app.open(file)) {
+        case Ok(MED_app.App app): {
+            TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(100, 30);
+            app.render(screen, screen.area());
+            type_keys(app, keys, screen);
+            emit("NOTICE", app.notice);
+            if (app.has_picker) {
+                emit("PICKER", app.picker.title);
+                for (MED_picker.Entry entry in app.picker.entries) {
+                    emit("ENTRY", entry.text + "\t" + entry.detail + "\t" + entry.line.to_str());
+                }
+            }
+            for (str line in app.overlay) {
+                emit("OVERLAY", line);
+            }
+            for (str line in app.editor.buffer.dump().split("\n")) {
+                emit("BUF", line);
+            }
+        }
+        case Err(str reason): {
+            emit("ERROR", reason);
+        }
+    }
+}
+
+List<str> arguments = os.arguments();
+str operation = arguments[1];
+if (operation == "base") {
+    match (MED_git.head_lines(arguments[2])) {
+        case Some(List<str> lines): {
+            for (str line in lines) {
+                emit("LINE", line);
+            }
+        }
+        case None: {
+            emit("NONE", "");
+        }
+    }
+} else if (operation == "libbase") {
+    match (MED_gitlib.base_of(MED_git.directory_of(arguments[2]), MED_git.name_of(arguments[2]))) {
+        case Lines(List<str> lines): {
+            for (str line in lines) {
+                emit("LINE", line);
+            }
+        }
+        case Untracked: {
+            emit("UNTRACKED", "");
+        }
+        case Failed: {
+            emit("FAILED", "");
+        }
+    }
+} else if (operation == "blame") {
+    match (MED_gitlib.blame_of(MED_git.directory_of(arguments[2]), MED_git.name_of(arguments[2]))) {
+        case Some(List<MED_gitlib.BlameLine> lines): {
+            for (MED_gitlib.BlameLine line in lines) {
+                emit("COMMIT", line.commit);
+            }
+        }
+        case None: {
+            emit("NONE", "");
+        }
+    }
+} else if (operation == "log") {
+    int first_line = 0;
+    int last_line = 0;
+    if (arguments.size() > 4) {
+        first_line = arguments[3].parse_int().or(0);
+        last_line = arguments[4].parse_int().or(0);
+    }
+    match (MED_gitlib.open(MED_git.directory_of(arguments[2]))) {
+        case Some(MED_gitlib.Repo repo): {
+            match (MED_gitlib.log_of(repo, MED_gitlib.relative_to(repo, MED_git.directory_of(arguments[2]), MED_git.name_of(arguments[2])), first_line, last_line, -1)) {
+                case Some(List<GIT_log.Entry> commits): {
+                    for (GIT_log.Entry entry in commits) {
+                        emit("COMMIT", entry.id);
+                    }
+                }
+                case None: {
+                    emit("NONE", "");
+                }
+            }
+        }
+        case None: {
+            emit("NONE", "");
+        }
+    }
+} else if (operation == "show" || operation == "diff") {
+    Option<List<str>> found = MED_gitlib.diff_lines(".", arguments[2]);
+    if (operation == "show") {
+        found = MED_gitlib.show_lines(".", arguments[2]);
+    }
+    match (found) {
+        case Some(List<str> lines): {
+            for (str line in lines) {
+                emit("LINE", line);
+            }
+        }
+        case None: {
+            emit("NONE", "");
+        }
+    }
+} else if (operation == "app") {
+    run_app(arguments[2], arguments[3]);
+} else {
+    emit("ERROR", "unknown op " + operation);
+    os.exit(2);
+}
