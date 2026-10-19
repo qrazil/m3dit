@@ -256,6 +256,12 @@ pub IndexRead index_entry(str gitdir, str relative) {
                 }
                 case Checksum: {
                 }
+                case RequiredExtension: {
+                }
+                case Locked: {
+                }
+                case Changed: {
+                }
             }
         }
     }
@@ -278,6 +284,12 @@ bool is_missing(GIT_index.Error error) {
         case BadExtension: {
         }
         case Checksum: {
+        }
+        case RequiredExtension: {
+        }
+        case Locked: {
+        }
+        case Changed: {
         }
     }
     return false;
@@ -428,6 +440,30 @@ pub str stage_content(Repo repo, str relative, bytes content) {
             return "";
         }
         case Err(GIT_index.Error error): {
+            match (error) {
+                case Locked: {
+                    return "the index is locked (index.lock exists), try again";
+                }
+                case Changed: {
+                    return "the index changed while it was being written; nothing was staged, try again";
+                }
+                case NotFound: {
+                }
+                case Io: {
+                }
+                case BadSignature: {
+                }
+                case BadVersion: {
+                }
+                case Truncated: {
+                }
+                case BadExtension: {
+                }
+                case Checksum: {
+                }
+                case RequiredExtension: {
+                }
+            }
             return "index write: " + error.to_str();
         }
     }
