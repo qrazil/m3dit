@@ -1200,6 +1200,8 @@ void App.run_request(str request) {
         source_file(arg.trim());
     } else if (name == "Git") {
         run_git_read(arg);
+    } else if (name == "Hunk") {
+        run_hunk_command(arg);
     } else if (name == "Recent") {
         open_picker("recent", arg);
     } else if (name == "Symbols") {
@@ -1437,7 +1439,7 @@ void App.run_app_action(str spec) {
         run_lsp_command(action.substr(4, action.size()), arg);
     } else if (action.starts_with("harpoon")) {
         run_harpoon(action, arg);
-    } else if (action == "hunk_stage" || action == "hunk_reset" || action == "hunk_preview" || action == "blame" || action == "signs") {
+    } else if (action == "hunk_stage" || action == "hunk_undo" || action == "hunk_reset" || action == "hunk_preview" || action == "blame" || action == "signs") {
         run_git_action(action);
     } else if (action == "jump") {
         if (is_plugin_on("jump")) {
@@ -4082,7 +4084,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -4581,6 +4583,11 @@ GitInfo App.git_info(str file, MED_editor.Editor subject, bool is_diff_now) {
                 }
             }
         }
+    }
+    // the rows of the hunks, for the `ih` / `ah` text objects
+    subject.hunk_spans = [];
+    if (info.has_base) {
+        subject.hunk_spans = MED_git.spans(info.hunks);
     }
     git.set(file, info);
     return info;
@@ -6176,6 +6183,19 @@ void App.run_git_action(str action) {
         notice = "This file is not tracked by git";
         return;
     }
+    if (action == "hunk_undo") {
+        str said = MED_git.unstage_hunk_at(path, info.hunks, editor.row);
+        if (said == "") {
+            info.is_checked = false;
+            git.set(path, info);
+            notice = "Hunk unstaged";
+        } else if (said == "!") {
+            notice = "Cannot unstage in process here; use git restore --staged -p";
+        } else {
+            notice = said;
+        }
+        return;
+    }
     int index = MED_git.hunk_at(info.hunks, editor.row);
     if (index < 0) {
         notice = "No hunk at the cursor";
@@ -6191,10 +6211,24 @@ void App.run_git_action(str action) {
             old.push(info.base[info.hunks.base_froms[index] + offset]);
         }
         replace_rows(info.hunks.froms[index], info.hunks.counts[index], old);
+        // resetting rows at the end of the file leaves the cursor past the last row
+        editor.clamp();
         notice = "Hunk reset";
         return;
     }
     if (action == "hunk_stage") {
+        // in process first (m31git); `git apply` when the library cannot
+        str said = MED_git.stage_hunk(path, info.hunks, index, editor.buffer.lines);
+        if (said != "!") {
+            if (said == "") {
+                info.is_checked = false;
+                git.set(path, info);
+                notice = "Hunk staged";
+            } else {
+                notice = "Stage failed: " + said;
+            }
+            return;
+        }
         str directory = file_directory();
         str prefix = MED_shell.output(["git", "-C", directory, "rev-parse", "--show-prefix"], "").or("").trim();
         str relative = prefix + MED_git.name_of(path);
@@ -6211,7 +6245,7 @@ void App.run_git_action(str action) {
     }
 }
 
-// ---- :Git read commands over the m31git library (begin) ----
+// ---- :Git read commands and :Hunk over the m31git library (begin) ----
 
 /// `:Git log|show|diff|blame ...`: a list in the finder or a scratch buffer (ui/MED_gitcmd.m31).
 void App.run_git_read(str arg) {
@@ -6238,7 +6272,23 @@ void App.run_git_read(str arg) {
     update_preview();
 }
 
-// ---- :Git read commands (end) ----
+/// `:Hunk stage|reset|undo|preview`: the `<Space>gs gr gp` actions by name; `undo` unstages the staged hunk.
+void App.run_hunk_command(str arg) {
+    str word = arg.trim();
+    if (word == "stage") {
+        run_git_action("hunk_stage");
+    } else if (word == "reset") {
+        run_git_action("hunk_reset");
+    } else if (word == "preview") {
+        run_git_action("hunk_preview");
+    } else if (word == "undo" || word == "unstage") {
+        run_git_action("hunk_undo");
+    } else {
+        notice = "Hunk: stage, reset, undo or preview";
+    }
+}
+
+// ---- :Git read commands and :Hunk (end) ----
 
 /// `git:checkout BRANCH`, `git:checkout_remote REMOTE/BRANCH`, `git:show HASH`.
 void App.run_git_command(str spec) {

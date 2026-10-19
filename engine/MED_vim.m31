@@ -2540,7 +2540,7 @@ Range object_range(MED_editor.Editor editor, List<int> keys, int count) {
         return range;
     }
     MED_buffer.Pos cursor = MED_buffer.Pos(editor.row, editor.col);
-    MED_textobj.Sel sel = MED_textobj.select(editor.buffer, cursor, false, cursor, 0, keys[1], keys[0] == 97, count);
+    MED_textobj.Sel sel = MED_textobj.select(editor.buffer, cursor, false, cursor, 0, keys[1], keys[0] == 97, count, hunks: editor.hunk_spans);
     if (!sel.is_ok) {
         if (sel.is_moved) {
             editor.row = sel.end.row;
@@ -7575,7 +7575,7 @@ void visual_object(MED_editor.Editor editor, MED_parse.Parsed parsed) {
     List<int> keys = parsed.keys;
     MED_buffer.Pos cursor = MED_buffer.Pos(editor.row, editor.col);
     MED_buffer.Pos anchor = MED_buffer.Pos(editor.vrow, editor.vcol);
-    MED_textobj.Sel sel = MED_textobj.select(editor.buffer, cursor, true, anchor, editor.vkind, keys[1], keys[0] == 97, parsed.count);
+    MED_textobj.Sel sel = MED_textobj.select(editor.buffer, cursor, true, anchor, editor.vkind, keys[1], keys[0] == 97, parsed.count, hunks: editor.hunk_spans);
     if (!sel.is_ok) {
         if (sel.is_moved) {
             editor.row = sel.end.row;

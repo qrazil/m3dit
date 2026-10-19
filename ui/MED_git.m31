@@ -534,6 +534,203 @@ pub Option<str> blame_row(str path, List<str> buffer, int row) {
     }
 }
 
+// ---- hunk operations on bytes (stage, unstage), used with the library or for tests ----
+
+/// The index of the hunk whose lines in the BASE contain `row` (a hunk that only adds lines to the other
+/// side counts for the row above and below its gap); -1 when none.
+pub int hunk_at_base(Hunks hunks, int row) {
+    for (int index in 0 .. hunks.base_froms.size()) {
+        int from = hunks.base_froms[index];
+        int count = hunks.base_counts[index];
+        if (count == 0) {
+            if (row == from || row == from - 1) {
+                return index;
+            }
+        } else if (row >= from && row < from + count) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+/// `target` (the lines of a file, each with its terminator) with the base lines of hunk `index` replaced by the
+/// hunk's lines in `source`. `hunks` compares `target` as base with `source` as current. A final line that
+/// `target` had without a terminator stays without one when the hunk reaches the end.
+pub bytes take_hunk(Hunks hunks, int index, List<bytes> target, List<bytes> source) {
+    int base_from = hunks.base_froms[index];
+    int base_count = hunks.base_counts[index];
+    int from = hunks.froms[index];
+    int count = hunks.counts[index];
+    bytes out = [];
+    for (int position in 0 .. base_from) {
+        out.extend(target[position]);
+    }
+    for (int offset in 0 .. count) {
+        out.extend(source[from + offset]);
+    }
+    for (int position in base_from + base_count .. target.size()) {
+        out.extend(target[position]);
+    }
+    return out;
+}
+
+/// `lines` (the buffer, no terminators) as bytes with "\n" ended lines, the last one left bare when
+/// `is_last_bare`.
+pub List<bytes> ended_lines(List<str> lines, bool is_last_bare) {
+    List<bytes> out = [];
+    for (int position in 0 .. lines.size()) {
+        if (is_last_bare && position == lines.size() - 1) {
+            out.push(lines[position].to_bytes());
+        } else {
+            out.push((lines[position] + "\n").to_bytes());
+        }
+    }
+    return out;
+}
+
+/// The lines of `content` with their terminators, and the same without them.
+pub List<bytes> split_ended(bytes content) {
+    return MED_gitlib.split_ended(content);
+}
+
+/// Is the last line of `lines` one without a terminator?
+pub bool is_last_bare(List<bytes> lines) {
+    if (lines.size() == 0) {
+        return false;
+    }
+    bytes last = lines[lines.size() - 1];
+    return last.size() == 0 || last[last.size() - 1] != 10;
+}
+
+/// The index content after staging hunk `index` of `hunks` (index lines to buffer lines).
+pub bytes staged_content(Hunks hunks, int index, bytes index_bytes, List<str> buffer) {
+    List<bytes> target = split_ended(index_bytes);
+    bool is_bare = is_last_bare(target) && hunks.base_froms[index] + hunks.base_counts[index] == target.size();
+    if (is_bare && hunks.base_counts[index] == 0 && hunks.counts[index] > 0) {
+        // lines appended after a last line that had no terminator: it needs one now
+        target[target.size() - 1].push(10);
+    }
+    return take_hunk(hunks, index, target, ended_lines(buffer, is_bare));
+}
+
+/// The index content after unstaging one hunk: `hunks` compares the index (base) with HEAD (current), and
+/// the hunk's lines come from HEAD's bytes.
+pub bytes unstaged_content(Hunks hunks, int index, bytes index_bytes, bytes head_bytes) {
+    return take_hunk(hunks, index, split_ended(index_bytes), split_ended(head_bytes));
+}
+
+/// The index row that buffer row `row` is, given the hunks of the buffer against the index; -1 for a row inside
+/// an added or changed block (it has no index row of its own).
+pub int index_row_of(Hunks hunks, int row) {
+    int shift = 0;
+    for (int index in 0 .. hunks.froms.size()) {
+        int from = hunks.froms[index];
+        int count = hunks.counts[index];
+        if (count > 0 && row >= from && row < from + count) {
+            return -1;
+        }
+        bool is_before = from + count <= row;
+        if (count == 0) {
+            is_before = from <= row;
+        }
+        if (is_before) {
+            shift = shift + hunks.base_counts[index] - count;
+        }
+    }
+    return row + shift;
+}
+
+/// Stage hunk `index` of `hunks` (the buffer against the index) in process: "" when done, "!" when the library
+/// cannot (the caller runs `git apply`), else why it failed.
+pub str stage_hunk(str path, Hunks hunks, int index, List<str> buffer) {
+    str directory = directory_of(path);
+    match (MED_gitlib.open(directory)) {
+        case Some(MED_gitlib.Repo repo): {
+            str relative = MED_gitlib.relative_to(repo, directory, name_of(path));
+            match (MED_gitlib.index_bytes(repo, relative)) {
+                case Some(bytes content): {
+                    return MED_gitlib.stage_content(repo, relative, staged_content(hunks, index, content, buffer));
+                }
+                case None: {
+                    return "!";
+                }
+            }
+        }
+        case None: {
+            return "!";
+        }
+    }
+}
+
+/// Unstage the staged hunk that buffer row `row` is in (`unstaged`: the buffer against the index), in process:
+/// "" when done, "!" when the library cannot, else why not.
+pub str unstage_hunk_at(str path, Hunks unstaged, int row) {
+    str directory = directory_of(path);
+    match (MED_gitlib.open(directory)) {
+        case Some(MED_gitlib.Repo repo): {
+            str relative = MED_gitlib.relative_to(repo, directory, name_of(path));
+            int position = index_row_of(unstaged, row);
+            if (position < 0) {
+                return "No staged hunk at the cursor";
+            }
+            Option<bytes> staged = MED_gitlib.index_bytes(repo, relative);
+            bytes head = [];
+            match (MED_gitlib.head_bytes(repo, relative)) {
+                case Some(bytes found): {
+                    head = found;
+                }
+                case None: {
+                    return "!";
+                }
+            }
+            match (staged) {
+                case Some(bytes content): {
+                    str index_text = "";
+                    str head_text = "";
+                    match (content.utf8()) {
+                        case Some(str text): {
+                            index_text = text;
+                        }
+                        case None: {
+                            return "!";
+                        }
+                    }
+                    match (head.utf8()) {
+                        case Some(str text): {
+                            head_text = text;
+                        }
+                        case None: {
+                            return "!";
+                        }
+                    }
+                    Hunks against = diff(MED_shell.split_lines(index_text), MED_shell.split_lines(head_text));
+                    int index = hunk_at_base(against, position);
+                    if (index < 0) {
+                        return "No staged hunk at the cursor";
+                    }
+                    return MED_gitlib.stage_content(repo, relative, unstaged_content(against, index, content, head));
+                }
+                case None: {
+                    return "!";
+                }
+            }
+        }
+        case None: {
+            return "!";
+        }
+    }
+}
+
+/// The hunks as pairs (first row, row count) in the buffer, for the `ih` / `ah` text objects.
+pub List<int> spans(Hunks hunks) {
+    List<int> out = [];
+    for (int index in 0 .. hunks.froms.size()) {
+        out.push(hunks.froms[index]);
+        out.push(hunks.counts[index]);
+    }
+    return out;
+}
+
 /// `git show REV` for the preview and `git:show`: through the library, else `git`. Empty when neither can.
 pub List<str> show_lines(str directory, str rev) {
     match (MED_gitlib.show_lines(directory, rev)) {

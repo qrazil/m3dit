@@ -51,7 +51,7 @@ Parsed outcome(int status) {
 }
 
 const List<int> ONE_KEY_MOTIONS = [104, 108, 106, 107, 48, 94, 36, 119, 87, 98, 66, 101, 69, 123, 125, 40, 41, 37, 71, 72, 77, 76, 124, 95, 45, 43, 110, 78, 59, 44, 42, 35, 8, 127, 32, 13, 10, 14, 16, 15, 9, 63232, 63233, 63234, 63235, 63236, 63237, 47, 63];
-const str OBJECT_CHARS = "wWsp()b{}B[]<>\"'`t";
+const str OBJECT_CHARS = "wWsp()b{}B[]<>\"'`th";
 
 bool is_in_list(List<int> list, int key) {
     for (int item in list) {

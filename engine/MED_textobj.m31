@@ -1239,12 +1239,46 @@ Sel current_tag(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visible
 
 // ------------------------------------------------------------------- entry
 
-/// The object `obj` (`w W p ( ) b { } B [ ] < > " ' `` `` s t`) with `i` or
+// ---- ih ah: the git hunk under the cursor (m3 addition, no Vim equivalent; gitsigns has `ih`) ----
+
+/// `hunks` holds pairs (first row, row count) of the buffer's changes against the index, ascending. `ih` is the
+/// hunk's rows; `ah` adds the blank rows right after it. A hunk that only removed lines has no rows, so there
+/// is nothing to select and the object fails.
+Sel current_hunk(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visible, List<int> hunks, bool is_include) {
+    int last = buffer.line_count() - 1;
+    int pair = 0;
+    while (pair + 1 < hunks.size()) {
+        int first = hunks[pair];
+        int stop = first + hunks[pair + 1] - 1;
+        if (hunks[pair + 1] > 0 && cursor.row >= first && cursor.row <= stop) {
+            if (is_include) {
+                while (stop < last && is_linewhite(buffer, stop + 1)) {
+                    stop = stop + 1;
+                }
+            }
+            Sel sel = Sel();
+            sel.is_linewise = true;
+            sel.start = MED_buffer.Pos(first, 0);
+            sel.end = MED_buffer.Pos(stop, 0);
+            if (is_visible) {
+                sel.vmode = 86;
+            }
+            return sel;
+        }
+        pair = pair + 2;
+    }
+    return failed();
+}
+
+/// The object `obj` (`w W p ( ) b { } B [ ] < > " ' `` `` s t`, and h for a git hunk) with `i` or
 /// `a`. `vmode` is the Visual mode key (v, V or CTRL-V) when `is_visible`.
-pub Sel select(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visible, MED_buffer.Pos vstart, int vmode, int obj, bool is_include, int count) {
+pub Sel select(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visible, MED_buffer.Pos vstart, int vmode, int obj, bool is_include, int count, List<int> hunks = []) {
     int total = count;
     if (total < 1) {
         total = 1;
+    }
+    if (obj == 104) {
+        return current_hunk(buffer, cursor, is_visible, hunks, is_include);
     }
     if (obj == 119) {
         return current_word(buffer, cursor, is_visible, vstart, total, is_include, false);

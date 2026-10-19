@@ -212,6 +212,8 @@ pub type Editor {
     pub bool is_quit_one = false;
     /// Keys of the command being typed, and the last repeatable change.
     pub List<int> cmd_keys = [];
+    /// Pairs (first row, row count) of the buffer's git hunks, set by the front end for the `ih` / `ah` objects.
+    pub List<int> hunk_spans = [];
     pub List<int> dot = [];
     pub bool is_changed_cmd = false;
     /// Executing dot or a macro: a failing command aborts the rest.
