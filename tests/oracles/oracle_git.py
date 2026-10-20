@@ -53,7 +53,11 @@ class Env:
                     GIT_CEILING_DIRECTORIES=os.path.dirname(self.root), GIT_AUTHOR_NAME="A U Thor",
                     GIT_AUTHOR_EMAIL="author@example.com", GIT_COMMITTER_NAME="C O Mitter",
                     GIT_COMMITTER_EMAIL="committer@example.com", GIT_AUTHOR_DATE=stamp,
-                    GIT_COMMITTER_DATE=stamp, LC_ALL="C.UTF-8", GIT_PAGER="cat", GIT_TERMINAL_PROMPT="0")
+                    GIT_COMMITTER_DATE=stamp, LC_ALL="C.UTF-8", GIT_PAGER="cat", GIT_TERMINAL_PROMPT="0",
+                    # no background maintenance: it writes objects/maintenance.lock while the
+                    # twins are copied (macOS CI: shutil.Error on that file)
+                    GIT_CONFIG_COUNT="2", GIT_CONFIG_KEY_0="gc.auto", GIT_CONFIG_VALUE_0="0",
+                    GIT_CONFIG_KEY_1="maintenance.auto", GIT_CONFIG_VALUE_1="false")
 
 
 ENV = None
