@@ -74,7 +74,7 @@ bool is_truecolour() {
     return colour_term == "truecolor" || colour_term == "24bit" || os.env("TERM_PROGRAM").or("") == "iTerm.app" || os.env("TERM_PROGRAM").or("") == "WezTerm" || os.env("TERM_PROGRAM").or("") == "ghostty";
 }
 
-const str VERSION = "0.13.0";
+const str VERSION = "0.14.0";
 
 // Standard output, for the options that print and exit.
 void say(str text) {
@@ -216,7 +216,7 @@ match (MED_app.open_all(files)) {
             app.did_use_theme(theme_name);
         }
         TUI_style.Depth depth = colour_depth();
-        TUI_app.Loop loop = TUI_app.Loop(should_report_paste: true, should_report_mouse: is_mouse, should_sync: true, should_scroll: true, should_report_focus: true, should_manage_cursor: true, animate_ms: 50, depth: depth);
+        TUI_app.Loop loop = TUI_app.Loop(should_report_paste: true, should_report_mouse: is_mouse, should_sync: true, should_scroll: false, should_report_focus: true, should_manage_cursor: true, animate_ms: 50, depth: depth);
         app.ext_started();
         app.motion.loop = loop;
         app.motion.configure(is_no_anim, is_truecolour(), !is_light_background());

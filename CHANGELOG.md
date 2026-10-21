@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14.0
+
+Corruption in the fuzzy finder on real Macs: after typing in it (Space f f, p, o, m) pieces of earlier frames stayed
+on the screen (a `7` left of a percentage, `xt` after a name, a name missing its first letter). Reproduced from the
+unmodified 0.13.0 binary by `tests/finder_variants_pty.py` (below): 160 of 238 comparisons (34 steps on 7 terminals) failed on terminals that draw
+a text emoji (`U+26A0 U+FE0F`), a keycap, halfwidth katakana with a dakuten, or an emoji newer than their tables with
+another width than the library's. The cause was in tui's renderer; this release pins tui 0.13.0 (see its CHANGELOG:
+autowrap off, uncertain-width rows written from the uncertain cell to their end, clusters written over blanks, full
+frames that clear the screen, wider "uncertain" policy), m31git 0.29.0 (which pins the same tui) and:
+
+- `should_scroll` is off. The hardware scroll (DECSTBM and line feeds) saved about 3 % of the bytes of a finder keystroke,
+  cost more time than that saved, and trusts a terminal feature every frame depends on; diffs are enough.
+- `tests/finder_variants_pty.py` (in `tests/test_finder.sh`): the finder's typing sequence, queries with emoji, keycaps,
+  Devanagari, halfwidth katakana, Nerd Font and new-emoji names, selection moves and resizes, replayed on seven
+  emulated terminals (pyte, which adds code points up as Terminal.app does, and six more width tables: ambiguous wide,
+  private use wide, new emoji narrow, old pictographs narrow, jamo added up, regional indicators wide). After every
+  step each terminal's screen must equal what a from-scratch repaint gives on that terminal.
+
 ## 0.13.0
 
 Language intelligence completion: docs/ROADMAP.md items 15 to 17 (item 18, DAP, is not started).
