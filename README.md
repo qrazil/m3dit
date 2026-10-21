@@ -195,6 +195,15 @@ moved with a terminal scroll region instead of being rewritten (a held `j` write
 bytes a frame instead of ~2000). Idle, the editor wakes four times a second to notice a
 resize, and not at all otherwise for the animation.
 
+Character widths are measured, not guessed (tui 0.14.0): at start-up m3 writes one batch of cursor-position-report
+requests and reads how wide the terminal draws box drawing, arrows, Greek and Cyrillic, emoji, flags, a family, a
+combining letter and a Nerd Font glyph; the renderer then writes less (a class the terminal draws as the library expects
+is diffed per cell) and lays the rest out at the measured width. A terminal that draws box characters two columns wide
+(a CJK locale, "ambiguous = wide") gets ASCII borders (`+-|`) instead of broken ones. A terminal that never answers costs
+one wait of at most 150 ms before the first frame and gets the 0.14.0 behaviour. `TUI_WIDTH_PROBE=off` skips the
+measuring; `TUI_BORDERS=ascii|unicode|auto` chooses the borders (ascii and unicode win over the measurement). The
+renderer itself is several times faster since tui 0.15.0 (same bytes).
+
 Switching it off: `:set noanimate` (everything), `:set noanimatescroll`,
 `:set noanimatefade`, `:set noanimateflash`, `:set animatetime=60` (shorter or longer
 scrolls), `:set nocursorshape`; `m3 --no-anim`, `M3_NO_ANIM=1` or `TERM=dumb` for a whole

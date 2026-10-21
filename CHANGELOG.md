@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.15.0
+
+Pins tui 0.15.0 (f7c9189; its CHANGELOG has 0.14.0 and 0.15.0) and m31git 0.30.0 (9bbced1, which pins the same tui).
+
+- **The terminal's character widths are measured at start-up.** `Loop.run_with` writes one batch of cursor position report
+  requests after the alternate screen is entered and reads what the terminal drew (box drawing, arrows, Greek and Cyrillic,
+  the older emoji, a symbol with U+FE0F, a flag, a family, a combining letter, a Nerd Font glyph). A class measured as
+  the library expects is diffed per cell with no forced rewrites (fewer bytes for the finder on rio, Alacritty and kitty);
+  a class measured differently is laid out at the measured width. A terminal that never answers costs one wait of at most
+  150 ms before the first frame and keeps the 0.14.0 policy; typed keys are not lost meanwhile. `TUI_WIDTH_PROBE=off`
+  skips it.
+- **Borders adapt.** On a terminal measured drawing box characters two columns wide (a CJK locale or an "ambiguous = wide"
+  profile) the finder (and every other `Block`) is drawn in ASCII instead of breaking their columns.
+  `TUI_BORDERS=ascii|unicode|auto` chooses (the environment variable wins over the measurement).
+- **A faster renderer** (tui 0.15.0): the cell store is two integers per cell and the diff and full repaint write runs of
+  certain-width characters in one pass; same bytes, several times faster (see tui's CHANGELOG; the uxperf numbers are in
+  `docs/UX-PERF.md`).
+- `tests/width_pty.py` (in `tests/test_finder.sh`; skips without pyte): the real `m3` on an emulator that answers cursor
+  position reports: the probe is asked, box-wide terminals get ASCII borders and a screen equal to their repaint,
+  `TUI_BORDERS` and `TUI_WIDTH_PROBE=off` are obeyed, a mute terminal's first frame waits for the budget and keeps the keys
+  typed meanwhile.
+
 ## 0.14.0
 
 Corruption in the fuzzy finder on real Macs: after typing in it (Space f f, p, o, m) pieces of earlier frames stayed
