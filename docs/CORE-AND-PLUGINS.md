@@ -22,6 +22,38 @@ repos `nox-*.git` in the hoard server, `nox-config.git` (`init.lua`) and the Neo
 
 ---
 
+## Owner decisions
+
+Final, 2026-10-23. The owner delegated all of section 9 to the architect, and the answer is: **every
+recommendation in section 9 is accepted as written**. Where the list below differs from the text of section 9,
+the recommendation in section 9 wins. Items 13, 16 and 17 were not named in the owner's message; they are
+accepted on the same rule (recommendation as written).
+
+| # | Decision |
+|---|---|
+| Q1 | Monorepo `plugins/` until API 1.0, then read-only mirrors `m3-<name>` |
+| Q2 | The checked-in registry (`ext/MED_ext_enabled.m31`) is generated from the `default` profile, guarded by a test |
+| Q3 | `:PluginEnable` and `:PluginDisable` stay a run-time switch on top of build-time selection |
+| Q4 | The LSP client stays in core, behind a facade so a later `--no-lsp` is possible |
+| Q5 | surround and autopairs leave the engine as the LAST step (S17) only, and only with the oracle corpora green |
+| Q6 | Indent guides stay core |
+| Q7 | The 0.1.0 events are renamed to the nox names, without aliases |
+| Q8 | Byte columns in the API, with conversion helpers |
+| Q9 | The explorer is built on the widget/Canvas API (identical output) |
+| Q10 | API 1.0 is tagged with m3 1.0; until then 0.2.x is additive |
+| Q11 | The crash breaker is accepted; an `on_trap` request for m31 is written up |
+| Q12 | Message history in core (`:messages`); toasts are the `notify` plugin, in `full` first |
+| Q13 | A source SDK tarball per release (recommendation as written) |
+| Q14 | The 10 non-default themes move to the data plugin `themes` (S3) |
+| Q15 | `colors` is built (S16) and stays out of `default`; colors are off by default |
+| Q16 | `trouble` deferred until the docked widget exists (S13) |
+| Q17 | First-party plugin versions equal the editor's |
+| Q18 | Plugin options are flat and prefixed (`harpoon_max`) |
+
+Scope of the first implementation task: S0 and S1 of section 7, then stop.
+
+---
+
 ## 0. The proposal on one page
 
 1. **Core** is what the Vim engine, the window and buffer model, the renderer, the LSP client, the picker
