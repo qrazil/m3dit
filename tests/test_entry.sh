@@ -3,10 +3,12 @@
 # type `:q`, expect a clean exit.
 if build m3 m3.m31; then
     version=$(grep '^version ' deps | awk '{print $2}')
-    if out=$("$WORK/m3" --version 2>&1) && [ "$out" = "m3 $version (api 0.2.0; plugins: none)" ]; then
+    built_in=$(bash scripts/plugins.sh resolve 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+    [ -n "$built_in" ] || built_in=none
+    if out=$("$WORK/m3" --version 2>&1) && [ "$out" = "m3 $version (api 0.2.0; plugins: $built_in)" ]; then
         note "m3 --version: $out"
     else
-        bad "m3 --version (want 'm3 $version (api 0.2.0; plugins: none)')" "$out"
+        bad "m3 --version (want 'm3 $version (api 0.2.0; plugins: $built_in)')" "$out"
     fi
     if out=$("$WORK/m3" --help 2>&1) && printf '%s' "$out" | grep -q '^usage: m3'; then
         note "m3 --help"

@@ -36,7 +36,8 @@ if python3 -c 'import pyte' 2>/dev/null; then
     if python3 tests/screen_pty.py "$bin" --only move_line --scratch "$work/core-absent" >/dev/null 2>&1; then
         bad "Alt-j still moves a line in the --no-plugins build"
     fi
-    if python3 tests/screen_pty.py "$bin" --only plugins_list --scratch "$work/core-absent" 2>&1 | grep -q "move  move a line"; then
+    listing=$(python3 tests/screen_pty.py "$bin" --only plugins_list --scratch "$work/core-absent" 2>&1)
+    if printf '%s\n' "$listing" | grep -q "move  move a line"; then
         :
     else
         bad ":Plugins in the core build does not differ from the default one by the move row"
