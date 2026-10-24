@@ -84,6 +84,7 @@ const int MAX_EXPANSIONS = 1000;
 /// until `flush_maps`.
 pub void pump(MED_editor.Editor editor, bool is_flush) {
     int expansions = 0;
+    bool did_feed_mapped = false;
     while (editor.ta_keys.size() > 0) {
         if (editor.ta_flags[0] != NOREMAP) {
             str mode = MED_vim.map_mode(editor);
@@ -118,6 +119,7 @@ pub void pump(MED_editor.Editor editor, bool is_flush) {
         if (origin != TYPED && key == MED_key.NOP) {
             continue;
         }
+        did_feed_mapped = did_feed_mapped || origin != TYPED;
         bool was_failed = editor.is_failed;
         editor.is_failed = false;
         editor.is_map_key = origin != TYPED;
@@ -143,6 +145,11 @@ pub void pump(MED_editor.Editor editor, bool is_flush) {
                 editor.ta_flags.remove_at(0);
             }
         }
+    }
+    if (did_feed_mapped && editor.pending.size() == 0 && (editor.mode == MED_editor.NORMAL || editor.mode == MED_editor.VISUAL)) {
+        // the mapping is done: what it changed is one undo step now (the next typed key would close it anyway), so the
+        // modified flag and `u` agree with the screen at once
+        editor.end_block();
     }
 }
 

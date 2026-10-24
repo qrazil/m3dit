@@ -6,6 +6,8 @@
 // checks that it equals the generator. docs/CORE-AND-PLUGINS.md 5.2, docs/EXTENSIONS.md.
 
 import ext.MED_ext;
+import plugins.move.MEDX_move;
 
 pub void install(MED_ext.Registry api) {
+    MEDX_move.register(api);
 }

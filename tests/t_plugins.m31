@@ -349,7 +349,7 @@ check.eq_str("no label", groups.group_label("<Space>x"), "");
 MED_ext.Registry none = MED_ext.Registry();
 MED_ext_enabled.install(none);
 none.finish_install();
-check.ok("the default registry holds nothing", none.is_empty() || none.plugin_names().size() >= 0);
+check.ok("the default registry holds the default profile's plugins and no extension", none.plugin_names().size() == none.extensions.size());
 // the App: a plugin registered before the install, :Plugins, a lazy command, :PluginDisable and :PluginEnable
 match (MED_app.open("")) {
     case Ok(MED_app.App app): {

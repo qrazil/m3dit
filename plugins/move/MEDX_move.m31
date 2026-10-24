@@ -1,0 +1,29 @@
+// The `move` plugin: Alt-j and Alt-k move the line (or the Visual selection) down and up, Alt-h and Alt-l shift it
+// left and right. It was `App.did_alt_move` in the core; now it is data: eight key maps that type the same keys the
+// core typed (`:m +1`, `:m '>+1` then `gv`, `<<`, `>>`). Nothing runs at activation.
+
+import ext.MED_ext;
+
+type Mover {
+}
+
+Result<bool, str> Mover.activate(MED_ext.Registry api) {
+    return Result<bool, str>.Ok(true);
+}
+
+MED_ext.MapSpec key_map(MED_ext.MapMode mode, str keys, str typed, str desc) {
+    return MED_ext.map_keys(mode, keys, typed, desc);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("move", summary: "move a line or selection with Alt-h/j/k/l");
+    spec.maps.push(key_map(MED_ext.MapMode.Normal, "<M-j>", ":m +1<CR>", "move the line down"));
+    spec.maps.push(key_map(MED_ext.MapMode.Visual, "<M-j>", ":m '>+1<CR>gv", "move the selection down"));
+    spec.maps.push(key_map(MED_ext.MapMode.Normal, "<M-k>", ":m -2<CR>", "move the line up"));
+    spec.maps.push(key_map(MED_ext.MapMode.Visual, "<M-k>", ":m '<lt>-2<CR>gv", "move the selection up"));
+    spec.maps.push(key_map(MED_ext.MapMode.Normal, "<M-h>", "<lt><lt>", "shift the line left"));
+    spec.maps.push(key_map(MED_ext.MapMode.Visual, "<M-h>", "<lt>gv", "shift the selection left"));
+    spec.maps.push(key_map(MED_ext.MapMode.Normal, "<M-l>", ">>", "shift the line right"));
+    spec.maps.push(key_map(MED_ext.MapMode.Visual, "<M-l>", ">gv", "shift the selection right"));
+    api.did_plugin(spec, Mover());
+}

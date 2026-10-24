@@ -50,10 +50,10 @@ build() {
     return 0
 }
 
-# unit NAME: build tests/NAME.m31, run it, require its last line to end "0 failed"
+# unit NAME [SOURCE]: build tests/NAME.m31 (or SOURCE), run it, require its last line to end "0 failed"
 unit() {
     local name=$1
-    build "$name" || return
+    build "$name" ${2:+"$2"} || return
     local out
     out=$("$WORK/$name" 2>&1)
     local last
@@ -81,6 +81,11 @@ fi
 
 for part in tests/test_*.sh; do
     [ -f "$part" ] && . "$part"
+done
+
+# a plugin owns its tests: plugins/NAME/tests/test.sh is sourced when the plugin is in the default profile
+for plugin in $(bash scripts/plugins.sh resolve 2>/dev/null); do
+    [ -f "plugins/$plugin/tests/test.sh" ] && . "plugins/$plugin/tests/test.sh"
 done
 
 echo

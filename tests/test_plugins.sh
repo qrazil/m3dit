@@ -53,6 +53,11 @@ if out=$(bash scripts/plugins.sh resolve --plugin-dir "$fixtures" --plugins gree
 else
     case "$out" in *"requires hello"*) note "--without refuses a plugin that a kept one requires" ;; *) bad "--without refusal text" "$out" ;; esac
 fi
+if [ "$(bash scripts/plugins.sh resolve --without move 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --no-plugins 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --profile minimal 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --plugins move 2>&1)" = "move" ]; then
+    note "--without move, --no-plugins and the minimal profile are empty; --plugins move is move"
+else
+    bad "profile and selection of the move plugin"
+fi
 if out=$(bash scripts/plugins.sh resolve --plugin-dir "$fixtures" --plugins nosuch 2>&1); then
     bad "an unknown plugin is refused" "$out"
 else

@@ -281,10 +281,13 @@ pub enum MapMode {
     Command;
 }
 
-/// What a mapping does: run an ex command (":Name args", the colon is optional) or call a function.
+/// What a mapping does: run an ex command (":Name args", the colon is optional) with `<Cmd>`, call a function, or
+/// type keys (the right-hand side of a `:noremap`, in Vim notation: the way to run an ex line that needs the Visual
+/// marks, `:m '>+1<CR>gv`).
 pub enum Action {
     Command(str);
     Call(KeyFn);
+    Keys(str);
 }
 
 /// One key mapping, as data, so that `:Keys` and which-key can show it before a lazy plugin has activated.
@@ -360,6 +363,11 @@ pub MapSpec map(MapMode mode, str keys, str command, str desc) {
 /// A mapping that calls `run`.
 pub MapSpec map_call(MapMode mode, str keys, KeyFn run, str desc) {
     return MapSpec(mode, keys, Action.Call(run), desc: desc);
+}
+
+/// A mapping that types `typed` (Vim notation, as the right-hand side of `:noremap`).
+pub MapSpec map_keys(MapMode mode, str keys, str typed, str desc) {
+    return MapSpec(mode, keys, Action.Keys(typed), desc: desc);
 }
 
 /// A command description with a name and a summary.
@@ -788,6 +796,9 @@ bool Registry.did_install_map(int owner, MapSpec spec) {
             line = HIDDEN_PREFIX + next_key.to_str();
             next_key = next_key + 1;
             commands.push(CommandEntry(owner, line, spec.desc, KeyCommand(run)));
+        }
+        case Keys(str typed): {
+            line = typed;
         }
     }
     maps.push(MapEntry(owner, spec, line));
@@ -1423,6 +1434,11 @@ str map_problem(MapSpec spec) {
         }
         case Call(KeyFn run): {
         }
+        case Keys(str typed): {
+            if (typed.size() == 0) {
+                return "map " + spec.keys + " has no keys";
+            }
+        }
     }
     return "";
 }
@@ -1463,6 +1479,15 @@ str map_text(MapSpec spec, str command, bool is_buffer) {
     str flag = "";
     if (is_buffer) {
         flag = "<buffer> ";
+    }
+    match (spec.action) {
+        case Keys(str typed): {
+            return mode_letter(spec.mode) + "noremap " + flag + spec.keys + " " + typed;
+        }
+        case Command(str text): {
+        }
+        case Call(KeyFn run): {
+        }
     }
     return mode_letter(spec.mode) + "noremap " + flag + spec.keys + " <Cmd>" + command + "<CR>";
 }
@@ -1690,6 +1715,9 @@ pub bool Ctx.did_map(MapSpec spec) {
         }
         case Call(KeyFn run): {
             line = registry.hidden_command_for(owner, spec.desc, run);
+        }
+        case Keys(str typed): {
+            line = typed;
         }
     }
     return MED_ex.did_run_line(editor, map_text(spec, line, true));

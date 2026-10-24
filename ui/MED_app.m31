@@ -375,6 +375,37 @@ List<int> App.keys_of(term.Event event) {
     return keys;
 }
 
+/// An Alt key reaches the engine as Escape and the key, as a terminal sends it. When a mapping of the current mode
+/// starts with that Alt key (`<M-j>`), the engine gets the one key `MOD_ALT | key` instead, so the mapping can match
+/// without making every Escape wait for a longer mapping. With no such mapping nothing changes.
+List<int> App.alt_key_of(term.Event event, List<int> keys) {
+    if (keys.size() != 2 || keys[0] != MED_key.ESC || is_leader || is_window_key) {
+        return keys;
+    }
+    match (event) {
+        case Key(term.Key typed): {
+            if (!typed.has_modifiers(term.ALT)) {
+                return keys;
+            }
+        }
+        case Paste(str pasted): {
+            return keys;
+        }
+        case Mouse(term.Mouse mouse): {
+            return keys;
+        }
+        case Unknown(bytes data): {
+            return keys;
+        }
+    }
+    int alt_key = keys[1] | MED_key.MOD_ALT;
+    str mode = MED_vim.map_mode(editor);
+    if (mode != "" && (editor.maps.has_prefix(mode, alt_key) || editor.local_maps.has_prefix(mode, alt_key))) {
+        return [alt_key];
+    }
+    return keys;
+}
+
 /// The slot of the active buffer, brought up to date.
 Slot App.active_slot() {
     save_active();
@@ -1392,6 +1423,9 @@ void App.run_plugin_command(str name, str arg) {
     if (name == "Plugins") {
         List<str> lines = ["Built-in plugins (:PluginDisable NAME / :PluginEnable NAME):"];
         for (MED_plugin.Plugin one in MED_plugin.all()) {
+            if (one.is_compiled_only && ext.find_plugin(one.name) < 0) {
+                continue;
+            }
             str state = "on ";
             if (disabled_plugins.contains(one.name)) {
                 state = "off";
@@ -1401,7 +1435,10 @@ void App.run_plugin_command(str name, str arg) {
         bool has_plugins = false;
         for (MED_ext.Extension built_in in ext.extensions) {
             if (built_in.is_plugin) {
-                has_plugins = true;
+                // a plugin that took over a feature of the table above is that row, not a second one
+                if (!MED_plugin.is_known(built_in.name)) {
+                    has_plugins = true;
+                }
             } else {
                 lines.push("  ext  " + built_in.name + "  " + built_in.summary);
             }
@@ -1410,7 +1447,7 @@ void App.run_plugin_command(str name, str arg) {
             lines.push("Compiled plugins (api " + MED_ext.API_VERSION + "):");
             for (int owner in 0 .. ext.extensions.size()) {
                 MED_ext.Extension built_in = ext.extensions[owner];
-                if (built_in.is_plugin) {
+                if (built_in.is_plugin && !MED_plugin.is_known(built_in.name)) {
                     lines.push("  " + ext.state_text(owner) + "  " + built_in.name + "  " + built_in.summary);
                 }
             }
@@ -1423,7 +1460,7 @@ void App.run_plugin_command(str name, str arg) {
         return;
     }
     int compiled = ext.find_plugin(arg);
-    if (!MED_plugin.is_known(arg) && compiled < 0) {
+    if ((!MED_plugin.is_known(arg) || MED_plugin.find(arg).is_compiled_only) && compiled < 0) {
         notice = "E474: No such plugin: " + arg;
         return;
     }
@@ -4113,16 +4150,6 @@ pub TUI_app.Action App.handle(term.Event event) {
     }
     match (event) {
         case Key(term.Key typed): {
-            if (typed.has_modifiers(term.ALT) && !is_leader && !is_window_key) {
-                int alt_code = char_of(typed.code);
-                if (alt_code == 104 || alt_code == 106 || alt_code == 107 || alt_code == 108) {
-                    editor.view_height = current_text_rows();
-                    notice = "";
-                    if (did_alt_move(alt_code)) {
-                        return finish_event();
-                    }
-                }
-            }
         }
         case Paste(str pasted): {
         }
@@ -4135,6 +4162,7 @@ pub TUI_app.Action App.handle(term.Event event) {
     if (keys.size() == 0) {
         return TUI_app.Action.Continue;
     }
+    keys = alt_key_of(event, keys);
     notice = "";
     if (overlay.size() > 0) {
         // the listing goes away with the next key; Enter, Space and Esc only dismiss it
@@ -5871,6 +5899,9 @@ bool App.did_open_list_picker(str name, str arg) {
     } else if (name == "plugins") {
         title = "Plugins (Enter toggles)";
         for (MED_plugin.Plugin one in MED_plugin.all()) {
+            if (one.is_compiled_only && ext.find_plugin(one.name) < 0) {
+                continue;
+            }
             str state = "on ";
             str action = "ex:PluginDisable " + one.name;
             if (disabled_plugins.contains(one.name)) {
@@ -6491,46 +6522,6 @@ bool App.did_bracketed(int key, bool is_forward) {
         return true;
     }
     return false;
-}
-
-/// Alt-j / Alt-k / Alt-h / Alt-l: move or shift the line or the selection
-/// (the `move` plugin). True when the key was one of them.
-bool App.did_alt_move(int code_point) {
-    if (!is_plugin_on("move") || editor.pending.size() > 0 || editor.ta_keys.size() > 0) {
-        return false;
-    }
-    bool is_visual = editor.mode == MED_editor.VISUAL;
-    if (editor.mode != MED_editor.NORMAL && !is_visual) {
-        return false;
-    }
-    str keys = "";
-    if (code_point == 106) {
-        keys = ":m +1\r";
-        if (is_visual) {
-            keys = ":m '>+1\rgv";
-        }
-    } else if (code_point == 107) {
-        keys = ":m -2\r";
-        if (is_visual) {
-            keys = ":m '<-2\rgv";
-        }
-    } else if (code_point == 104) {
-        keys = "<<";
-        if (is_visual) {
-            keys = "<gv";
-        }
-    } else if (code_point == 108) {
-        keys = ">>";
-        if (is_visual) {
-            keys = ">gv";
-        }
-    } else {
-        return false;
-    }
-    for (int code in keys.chars()) {
-        MED_ex.feed(editor, code);
-    }
-    return true;
 }
 
 /// Where the terminal of buffer `id` is in `terms`, or -1.
@@ -8627,6 +8618,12 @@ str App.write_hooked(Slot slot, str target) {
 pub void App.ext_install() {
     MED_ext_enabled.install(ext);
     ext.finish_install();
+    for (MED_plugin.Plugin one in MED_plugin.all()) {
+        if (one.is_compiled_only && ext.find_plugin(one.name) < 0) {
+            // the feature is a plugin this build does not contain: its keymap rows stay out of the menus
+            disabled_plugins.push(one.name);
+        }
+    }
     if (ext.is_empty()) {
         return;
     }

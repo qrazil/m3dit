@@ -1,0 +1,68 @@
+// The `move` plugin through the App: Alt-j/k/h/l move or shift the line and the Visual selection, a boundary is a no-op,
+// and :PluginDisable move takes the keys away.
+
+import tests.MED_check;
+import ui.MED_app;
+import term;
+
+term.Event alt(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), term.ALT));
+}
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+match (MED_app.open("")) {
+    case Ok(MED_app.App app): {
+        app.ext_install();
+        check.ok("the plugin is built in", app.ext.find_plugin("move") >= 0);
+        check.eq_str("and active (eager)", app.ext.state_text(app.ext.find_plugin("move")), "pending");
+        app.ext_started();
+        check.eq_str("active after start-up", app.ext.state_text(app.ext.find_plugin("move")), "active");
+        type_text(app, "ione\rtwo\rthree\x1b");
+        check.eq_str("text", app.editor.buffer.dump(), "one\ntwo\nthree\n");
+        type_text(app, "gg");
+        app.handle(alt(106));
+        check.eq_str("Alt-j moves the line down", app.editor.buffer.dump(), "two\none\nthree\n");
+        check.eq_int("the cursor follows it", app.editor.row, 1);
+        app.handle(alt(106));
+        app.handle(alt(106));
+        check.eq_str("at the end it stays", app.editor.buffer.dump(), "two\nthree\none\n");
+        app.handle(alt(107));
+        check.eq_str("Alt-k moves it up", app.editor.buffer.dump(), "two\none\nthree\n");
+        type_text(app, "gg");
+        app.handle(alt(107));
+        check.eq_str("Alt-k on the first line is a no-op", app.editor.buffer.dump(), "two\none\nthree\n");
+        app.handle(alt(108));
+        check.eq_str("Alt-l shifts right", app.editor.buffer.dump(), "\ttwo\none\nthree\n");
+        app.handle(alt(104));
+        check.eq_str("Alt-h shifts left", app.editor.buffer.dump(), "two\none\nthree\n");
+        type_text(app, "Vj");
+        app.handle(alt(106));
+        check.eq_str("Visual Alt-j moves the selection", app.editor.buffer.dump(), "three\ntwo\none\n");
+        check.eq_int("and the selection is back (gv)", app.editor.mode, 3);
+        type_text(app, "\x1b");
+        type_text(app, ":PluginDisable move\r");
+        app.handle(alt(107));
+        check.eq_str("disabled: Alt-k does nothing", app.editor.buffer.dump(), "three\ntwo\none\n");
+        type_text(app, ":PluginEnable move\rG");
+        app.handle(alt(107));
+        check.eq_str("enabled again: Alt-k moves the last line up", app.editor.buffer.dump(), "three\none\ntwo\n");
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_move");

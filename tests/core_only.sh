@@ -5,7 +5,8 @@
 #   bash tests/core_only.sh [WORKDIR]      builds WORKDIR/m3-core (a temporary directory when none is given)
 #
 # Gates so far: 1 build (no plugins/ reachable), 2 --version and --list-plugins name no plugin, 3 behaviour (a
-# pty session: the golden screens of the scenarios that need no plugin), 5 absence (:Plugins has no plugin section).
+# pty session: the golden screens of the scenarios that need no plugin), 5 absence (Alt-j does not move a line, :Plugins
+# has no move row).
 # Gates 2 (units) and 3 (oracle) of 7.4 are the ordinary suites, which do not depend on the plugin selection
 # until a step moves a feature out; the core corpora are listed here when one does. While no feature has left
 # the core, minimal and default are the same program and the golden file is the same.
@@ -27,9 +28,18 @@ case "$version" in *"(api 0.2.0; plugins: none)") ;; *) bad "--version says: $ve
 [ -z "$("$bin" --list-plugins 2>&1)" ] || bad "--list-plugins prints something"
 
 if python3 -c 'import pyte' 2>/dev/null; then
-    scenarios=start,open_python,insert_typing,visual_line,search_highlight,split_vertical,tab_pages,explore_directory,command_palette,plugins_list,fold_manual,wrap_long_lines,error_message
+    scenarios=start,open_python,insert_typing,visual_line,search_highlight,split_vertical,tab_pages,explore_directory,command_palette,fold_manual,wrap_long_lines,error_message
     if ! out=$(python3 tests/screen_pty.py "$bin" --only "$scenarios" --scratch "$work/core-screens" 2>&1); then
         bad "golden screens on the core build"; say "$out" | tail -15
+    fi
+    # absence gate: what lives in a default plugin is not there (the golden screens are those of the default build)
+    if python3 tests/screen_pty.py "$bin" --only move_line --scratch "$work/core-absent" >/dev/null 2>&1; then
+        bad "Alt-j still moves a line in the --no-plugins build"
+    fi
+    if python3 tests/screen_pty.py "$bin" --only plugins_list --scratch "$work/core-absent" 2>&1 | grep -q "move  move a line"; then
+        :
+    else
+        bad ":Plugins in the core build does not differ from the default one by the move row"
     fi
 else
     say "skip golden screens: pyte is not installed"

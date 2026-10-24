@@ -48,8 +48,9 @@ check.ok("0.x: a negative patch does not", !MED_ext.is_compatible_with(0, 2, -1)
 // the default build has no extension
 MED_ext.Registry none = MED_ext.Registry();
 MED_ext_enabled.install(none);
-check.ok("default install registers nothing", none.is_empty());
-check.ok("no handler for any event", !none.has_handler(MED_ext.Event.BufferWritePre) && !none.is_tick_wanted());
+none.finish_install();
+check.ok("the default build registers plugins only (the default profile), no 0.1.0 extension", none.plugin_names().size() == none.extensions.size());
+check.ok("and none of them listens to a write or a tick", !none.has_handler(MED_ext.Event.BufferWritePre) && !none.is_tick_wanted());
 // registration rules
 check.ok("handler before declare is refused", !api.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => Result<bool, str>.Ok(true)));
 check.ok("bad name refused", !api.did_declare("lower", "x", 0, 2));

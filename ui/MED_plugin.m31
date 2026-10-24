@@ -22,11 +22,14 @@ pub type Plugin {
     pub str summary;
     /// The engine option that holds the switch ("" when the front end holds it).
     pub str option = "";
+    /// A compiled plugin (plugins/NAME) provides the feature: the row is listed, and its keys shown, only when the
+    /// build contains that plugin (`--without NAME` and `--no-plugins` leave both out).
+    pub bool is_compiled_only = false;
 }
 
 /// Every built-in plugin.
 pub List<Plugin> all() {
-    return [Plugin("core", "keymap tree, which-key engine, :Plugins and :Keys"), Plugin("finder", "fuzzy pickers: files, grep, buffers, recent, git, symbols"), Plugin("whichkey", "popup of the keys that can follow a pending prefix"), Plugin("explorer", "file tree sidebar and directory pickers"), Plugin("git", "gutter signs, hunk keys, branches, commits, blame", option: "gitsigns"), Plugin("surround", "ys ds cs and visual S", option: "surround"), Plugin("comment", "gc and gcc, language aware", option: "comment"), Plugin("autopairs", "insert-mode bracket and quote pairing", option: "autopairs"), Plugin("statusline", "mode, file, branch, diagnostics, filetype, position; tabline"), Plugin("bracketed", "[b ]b [q ]q [d ]d [h ]h [t ]t [c ]c"), Plugin("harpoon", "pinned files per project, <Space>1..9"), Plugin("move", "move a line or selection with Alt-h/j/k/l"), Plugin("jump", "label jump: <Space>j, then a character, then a label"), Plugin("guides", "indent guides"), Plugin("todo", "highlight TODO FIXME HACK NOTE WARN"), Plugin("terminal", ":terminal, <Space>t, :! :r! filters"), Plugin("session", "remember the cursor position of each file"), Plugin("lsp", "language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13)")];
+    return [Plugin("core", "keymap tree, which-key engine, :Plugins and :Keys"), Plugin("finder", "fuzzy pickers: files, grep, buffers, recent, git, symbols"), Plugin("whichkey", "popup of the keys that can follow a pending prefix"), Plugin("explorer", "file tree sidebar and directory pickers"), Plugin("git", "gutter signs, hunk keys, branches, commits, blame", option: "gitsigns"), Plugin("surround", "ys ds cs and visual S", option: "surround"), Plugin("comment", "gc and gcc, language aware", option: "comment"), Plugin("autopairs", "insert-mode bracket and quote pairing", option: "autopairs"), Plugin("statusline", "mode, file, branch, diagnostics, filetype, position; tabline"), Plugin("bracketed", "[b ]b [q ]q [d ]d [h ]h [t ]t [c ]c"), Plugin("harpoon", "pinned files per project, <Space>1..9"), Plugin("move", "move a line or selection with Alt-h/j/k/l", is_compiled_only: true), Plugin("jump", "label jump: <Space>j, then a character, then a label"), Plugin("guides", "indent guides"), Plugin("todo", "highlight TODO FIXME HACK NOTE WARN"), Plugin("terminal", ":terminal, <Space>t, :! :r! filters"), Plugin("session", "remember the cursor position of each file"), Plugin("lsp", "language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13)")];
 }
 
 /// The plugin called `name`; its `name` is empty when there is none.
