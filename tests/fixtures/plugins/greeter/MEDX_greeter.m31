@@ -1,0 +1,30 @@
+// Fixture plugin for tests/test_plugins.sh: eager, requires `hello`, writes greeter.log in the current directory
+// when the editor is ready (so the test can tell that activation happened, in order, and once).
+
+import ext.MED_ext;
+import io;
+
+type Greeter {
+}
+
+Result<bool, str> Greeter.activate(MED_ext.Registry api) {
+    api.did_hook(MED_ext.Event.Ready, (MED_ext.Ctx context, MED_ext.Info info) => ready(context));
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> ready(MED_ext.Ctx context) {
+    match (io.write("greeter.log", "ready\n")) {
+        case Ok(int count): {
+            return Result<bool, str>.Ok(true);
+        }
+        case Err(io.Error error): {
+            return Result<bool, str>.Err("cannot write greeter.log");
+        }
+    }
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("greeter", summary: "fixture: needs hello, writes greeter.log when the editor is ready");
+    spec.requires.push("hello");
+    api.did_plugin(spec, Greeter());
+}

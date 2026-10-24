@@ -1,0 +1,6 @@
+# The default profile: the first-party plugins every release contains, one name per line (or comma separated).
+# `bash scripts/build.sh` builds exactly these; ext/MED_ext_enabled.m31 is generated from this file
+# (`bash scripts/plugins.sh gen $(bash scripts/plugins.sh resolve)`), and tests/test_plugins.sh checks that it is.
+#
+# No feature has moved out of the core yet (docs/CORE-AND-PLUGINS.md 7.2, step S0): the list is empty. Step S2
+# adds `move`, S3 `themes`, and so on; a plugin is added here when its directory (plugins/NAME/plugin.txt) is.

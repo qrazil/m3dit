@@ -1,0 +1,4 @@
+# The full profile: the default one plus the optional plugins (the owner's daily driver, the all-plugins CI leg).
+# Planned additions: colors, icons, trouble, indentscope (docs/CORE-AND-PLUGINS.md 5.2). None of them exists
+# yet, so for now `full` is the default profile; the names are added here with their directories.
+include default

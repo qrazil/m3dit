@@ -1,0 +1,3 @@
+name: greeter
+summary: fixture: needs hello, writes greeter.log when the editor is ready
+requires: hello

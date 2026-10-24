@@ -1,0 +1,39 @@
+// Fixture plugin for tests/test_plugins.sh: lazy (it wakes on `:Hello`), one command, one key, one hook (it writes hello.log after a write).
+// It is built only with `--plugin-dir tests/fixtures/plugins --plugins hello`; it is not part of any profile.
+
+import ext.MED_ext;
+import io;
+
+type Hello {
+}
+
+Result<bool, str> Hello.activate(MED_ext.Registry api) {
+    api.did_command("Hello", "say hello", (MED_ext.Ctx context, str arguments, bool is_bang) => greet(context, arguments));
+    api.did_hook(MED_ext.Event.BufferWritePost, (MED_ext.Ctx context, MED_ext.Info info) => wrote(context, info));
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> greet(MED_ext.Ctx context, str arguments) {
+    context.say("hello " + arguments);
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> wrote(MED_ext.Ctx context, MED_ext.Info info) {
+    // the write's own message replaces a `say` here, so the hook leaves a file
+    match (io.write("hello.log", "wrote " + info.file + "\n")) {
+        case Ok(int count): {
+            return Result<bool, str>.Ok(true);
+        }
+        case Err(io.Error error): {
+            return Result<bool, str>.Err("cannot write hello.log");
+        }
+    }
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("hello", summary: "fixture: a lazy command, a key and a write hook");
+    spec.triggers.push(MED_ext.on_command("Hello"));
+    spec.commands.push(MED_ext.command("Hello", "say hello"));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<leader>zh", "Hello keyed", "say hello"));
+    api.did_plugin(spec, Hello());
+}

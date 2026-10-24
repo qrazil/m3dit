@@ -1,0 +1,2 @@
+# The minimal profile: no plugin, the core only. The same as `bash scripts/build.sh --no-plugins`
+# (docs/CORE-AND-PLUGINS.md 5.2; the core gate of section 7.4).
