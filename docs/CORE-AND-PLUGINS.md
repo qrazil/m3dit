@@ -24,35 +24,40 @@ repos `nox-*.git` in the hoard server, `nox-config.git` (`init.lua`) and the Neo
 
 ## Decision record: core, default plugins, optional plugins
 
-Decided by the owner on 2026-10-24: "the goal is the decisions on what is core and what are plugins, and which plugins are a
-must; m3 is already better on everything else." Tables 3.1 to 3.3 below give the reasoning and the code locations; this
-section is the outcome and wins over them where they differ.
+Decided by the owner on 2026-10-24: "the goal is the decisions on what is core and what are plugins; m3 is already better
+on everything else", and then: all themes stay in core, and **one** plugin is built now, to test the API and the plugin
+system. Tables 3.1 to 3.3 below give the reasoning and the code locations; this section is the outcome and wins over them
+where they differ (so: no `themes` data plugin, Q14 is reversed).
 
 **CORE** (in every build, `--no-plugins` included; checked by the nvim oracle where Vim defines it): the Vim engine and its
 ex subset; the window, buffer and tab-page model; the renderer including animation, smooth scroll (glide) and indent
 guides; the LSP client with the completion popup, semantic tokens and format-on-save; the picker primitive and its core
 sources (buffers, commands, options, keys, quickfix, themes); the directory buffer (`:Explore`); the quickfix list and the
-message ring (`:messages`); snippets; undo files, project settings and auto-reload; the theme engine with the four default
-themes; the minimal statusline; the tab line; the mouse and the clipboard; the extension API and `:Plugins`.
+message ring (`:messages`); snippets; undo files, project settings and auto-reload; the theme engine **with all fourteen
+themes** (`MED_theme_data` stays as it is); the minimal statusline; the tab line; the mouse and the clipboard; the extension
+API and `:Plugins`.
 
-**DEFAULT PLUGINS** (built into every release, in `plugins/profiles/default.txt`; each is a must-have, the owner uses it
-daily; each can still be switched off at run time with `:PluginDisable`):
+**THE REFERENCE PLUGIN, done:** `move` (`<A-j/k/h/l>` moves or shifts a line or selection; `plugins/move/`, in the default
+profile). It was chosen because it is the cheapest isolated feature (about 40 lines in the core, no API beyond S0 and S1)
+and it exercises the whole chain: a `plugin.txt`, a `Spec` with maps, the generated registry, `--without move` and
+`--no-plugins` builds, per-plugin tests, golden screens identical to the build without the plugin mechanism.
+
+**CANDIDATE DEFAULT PLUGINS** (every release would ship them built in; each is a must-have for the owner, each can still be
+switched off at run time with `:PluginDisable`; migrate later, when wanted; none is being built now, status "later"):
 
 | plugin | why it is a must | status |
 |---|---|---|
 | which-key | every key is discoverable after 400 ms; the leader menu is how the owner finds his own maps | later (needs API slice C) |
-| statusline (+ bufferline) | branch, diagnostics counts, file type and LSP state at a glance | later (needs slices B and C) |
+| statusline extras (+ bufferline) | branch, diagnostics counts, file type and LSP state at a glance | later (needs slices B and C) |
 | finder | files, grep, recent, symbols: the most used feature after editing | later (needs `pick_stream`) |
 | explorer (file tree) | the sidebar the owner opens with `<Space>e` | later (needs the widget API, slice D) |
 | git (gutter, hunks, `:Git` commands) | gutter signs, `]c [c`, stage and reset a hunk, blame; also the one that carries m31git | later (after finder) |
-| bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` pairs, muscle memory | done in 0.17.0 (S4) |
-| harpoon | pinned files per project, `<Space>1..9` | done in 0.17.0 (S5) |
-| move | `<A-j/k/h/l>` moves a line or selection | done in 0.17.0 (S2) |
-| themes (data) | the ten extra themes (tokyonight, nightfox, gruvbox-material ...) the owner chose | done in 0.17.0 (S3) |
+| bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` pairs, muscle memory | later |
+| harpoon | pinned files per project, `<Space>1..9` | later |
 | todo | TODO/FIXME highlight and list | later (needs the decorations slice B) |
 | session | cursor position, layout and buffers restored | later |
 | terminal | `:terminal` and `<Space>t` | later (needs slice D) |
-| notify (new) | toasts over the message ring | later (after the API slice C; ring in core first) |
+| notify (new) | toasts over the message ring | later (after slice C; the ring is core first) |
 | surround | `ys ds cs`, Visual `S` | later, last: it is entangled with the engine and goes only with the oracle green |
 | autopairs | insert-mode pairing | later, last: same |
 
@@ -61,8 +66,7 @@ daily; each can still be switched off at run time with `:PluginDisable`):
 
 **NOT PLANNED**: the lazygit-style git dashboard of nox (`mgit` and `gitui` do that) and the miller-columns file explorer.
 
-Implemented so far: steps S0 to S5 (0.16.0 and 0.17.0); the heavy plugins above stay in the core until their API slices
-land.
+Implemented so far: steps S0, S1 and S2 (0.16.0). The migration steps S3 to S18 below are a plan, not a commitment.
 
 ---
 
@@ -98,8 +102,8 @@ Scope of the first implementation task: S0 and S1 of section 7, then stop.
 
 ## Implementation status
 
-S0 (foundation) and S1 (`<Cmd>` and `<buffer>` maps) are implemented in 0.16.0 (branch `s0`); later steps are separate
-tasks. What was built and where it differs from the text below:
+S0 (foundation), S1 (`<Cmd>` and `<buffer>` maps) and S2 (`move`, the reference plugin) are implemented in 0.16.0 (branch `s0`);
+later steps are not scheduled (see the decision record). What was built and where it differs from the text below:
 
 * **S0.** `MED_ext` 0.2.0 with `Spec`, `Plugin`, `did_plugin`, triggers, command stubs, the run-time switch, handler ids and
   `is_once`, groups, the nox event names; `ext/MED_ext_enabled.m31` generated from the default profile (empty: no feature has
@@ -122,15 +126,19 @@ tasks. What was built and where it differs from the text below:
   (9) `<Cmd>` that does not end with `<CR>` reports E1255 and runs nothing, where nvim keeps reading typed keys
   (`known_divergences.txt`). (10) The core-only gate (`tests/core_only.sh`) runs the golden screens of the scenarios that
   need no plugin; the unit and oracle gates of 7.4 are the ordinary suites until a step moves a feature out.
-* **Next, S2 and S3.** S2 (`move`) needs only what exists: `MapSpec` in Normal and Visual mode with `Action.Command`,
-  `plugins/move/{plugin.txt,MEDX_move.m31}`, a line in `plugins/profiles/default.txt`, regenerate `ext/MED_ext_enabled.m31`
-  (`bash scripts/plugins.sh gen $(bash scripts/plugins.sh resolve) > ext/MED_ext_enabled.m31`), remove `did_alt_move`
-  and its keymap rows and the `move` entry of `ui/MED_plugin.m31` (the registry plugin of the same name takes over
-  `:PluginDisable move`; `App.run_plugin_command` already handles both), then re-record nothing: the golden screens must
-  stay equal. The plugin runs `:m +1` and `gv` through `Ctx.did_run_ex`; `<M-j>` notation is in `MED_key`. S3 (`themes`)
-  needs the `did_theme(name, lines)` registry call (API slice A) and a per-plugin `gen_themes.sh`; it also splits
-  `MED_theme_data`, which `:theme` and `--dump-sample` read. `tests/core_only.sh` must then use a core-only golden file for
-  the `:theme` scenarios.
+* **S2.** `plugins/move/{plugin.txt,MEDX_move.m31,README.md,tests/}`: eight `MapSpec`s of the new action `Action.Keys` (the
+  right-hand side of a `:noremap`: Visual needs the `'<` and `'>` marks, which `<Cmd>` does not update); no handler runs.
+  `App.did_alt_move` is gone. An Alt key reaches the engine as Escape and the key; when a map of the current mode starts
+  with that Alt key (`<M-j>`) the App feeds the single key `MOD_ALT | key` (`App.alt_key_of`), so no Escape ever waits for a
+  longer map. `MED_plugin` keeps the `move` row (`is_compiled_only`): it is listed, and its keys shown, only in builds that
+  contain the plugin. A finished mapping now closes its undo block at once (the modified flag and `u` agree with the screen;
+  the oracle is unchanged). Proof: golden screens equal (49 scenarios, raw bytes too), corpus green, `--without move` and
+  `--no-plugins` builds, `tests/core_only.sh` (Alt-j does nothing there), `plugins/move/tests/t_move.m31`, e2e
+  `bracketed_and_move`, uxperf bytes equal, start-up within noise. One difference: the line moved through the map is not
+  remembered in the `:` register (nvim's mapped `:` lines are; the old core typed it).
+* **What a next plugin needs.** `plugins/NAME/` with `plugin.txt`, `MEDX_NAME.m31` and tests; a line in
+  `plugins/profiles/default.txt`; `bash scripts/plugins.sh gen $(bash scripts/plugins.sh resolve) > ext/MED_ext_enabled.m31`;
+  the feature's `MED_plugin` row gets `is_compiled_only`; keymap rows stay in `MED_keymap` until which-key moves.
 
 ---
 
