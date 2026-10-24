@@ -22,6 +22,50 @@ repos `nox-*.git` in the hoard server, `nox-config.git` (`init.lua`) and the Neo
 
 ---
 
+## Decision record: core, default plugins, optional plugins
+
+Decided by the owner on 2026-10-24: "the goal is the decisions on what is core and what are plugins, and which plugins are a
+must; m3 is already better on everything else." Tables 3.1 to 3.3 below give the reasoning and the code locations; this
+section is the outcome and wins over them where they differ.
+
+**CORE** (in every build, `--no-plugins` included; checked by the nvim oracle where Vim defines it): the Vim engine and its
+ex subset; the window, buffer and tab-page model; the renderer including animation, smooth scroll (glide) and indent
+guides; the LSP client with the completion popup, semantic tokens and format-on-save; the picker primitive and its core
+sources (buffers, commands, options, keys, quickfix, themes); the directory buffer (`:Explore`); the quickfix list and the
+message ring (`:messages`); snippets; undo files, project settings and auto-reload; the theme engine with the four default
+themes; the minimal statusline; the tab line; the mouse and the clipboard; the extension API and `:Plugins`.
+
+**DEFAULT PLUGINS** (built into every release, in `plugins/profiles/default.txt`; each is a must-have, the owner uses it
+daily; each can still be switched off at run time with `:PluginDisable`):
+
+| plugin | why it is a must | status |
+|---|---|---|
+| which-key | every key is discoverable after 400 ms; the leader menu is how the owner finds his own maps | later (needs API slice C) |
+| statusline (+ bufferline) | branch, diagnostics counts, file type and LSP state at a glance | later (needs slices B and C) |
+| finder | files, grep, recent, symbols: the most used feature after editing | later (needs `pick_stream`) |
+| explorer (file tree) | the sidebar the owner opens with `<Space>e` | later (needs the widget API, slice D) |
+| git (gutter, hunks, `:Git` commands) | gutter signs, `]c [c`, stage and reset a hunk, blame; also the one that carries m31git | later (after finder) |
+| bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` pairs, muscle memory | done in 0.17.0 (S4) |
+| harpoon | pinned files per project, `<Space>1..9` | done in 0.17.0 (S5) |
+| move | `<A-j/k/h/l>` moves a line or selection | done in 0.17.0 (S2) |
+| themes (data) | the ten extra themes (tokyonight, nightfox, gruvbox-material ...) the owner chose | done in 0.17.0 (S3) |
+| todo | TODO/FIXME highlight and list | later (needs the decorations slice B) |
+| session | cursor position, layout and buffers restored | later |
+| terminal | `:terminal` and `<Space>t` | later (needs slice D) |
+| notify (new) | toasts over the message ring | later (after the API slice C; ring in core first) |
+| surround | `ys ds cs`, Visual `S` | later, last: it is entangled with the engine and goes only with the oracle green |
+| autopairs | insert-mode pairing | later, last: same |
+
+**OPTIONAL plugins** (compiled into the `full` profile, not into `default`): `colors` (colour-literal preview, off by default),
+`icons`, `trouble`, `indentscope`, and label jump (`jump`, `<Space>j`) until the owner makes it a default.
+
+**NOT PLANNED**: the lazygit-style git dashboard of nox (`mgit` and `gitui` do that) and the miller-columns file explorer.
+
+Implemented so far: steps S0 to S5 (0.16.0 and 0.17.0); the heavy plugins above stay in the core until their API slices
+land.
+
+---
+
 ## Owner decisions
 
 Final, 2026-10-23. The owner delegated all of section 9 to the architect, and the answer is: **every
