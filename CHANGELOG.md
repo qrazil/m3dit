@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.17.0
+
+- **Transparent terminals.** `:set transparent` (also `m3 --transparent`, `M3_TRANSPARENT=1`, a theme's own
+  `transparent = true`) draws every surface on the terminal's default background, so a translucent or blurred window
+  shows the desktop through the finder, popups, which-key, completion menu and its documentation panel, listings,
+  command-line menu, statusline, tab line, file tree and gutter. `:set transparent=popups` does it for popups and menus
+  only. Interactive highlights keep an explicit background (selection, search, cursor line and column, colour column,
+  the selected row of the finder and menus, the cursor); the statusline mode name and TODO keep their colour as text
+  colour; reverse-video bars lose the reversal. One function, `MED_theme.transparent_style`, applies it to every scope
+  in `Theme.style`, so no widget is patched and new features get it; the theme preview in `:theme` and the finder
+  follows it. Off by default and then `--dump-sample` of all 14 themes at 16, 256 and 24 bits is byte-identical to
+  0.15.0 (`tests/golden/dump_sample_0.15.0.txt`). `docs/TRANSPARENCY.md` has the audit of every surface, how to write a
+  theme for it and the terminal settings.
+- A theme file may say `transparent = true`, `false` or `"popups"`; a child theme inherits it. The `transparent` option
+  (`"" auto | on | off | popups`) and `M3_TRANSPARENT` override it.
+- The popup fade and the yank / jump flash no longer invent a background: while transparent the fade is dim for its first
+  half, the flash is the highlight's own colour for its first half. (Before, even the `default` theme painted an RGB
+  background on every faded cell for about 100 ms.)
+- `tests/transparent_pty.py` (in `tests/test_transparent.sh`; skips without pyte): all 14 themes through `:theme NAME`
+  after `:set transparent`, about 35 surfaces plus the completion popup, its documentation panel and hover through a
+  scripted language server, every frame checked with pyte (a background only on highlight cells, in highlight colours),
+  and under `nobg-NAME` themes the byte stream has no background colour at all.
+
 ## 0.16.0
 
 The foundation of the core/plugins reorganisation (docs/CORE-AND-PLUGINS.md, owner decisions at its top; migration steps

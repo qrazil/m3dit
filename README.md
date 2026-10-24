@@ -46,6 +46,7 @@ output (exit 1).
 | `--theme NAME` | theme name | the default theme | start with that colour theme |
 | `--colors DEPTH` | `16`, `256`, `true` | the terminal's | the depth `--dump-sample` writes at |
 | `--dump-sample` | switch | off | print the theme(s) on sample code as ANSI text and exit |
+| `--transparent` | switch | off (`M3_TRANSPARENT=1\|popups\|0` does the same) | draw every surface on the terminal's own background ([docs/TRANSPARENCY.md](docs/TRANSPARENCY.md)) |
 | `--no-mouse` | switch | mouse on, unless `M3_NO_MOUSE` is non-empty | do not ask the terminal for mouse reports |
 | `--version` | | | `m3 VERSION (api 0.2.0; plugins: ...)`: the version, the extension API and the compiled plugins |
 | `--list-plugins` | switch | off | print the compiled plugins (name, summary, requires, wants; tab separated) and exit |
@@ -353,6 +354,29 @@ Helix theme works unchanged and looks right. What is drawn, and the scope for it
 | signs | `error` `warning` `info` (diagnostics), `special` (marks), `diff.plus` `diff.delta` `diff.minus` (git gutter, tree status letters) |
 | messages | `error` |
 | syntax | the 25 `syntax` classes: `variable` (plain code), `comment`, `string`, `constant.numeric`, `keyword`, `type`, `function`, `keyword.directive`, `constant`, `operator`, `string.special`, `markup.heading`, `variable.other.member` (properties and members), `tag`, `attribute`, `punctuation.special`, `function.call`, `diff.plus`, `diff.minus`, `markup.link.url`, `markup.italic`, `markup.bold`, `markup.raw`, `variable.builtin` |
+
+### Transparent terminals
+
+A terminal shows the desktop through a cell only when the cell's background is its *default*; any explicit background
+(even the same colour) is painted opaque. A theme with no `ui.background` (`default`, `default-light`, `term16-*`) already
+leaves the editor area alone, but its finder, popups and bars still paint a colour. For terminals with opacity or blur
+(rio, Alacritty, kitty, Terminal.app, ...):
+
+```
+:set transparent             every surface on the terminal's background (`notransparent`, `transparent!`, `transparent&`)
+:set transparent=popups      only popups, menus and the finder (the editor keeps the theme's ui.background)
+m3 --transparent             the same for one run;  M3_TRANSPARENT=1 m3  (also 0, popups)
+transparent = true           a line of a theme file: that theme asks for it (an option or the environment, when set, wins)
+```
+
+Put `set transparent` in `~/.config/m3/keymap.vim` to keep it. It is off by default and then nothing changes (byte for
+byte). With it on, every background is dropped to the terminal's default except the *interactive highlights*: the
+visual selection, search matches, cursor line and column, colour column, the selected row of the finder and menus, the
+cursor. Surfaces are told apart by their text colour, bold and dim, and their borders; the statusline's mode name keeps
+its colour as text colour instead of a block. The rule lives in one function (`transparent_style` in `ui/MED_theme.m31`),
+so a new feature gets it without doing anything, and the theme preview in `:theme` / `<Space>fC` obeys it. How it works, the
+table of surfaces, writing a theme for it and the terminal settings (opacity, blur) are in
+[docs/TRANSPARENCY.md](docs/TRANSPARENCY.md).
 
 A theme file that lacks a scope gets the fallbacks above, then plain text. Built-in themes must resolve every scope the
 renderer asks for: `tests/t_theme.m31` reads the renderer's source for the scopes it uses and fails when a built-in omits one.

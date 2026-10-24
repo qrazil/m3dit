@@ -1,4 +1,122 @@
-# Transparency audit (m3 0.15.0, before the change)
+# Transparency
+
+m3 can draw on a terminal with an opacity or blur setting (rio, Alacritty, kitty, Terminal.app, ...) so that the
+desktop shows through every surface, not just the editor area.
+
+    :set transparent             all surfaces       (:set notransparent, :set transparent!, :set transparent&)
+    :set transparent=popups      popups, menus and the finder only
+    m3 --transparent             for one run;  M3_TRANSPARENT=1|popups|0 m3
+    transparent = true           in a theme file: that theme asks for it (`false`, `"popups"` also)
+
+Off by default, and then nothing changes: `--dump-sample` of every built-in theme at 16, 256 and 24 bits is
+byte-identical to 0.15.0 (`tests/golden/dump_sample_0.15.0.txt`). Precedence: the `--transparent` flag, then
+`M3_TRANSPARENT`, then `:set` / the keymap file's `set transparent`, then the theme's own key, then off. The option
+is a string: `""` (the default) means "ask the theme"; `:set notransparent` is an explicit `off`.
+
+## Why a terminal needs this
+
+A cell shows the desktop only when its background is the terminal's default (no SGR 48, or SGR 49). Any explicit
+background, even one equal to the default colour, is painted opaque (kitty can be told otherwise, see below). So the
+editor cannot "make the colour see-through": every cell it writes must leave the background alone. That is a rule
+about styles, so it is applied where styles are made.
+
+## The rule
+
+`MED_theme.transparent_style(mode, scope, style)` is applied by `Theme.style`, through which every look, class look,
+`over`, cursor and base the renderer asks for passes. No widget knows about it, so a new feature gets it for free
+as long as it takes its colours from the theme (it must not build `Colour.Rgb` backgrounds itself).
+
+| scope kind | examples | ALL | POPUPS |
+|---|---|---|---|
+| interactive highlight | `ui.selection`, `search.*`, `ui.cursor*` (cursor, cursor line / column), `ui.virtual.ruler`, `ui.menu.selected`, `ui.picker.selected`, `ui.picker.match`, `ui.text.focus` | keeps its background | same |
+| selected row of a list without a text colour | `ui.picker.selected`, `ui.menu.selected`, `ui.text.focus` | keeps the background and gets near-black or near-white text, whichever reads on it | same |
+| badge | `ui.statusline.normal/insert/select/visual/replace/command/terminal`, `ui.todo`, `ui.virtual.jump-label` | the block goes, its colour becomes the text colour (bold stays) | untouched |
+| popup, menu, finder | `ui.popup*`, `ui.which-key*`, `ui.help*`, `ui.menu`, `ui.picker`, `.title`, `ui.prompt` | background dropped; `ui.background` is not laid under them | background dropped |
+| anything else | `ui.background`, `ui.statusline`, `ui.bufferline*`, `ui.gutter`, `ui.linenr*`, syntax scopes, unknown scopes | background dropped | untouched |
+
+A reversed style on a non-highlight scope loses its reversal (reverse video paints the terminal's text colour as an
+opaque background), so the `term16-*` bars become plain, dim or bold text. The cursor keeps its reversal.
+
+Surfaces are then told apart by what is left: their rounded border (finder, which-key), the text colour, bold, dim.
+The completion menu, listings and the statusline have no border; what stands between them and the code is the
+blank, background-less rectangle they clear and their text colours.
+
+### Interactive highlights: what they look like on a light or a dark desktop
+
+A highlight must stay visible, so it keeps an explicit background, the one its theme chose. The alternatives were
+reverse video and a computed "semi-contrast" background. The references: tokyonight.nvim's `transparent` only stops
+setting the main background (floats and sidebars are separate switches); lazygit has the selected line's background
+as its own key whose default is computed from whether the terminal is dark or light, offers `reverse` for high
+contrast and `default` for bold only; Helix themes with no `ui.background` keep their `bg` on `ui.selection` and
+`ui.menu.selected`. All of them keep an explicit highlight colour rather than reading the desktop. m3 does the same
+and adds only what is needed for legibility:
+
+* the colour is the theme's, so a dark theme's highlight is dark and `default-light`'s is light: pick the theme that
+  matches the desktop (`:set background=light|dark` switches the two default themes; `COLORFGBG` sets it at start);
+* a selected row with a background and no text colour is given near-black or near-white text for that background, so
+  it reads whatever the terminal's own text colour is;
+* a theme that wants a highlight that follows the desktop writes `modifiers = ["reversed"]` (the terminal's two
+  colours swapped: always legible, opaque) or `modifiers = ["bold"]` / `"underlined"` with no `bg`.
+
+The limit: text drawn over a highlight keeps its own colour (syntax colours are chosen for the theme's polarity), so a
+dark theme on a light desktop is unreadable with or without transparency.
+
+### Colour blending without the desktop's colour
+
+The popup fade and the yank / jump flash mixed backgrounds. The desktop colour cannot be known, so while transparent
+they mix nothing: the fade draws the popup dim for its first half, the flash paints the highlight's colour (with
+readable text) for its first half. No frame carries a background that is not a highlight's. There is no dimming of
+inactive windows in m3.
+
+## Per-surface behaviour (after)
+
+| surface | ALL | POPUPS |
+|---|---|---|
+| text area, syntax, gutter, line numbers, git signs, diagnostics, folds, guides | no background; theme `fg` | as the theme |
+| cursor line / column, colour column, selection, search, incsearch, cursor | explicit background of the theme (highlights) | same |
+| TODO | text colour of the block | as the theme |
+| statusline, tab line | text colour only; the mode name is its colour, bold | as the theme |
+| command line, messages | text colour only | as the theme |
+| command-line menu | none; selected item keeps its background | none; selected kept |
+| listings, hover, signature, `:Hunk preview` | none | none |
+| which-key, jump labels | none, border and text | same |
+| finder box, input, list, preview, relevance column | none; border, text, dim | same; selected row and focus line keep their background |
+| `:Git` / `:Hunk` / buffers / grep pickers | as the finder | as the finder |
+| completion popup, doc panel | none; the selected row and the scroll thumb keep a background | same |
+| file tree | none; focused row keeps a background | as the theme |
+| terminal pane, scrollbar | none | none |
+| theme preview (`:theme`, `<Space>fC`) | the previewed theme drawn transparent | same |
+| fade, flash | see above | see above |
+
+## Writing a theme for transparency
+
+* Put `transparent = true` at the top of the file if the theme only makes sense on the terminal's background; the user
+  can still turn it off (`:set notransparent`).
+* Do not set `ui.background`; with it set, `transparent = "popups"` keeps it under the text.
+* Give every surface a *foreground*; its background is optional and is dropped. A bar that is only a background
+  (`{ bg = "panel" }`) becomes invisible text, so give it `fg`.
+* Make mode names and badges `{ fg = "ink", bg = "accent" }`: transparent mode shows them as `accent` text.
+* Give highlights a background that reads against both your text colour and a plain desktop; avoid `bg` equal to the
+  desktop you expect.
+* Borders carry popups: do not rely on a background to tell a popup from the code.
+* Test it: `m3 --transparent --theme NAME --dump-sample` shows the screens without surface backgrounds.
+
+## Terminal settings
+
+Opacity makes the *default* background translucent; blur blurs what is behind the window. Cells with an explicit
+background stay opaque, which is why the editor drops them.
+
+* rio: `[window] opacity = 0.85`, `blur = true` (macOS / KDE).
+* Alacritty: `[window] opacity = 0.85` (and `blur = true` where the compositor supports it).
+* kitty: `background_opacity 0.85`, `background_blur 20`; `dynamic_background_opacity yes` allows changing it at run
+  time. Recent kitty also has `transparent_background_colors`, which makes chosen explicit backgrounds translucent
+  too: with it m3's default (non-transparent) themes can look right without this feature.
+* Terminal.app: Profile, Window: the Background colour opacity and Blur sliders.
+
+Opacity near 1.0 hides the problem; around 0.7-0.9 the opaque cells of a non-transparent theme stand out.
+Check the exact option names against your version.
+
+## Audit (m3 0.15.0, before the change)
 
 A terminal shows the desktop through a cell only when the cell's background is the terminal's **default** (no SGR
 48, or SGR 49 after one). Any explicit background, even one equal to the default, is painted opaque. So a surface is
