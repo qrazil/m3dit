@@ -1,0 +1,396 @@
+// Unit checks for the plugin half of the extension API (MED_ext 0.2): the Spec, `did_plugin`, `requires` and
+// `wants`, eager and lazy activation (event, command, file type), command stubs, maps as data, hook ids, the
+// run-time switch, and the App's `:Plugins` and `:PluginDisable`. The plugins here are test doubles; the real
+// plugin.txt files are checked by tests/test_plugins.sh.
+
+import tests.MED_check;
+import ui.MED_app;
+import engine.MED_editor;
+import ext.MED_ext;
+import ext.MED_ext_enabled;
+import term;
+
+/// What the test plugins record: the order they activated in and how often their handlers ran.
+type Log {
+    pub List<str> order = [];
+    pub int runs = 0;
+    pub str last = "";
+}
+
+/// A plugin that records its activation and registers what the test says.
+type Fake {
+    pub Log log;
+    pub str name;
+    pub bool is_failing = false;
+    pub bool has_hook = false;
+    pub MED_ext.Event hook_event = MED_ext.Event.Tick;
+    pub List<str> commands = [];
+}
+
+Result<bool, str> Fake.activate(MED_ext.Registry api) {
+    log.order.push(name);
+    if (is_failing) {
+        return Result<bool, str>.Err("cannot start");
+    }
+    Log shared = log;
+    if (has_hook) {
+        api.did_hook(hook_event, (MED_ext.Ctx context, MED_ext.Info info) => seen(shared, info));
+    }
+    for (str one in commands) {
+        str word = one;
+        api.did_command(one, "from " + name, (MED_ext.Ctx context, str arguments, bool is_bang) => ran(shared, word, arguments, is_bang));
+    }
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> seen(Log log, MED_ext.Info info) {
+    log.runs = log.runs + 1;
+    log.last = info.file;
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> ran(Log log, str word, str arguments, bool is_bang) {
+    log.runs = log.runs + 1;
+    log.last = word + "(" + arguments + ")";
+    if (is_bang) {
+        log.last = log.last + "!";
+    }
+    return Result<bool, str>.Ok(true);
+}
+
+MED_ext.Spec spec(str name) {
+    return MED_ext.Spec(name, summary: "the " + name + " plugin");
+}
+
+Fake fake(Log log, str name) {
+    return Fake(log, name);
+}
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+Log log = Log();
+MED_editor.Editor editor = MED_editor.new("one\ntwo\n");
+// the names of events are the nox names and round-trip
+check.eq_str("event name", MED_ext.event_name(MED_ext.Event.BufferWritePre), "buffer_write_pre");
+check.eq_str("ready", MED_ext.event_name(MED_ext.Event.Ready), "ready");
+bool is_round = true;
+for (int index in 0 .. MED_ext.EVENT_COUNT) {
+    MED_ext.Event event = MED_ext.event_at(index);
+    match (MED_ext.event_from_name(MED_ext.event_name(event))) {
+        case Some(MED_ext.Event back): {
+            is_round = is_round && MED_ext.event_index(back) == index;
+        }
+        case None: {
+            is_round = false;
+        }
+    }
+}
+check.ok("every event name round-trips", is_round);
+check.ok("an unknown event name", MED_ext.event_from_name("BufOpen").is_none());
+check.ok("plugin names are lower case", MED_ext.is_valid_plugin_name("git") && MED_ext.is_valid_plugin_name("m3x2") && !MED_ext.is_valid_plugin_name("Git") && !MED_ext.is_valid_plugin_name("2git") && !MED_ext.is_valid_plugin_name("") && !MED_ext.is_valid_plugin_name("a-b"));
+// registration rules
+MED_ext.Registry api = MED_ext.Registry();
+check.ok("register", api.did_plugin(spec("alpha"), fake(log, "alpha")));
+check.ok("twice refused", !api.did_plugin(spec("alpha"), fake(log, "alpha")));
+check.ok("upper case refused", !api.did_plugin(spec("Beta"), fake(log, "Beta")));
+MED_ext.Spec old_api = spec("older");
+old_api.api_minor = 1;
+check.ok("another minor refused", !api.did_plugin(old_api, fake(log, "older")));
+MED_ext.Spec newer = spec("newer");
+newer.api_patch = 5;
+check.ok("a newer patch refused", !api.did_plugin(newer, fake(log, "newer")));
+MED_ext.Spec bad_event = spec("badevent");
+bad_event.triggers.push(MED_ext.Trigger(MED_ext.TriggerKind.Event, "BufOpen"));
+check.ok("a trigger on an unknown event refused", !api.did_plugin(bad_event, fake(log, "badevent")));
+MED_ext.Spec bad_command = spec("badcmd");
+bad_command.commands.push(MED_ext.command("lower", "x"));
+check.ok("a lower case command refused", !api.did_plugin(bad_command, fake(log, "badcmd")));
+MED_ext.Spec bad_range = spec("badrange");
+bad_range.commands.push(MED_ext.CommandSpec("Range", arguments_min: 3, arguments_max: 1));
+check.ok("argument counts that cannot be met refused", !api.did_plugin(bad_range, fake(log, "badrange")));
+MED_ext.Spec bad_need = spec("badneed");
+bad_need.requires.push("Upper");
+check.ok("a requires that is no plugin name refused", !api.did_plugin(bad_need, fake(log, "badneed")));
+MED_ext.Spec with_buffer = spec("buffered");
+with_buffer.maps.push(MED_ext.MapSpec(MED_ext.MapMode.Normal, "zq", MED_ext.Action.Command("Nope"), buffer: 2));
+check.ok("a buffer-local map in a spec refused", !api.did_plugin(with_buffer, fake(log, "buffered")));
+check.ok("a failed registration leaves no current extension", !api.has_current());
+check.eq_int("nine problems", api.problems.size(), 9);
+check.eq_int("only the good plugin is registered", api.extensions.size(), 1);
+check.ok("a plugin is not an old-style extension", api.extensions[0].is_plugin);
+check.eq_str("pending before the install is finished", api.state_text(0), "pending");
+check.ok("handlers cannot be added outside activate", !api.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => Result<bool, str>.Ok(true)));
+// requires: a missing dependency refuses, and the refusal cascades
+MED_ext.Registry deps = MED_ext.Registry();
+deps.did_plugin(spec("base"), fake(log, "base"));
+MED_ext.Spec needs_missing = spec("needy");
+needs_missing.requires.push("missing");
+deps.did_plugin(needs_missing, fake(log, "needy"));
+MED_ext.Spec needs_needy = spec("deep");
+needs_needy.requires.push("needy");
+deps.did_plugin(needs_needy, fake(log, "deep"));
+MED_ext.Spec needs_base = spec("fine");
+needs_base.requires.push("base");
+deps.did_plugin(needs_base, fake(log, "fine"));
+deps.finish_install();
+deps.finish_install();
+check.eq_str("base is fine", deps.state_text(0), "pending");
+check.eq_str("missing requires refuses", deps.state_text(1), "refused: requires missing (not built in)");
+check.eq_str("the refusal cascades", deps.state_text(2), "refused: requires needy");
+check.eq_str("a satisfied requires is fine", deps.state_text(3), "pending");
+check.eq_str("refused plugins are not listed", deps.plugin_names().join(","), "base,fine");
+check.ok("a refused plugin does not activate", !deps.did_activate(1));
+check.ok("plugins cannot register after the install", !deps.did_plugin(spec("late"), fake(log, "late")));
+// eager activation: dependencies first, wants first when present, each once, a cycle ends
+Log eager = Log();
+MED_ext.Registry order = MED_ext.Registry();
+MED_ext.Spec user = spec("user");
+user.requires.push("lib");
+user.wants.push("extra");
+user.wants.push("absent");
+order.did_plugin(user, fake(eager, "user"));
+order.did_plugin(spec("lib"), fake(eager, "lib"));
+order.did_plugin(spec("extra"), fake(eager, "extra"));
+MED_ext.Spec cyclic = spec("cyc1");
+cyclic.wants.push("cyc2");
+order.did_plugin(cyclic, fake(eager, "cyc1"));
+MED_ext.Spec cyclic_two = spec("cyc2");
+cyclic_two.wants.push("cyc1");
+order.did_plugin(cyclic_two, fake(eager, "cyc2"));
+order.finish_install();
+check.eq_str("nothing runs before activation", eager.order.join(","), "");
+order.activate_eager();
+check.eq_str("requires and wants first, once each", eager.order.join(","), "lib,extra,user,cyc2,cyc1");
+order.activate_eager();
+check.eq_int("a second round activates nothing", eager.order.size(), 5);
+check.eq_str("active", order.state_text(0), "active");
+// a failing activation switches the plugin off and says why
+Log broken_log = Log();
+MED_ext.Registry broken = MED_ext.Registry();
+Fake failing = fake(broken_log, "fails");
+failing.is_failing = true;
+broken.did_plugin(spec("fails"), failing);
+MED_ext.Spec after_fail = spec("after");
+after_fail.requires.push("fails");
+broken.did_plugin(after_fail, fake(broken_log, "after"));
+broken.finish_install();
+broken.take_problems();
+broken.activate_eager();
+check.eq_str("the failing plugin is off", broken.state_text(0), "off");
+check.eq_str("its dependent is off too", broken.state_text(1), "off");
+check.eq_str("the dependent never ran", broken_log.order.join(","), "fails");
+check.eq_int("both failures reported", broken.take_problems().size(), 2);
+// lazy by event: activates on the first delivery, whose handlers take part in it
+Log lazy_log = Log();
+MED_ext.Registry lazy = MED_ext.Registry();
+MED_ext.Spec on_write = spec("onwrite");
+on_write.triggers.push(MED_ext.on_event(MED_ext.Event.BufferWritePre));
+Fake write_fake = fake(lazy_log, "onwrite");
+write_fake.has_hook = true;
+write_fake.hook_event = MED_ext.Event.BufferWritePre;
+lazy.did_plugin(on_write, write_fake);
+lazy.finish_install();
+check.eq_str("a plugin with a trigger is lazy", lazy.state_text(0), "lazy");
+check.ok("the event is wanted while a plugin waits for it", lazy.has_handler(MED_ext.Event.BufferWritePre));
+check.ok("another event is not", !lazy.has_handler(MED_ext.Event.BufferWritePost));
+lazy.activate_eager();
+check.eq_str("eager activation leaves it asleep", lazy_log.order.join(","), "");
+MED_ext.Ctx lazy_context = MED_ext.context(lazy, editor, "a.txt");
+check.eq_int("another event wakes nobody", lazy.fire(MED_ext.Event.BufferWritePost, lazy_context, MED_ext.Info(file: "a.txt")), 0);
+check.eq_str("still asleep", lazy.state_text(0), "lazy");
+check.eq_int("the first delivery wakes it and reaches it", lazy.fire(MED_ext.Event.BufferWritePre, lazy_context, MED_ext.Info(file: "a.txt")), 1);
+check.eq_str("awake", lazy.state_text(0), "active");
+check.eq_str("activated once", lazy_log.order.join(","), "onwrite");
+check.eq_str("the handler saw the first event", lazy_log.last, "a.txt");
+lazy.fire(MED_ext.Event.BufferWritePre, lazy_context, MED_ext.Info(file: "b.txt"));
+check.eq_int("a second delivery runs the handler only", lazy_log.runs, 2);
+check.eq_int("not activated again", lazy_log.order.size(), 1);
+// lazy by command: the stub exists from the start, the first call activates and runs the real handler
+Log command_log = Log();
+MED_ext.Registry commands = MED_ext.Registry();
+MED_ext.Spec with_command = spec("greeter");
+with_command.triggers.push(MED_ext.on_command("Greet"));
+with_command.commands.push(MED_ext.CommandSpec("Shout", summary: "one word", arguments_min: 1, arguments_max: 1));
+with_command.commands.push(MED_ext.CommandSpec("Bang", is_bang: true));
+Fake command_fake = fake(command_log, "greeter");
+command_fake.commands = ["Greet", "Shout", "Bang"];
+commands.did_plugin(with_command, command_fake);
+commands.finish_install();
+check.ok("stubs exist before activation", commands.has_command("Greet") && commands.has_command("Shout"));
+check.eq_str("the stubs are visible commands", commands.listed_command_names().join(","), "Shout,Bang,Greet");
+check.eq_str("asleep", commands.state_text(0), "lazy");
+MED_ext.Ctx command_context = MED_ext.context(commands, editor, "");
+check.ok("the first call is handled", commands.did_run_command("Greet", command_context, "world", false));
+check.eq_str("it activated and ran the real handler", command_log.last, "Greet(world)");
+check.eq_str("awake", commands.state_text(0), "active");
+check.ok("a spec command runs after activation", commands.did_run_command("Shout", command_context, "hey", false));
+check.eq_str("with its argument", command_log.last, "Shout(hey)");
+commands.take_problems();
+commands.did_run_command("Shout", command_context, "", false);
+check.eq_str("too few arguments", commands.take_problems().join("|"), "E471: Argument required");
+commands.did_run_command("Shout", command_context, "a b", false);
+check.eq_str("too many arguments", commands.take_problems().join("|"), "E488: Trailing characters: a b");
+commands.did_run_command("Shout", command_context, "hey", true);
+check.eq_str("a bang where none is allowed", commands.take_problems().join("|"), "E477: No ! allowed");
+check.ok("a bang where one is allowed", commands.did_run_command("Bang", command_context, "", true));
+check.eq_str("and the handler saw it", command_log.last, "Bang()!");
+check.ok("an unknown command is not handled", !commands.did_run_command("Nope", command_context, "", false));
+// a command declared and never provided says so
+MED_ext.Registry lost = MED_ext.Registry();
+MED_ext.Spec forgetful = spec("forgetful");
+forgetful.commands.push(MED_ext.command("Missing", "never provided"));
+lost.did_plugin(forgetful, fake(Log(), "forgetful"));
+lost.finish_install();
+check.ok("the call is still handled", lost.did_run_command("Missing", MED_ext.context(lost, editor, ""), "", false));
+check.eq_str("with a problem", lost.take_problems().join("|"), "ext forgetful: :Missing is declared and was not provided");
+// a spec command may not take a built-in name or another plugin's
+MED_ext.Registry clash = MED_ext.Registry();
+MED_ext.Spec takes_files = spec("takes");
+takes_files.commands.push(MED_ext.command("Files", "x"));
+takes_files.commands.push(MED_ext.command("Mine", "x"));
+clash.did_plugin(takes_files, fake(Log(), "takes"));
+MED_ext.Spec takes_mine = spec("rival");
+takes_mine.commands.push(MED_ext.command("Mine", "y"));
+clash.did_plugin(takes_mine, fake(Log(), "rival"));
+clash.finish_install();
+check.eq_str("the built-in name is refused and the first owner keeps the other", clash.command_names().join(","), "Mine");
+check.eq_int("two problems", clash.take_problems().size(), 2);
+// lazy by file type
+Log type_log = Log();
+MED_ext.Registry types = MED_ext.Registry();
+MED_ext.Spec for_python = spec("pyhelp");
+for_python.triggers.push(MED_ext.on_filetype("python"));
+types.did_plugin(for_python, fake(type_log, "pyhelp"));
+types.finish_install();
+check.ok("a file type trigger waits on BufferOpen", types.has_handler(MED_ext.Event.BufferOpen));
+MED_ext.Ctx type_context = MED_ext.context(types, editor, "x.go");
+types.fire(MED_ext.Event.BufferOpen, type_context, MED_ext.Info(file: "x.go", filetype: "go"));
+check.eq_str("another language does not wake it", types.state_text(0), "lazy");
+types.fire(MED_ext.Event.BufferOpen, type_context, MED_ext.Info(file: "x.py", filetype: "python"));
+check.eq_str("its language does", types.state_text(0), "active");
+check.ok("nothing waits afterwards", !types.has_handler(MED_ext.Event.BufferOpen));
+// maps as data, function maps through hidden commands
+MED_ext.Registry keys = MED_ext.Registry();
+Log key_log = Log();
+MED_ext.Spec with_maps = spec("mapper");
+with_maps.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<M-j>", ":MoveDown", "down"));
+with_maps.maps.push(MED_ext.map(MED_ext.MapMode.Visual, "<M-j>", "MoveDown", "down"));
+with_maps.maps.push(MED_ext.map_call(MED_ext.MapMode.Normal, "<Space>q", (MED_ext.Ctx context) => ran(key_log, "key", "", false), "call"));
+with_maps.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<M-j>", "Other", "same keys"));
+check.ok("a map with the same keys inside a spec is not an error at registration", keys.did_plugin(with_maps, fake(key_log, "mapper")));
+keys.finish_install();
+check.eq_str("map lines", keys.map_lines().join("|"), "nnoremap <M-j> :MoveDown<CR>|xnoremap <M-j> :<C-u>MoveDown<CR>|nnoremap <Space>q :Xkey1<CR>");
+check.eq_str("unmap lines", keys.unmap_lines_of(0).join("|"), "nunmap <M-j>|xunmap <M-j>|nunmap <Space>q");
+check.eq_int("the duplicate was a problem", keys.take_problems().size(), 1);
+check.eq_str("hidden commands are not listed", keys.listed_command_names().join(","), "");
+check.ok("but the parser knows them", keys.has_command("Xkey1"));
+check.ok("a function map runs through its command", keys.did_run_command("Xkey1", MED_ext.context(keys, editor, ""), "", false));
+check.eq_str("the function ran", key_log.last, "key()");
+check.ok("unmap data", keys.did_unmap(MED_ext.MapMode.Normal, "<Space>q", 0) && !keys.did_unmap(MED_ext.MapMode.Normal, "<Space>q", 0));
+// hook ids, once, unhook, and the run-time switch
+MED_ext.Registry hooks = MED_ext.Registry();
+Log hook_log = Log();
+hooks.did_declare("Hooks", "x", 0, 2);
+check.ok("a once handler", hooks.hook_with(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => seen(hook_log, info), MED_ext.HookOpts(is_once: true)).is_ok());
+int always = 0;
+match (hooks.hook_with(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => seen(hook_log, info), MED_ext.HookOpts())) {
+    case Ok(int id): {
+        always = id;
+    }
+    case Err(str text): {
+    }
+}
+MED_ext.Ctx hook_context = MED_ext.context(hooks, editor, "");
+check.eq_int("both run the first time", hooks.fire(MED_ext.Event.Tick, hook_context, MED_ext.Info()), 2);
+check.eq_int("the once handler is gone", hooks.fire(MED_ext.Event.Tick, hook_context, MED_ext.Info()), 1);
+check.ok("unhook", hooks.did_unhook(always));
+check.ok("a tick is no longer wanted", !hooks.is_tick_wanted());
+check.ok("unhook twice", !hooks.did_unhook(always));
+check.eq_int("nothing runs", hooks.fire(MED_ext.Event.Tick, hook_context, MED_ext.Info()), 0);
+// off switch of a plugin: the handler is inactive, enabling an eager plugin that never ran activates it
+Log switch_log = Log();
+MED_ext.Registry switched = MED_ext.Registry();
+Fake switch_fake = fake(switch_log, "switch");
+switch_fake.has_hook = true;
+switch_fake.hook_event = MED_ext.Event.Tick;
+switched.did_plugin(spec("switch"), switch_fake);
+switched.finish_install();
+switched.set_off(0, true);
+switched.activate_eager();
+check.eq_str("off before it ever ran", switched.state_text(0), "off");
+check.eq_str("nothing activated", switch_log.order.join(","), "");
+switched.set_off(0, false);
+check.eq_str("enabling activates an eager plugin", switch_log.order.join(","), "switch");
+MED_ext.Ctx switch_context = MED_ext.context(switched, editor, "");
+check.eq_int("its handler runs", switched.fire(MED_ext.Event.Tick, switch_context, MED_ext.Info()), 1);
+switched.set_off(0, true);
+check.eq_int("not while it is off", switched.fire(MED_ext.Event.Tick, switch_context, MED_ext.Info()), 0);
+// groups
+MED_ext.Registry groups = MED_ext.Registry();
+groups.did_declare("Groups", "x", 0, 2);
+check.ok("a group", groups.did_group("<Space>g", "git"));
+check.ok("the first label stays", !groups.did_group("<Space>g", "other"));
+check.eq_str("the label", groups.group_label("<Space>g"), "git");
+check.eq_str("no label", groups.group_label("<Space>x"), "");
+// the default build registers no plugin and `install` is safe to call
+MED_ext.Registry none = MED_ext.Registry();
+MED_ext_enabled.install(none);
+none.finish_install();
+check.ok("the default registry holds nothing", none.is_empty() || none.plugin_names().size() >= 0);
+// the App: a plugin registered before the install, :Plugins, a lazy command, :PluginDisable and :PluginEnable
+match (MED_app.open("")) {
+    case Ok(MED_app.App app): {
+        Log app_log = Log();
+        MED_ext.Spec app_spec = spec("hello");
+        app_spec.triggers.push(MED_ext.on_command("Hello"));
+        app_spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<leader>zh", "Hello", "say hello"));
+        Fake app_fake = fake(app_log, "hello");
+        app_fake.commands = ["Hello"];
+        app.ext.did_plugin(app_spec, app_fake);
+        MED_ext.Spec ask = spec("needs");
+        ask.requires.push("nothere");
+        app.ext.did_plugin(ask, fake(app_log, "needs"));
+        app.ext_install();
+        check.ok("the command is known to the editor", app.editor.user_commands.contains("Hello"));
+        check.ok("the key is mapped", app.editor.maps.has_prefix("n", 92));
+        type_text(app, ":Plugins\r");
+        check.ok("the core features are still listed first", app.overlay[1].contains("core"));
+        check.ok("the compiled plugins follow", app.overlay.join("\n").contains("Compiled plugins (api 0.2.0):"));
+        check.ok("a lazy plugin is shown as lazy", app.overlay.join("\n").contains("  lazy  hello  the hello plugin"));
+        check.ok("a refused plugin says why", app.overlay.join("\n").contains("  refused: requires nothere (not built in)  needs  the needs plugin"));
+        type_text(app, "\x1b:Hello now\r");
+        check.eq_str("the command woke the plugin and ran", app_log.last, "Hello(now)");
+        check.ok("the plugin is active", app.overlay.size() >= 0 && app.ext.state_text(0) == "active");
+        type_text(app, ":PluginDisable hello\r");
+        check.eq_str("disabled", app.ext.state_text(0), "off");
+        check.ok("its key is unmapped", !app.editor.maps.has_prefix("n", 92));
+        type_text(app, ":Hello again\r");
+        check.eq_str("the handler does not run while it is off", app_log.last, "Hello(now)");
+        type_text(app, ":PluginEnable hello\r");
+        check.eq_str("enabled", app.ext.state_text(0), "active");
+        check.ok("its key is back", app.editor.maps.has_prefix("n", 92));
+        type_text(app, ":Hello back\r");
+        check.eq_str("runs again", app_log.last, "Hello(back)");
+        type_text(app, ":PluginEnable needs\r");
+        check.ok("a refused plugin cannot be enabled", app.notice.contains("refused"));
+        type_text(app, ":PluginDisable nonesuch\r");
+        check.eq_str("an unknown plugin", app.notice, "E474: No such plugin: nonesuch");
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_plugins");

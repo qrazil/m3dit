@@ -542,7 +542,7 @@ void App.adopt(Slot slot) {
     restore_position();
     restore_undo();
     if (!slot.is_listing) {
-        ext_fire_slot(MED_ext.Event.BufOpen, slot, slot.path);
+        ext_fire_slot(MED_ext.Event.BufferOpen, slot, slot.path);
     }
 }
 
@@ -1110,7 +1110,7 @@ void App.delete_buffer(str arg, bool is_forced) {
         }
         activate(target);
     }
-    ext_fire_slot(MED_ext.Event.BufClose, victim, victim.path);
+    ext_fire_slot(MED_ext.Event.BufferClose, victim, victim.path);
     lsp_did_close(slot_key(slots[index_of(id)]));
     slots.remove_at(index_of(id));
     if (alternate_id == id) {
@@ -1156,6 +1156,7 @@ void App.run_request(str request) {
     }
     if (!ext.is_empty() && ext.has_command(name)) {
         MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+        context.buffer_id = current_id;
         ext.did_run_command(name, context, arg.trim(), is_forced);
         ext_finish(context);
         return;
@@ -1397,8 +1398,22 @@ void App.run_plugin_command(str name, str arg) {
             }
             lines.push("  " + state + "  " + one.name + "  " + one.summary);
         }
+        bool has_plugins = false;
         for (MED_ext.Extension built_in in ext.extensions) {
-            lines.push("  ext  " + built_in.name + "  " + built_in.summary);
+            if (built_in.is_plugin) {
+                has_plugins = true;
+            } else {
+                lines.push("  ext  " + built_in.name + "  " + built_in.summary);
+            }
+        }
+        if (has_plugins) {
+            lines.push("Compiled plugins (api " + MED_ext.API_VERSION + "):");
+            for (int owner in 0 .. ext.extensions.size()) {
+                MED_ext.Extension built_in = ext.extensions[owner];
+                if (built_in.is_plugin) {
+                    lines.push("  " + ext.state_text(owner) + "  " + built_in.name + "  " + built_in.summary);
+                }
+            }
         }
         overlay = lines;
         return;
@@ -1407,11 +1422,18 @@ void App.run_plugin_command(str name, str arg) {
         notice = "E471: Argument required";
         return;
     }
-    if (!MED_plugin.is_known(arg)) {
+    int compiled = ext.find_plugin(arg);
+    if (!MED_plugin.is_known(arg) && compiled < 0) {
         notice = "E474: No such plugin: " + arg;
         return;
     }
     bool is_disable = name == "PluginDisable";
+    if (compiled >= 0) {
+        set_compiled_plugin_off(compiled, is_disable);
+        if (!MED_plugin.is_known(arg)) {
+            return;
+        }
+    }
     if (is_disable && MED_plugin.is_core(arg)) {
         notice = "The core plugin cannot be disabled";
         return;
@@ -1445,6 +1467,27 @@ void App.run_plugin_command(str name, str arg) {
             editor.opts.set(option, "true");
         }
     }
+}
+
+/// `:PluginDisable` / `:PluginEnable` of a compiled plugin: its hooks and commands go inactive, its keys are
+/// unmapped (and mapped again when it is enabled). A refused plugin cannot be enabled.
+void App.set_compiled_plugin_off(int owner, bool is_off) {
+    if (ext.extensions[owner].state == MED_ext.STATE_REFUSED) {
+        notice = "plugin " + ext.owner_name(owner) + " is " + ext.state_text(owner);
+        return;
+    }
+    ext.set_off(owner, is_off);
+    List<str> lines = ext.map_lines_of(owner);
+    if (is_off) {
+        lines = ext.unmap_lines_of(owner);
+    }
+    for (str line in lines) {
+        MED_ex.did_run_line(editor, line);
+    }
+    editor.message = "";
+    MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+    context.buffer_id = current_id;
+    ext_finish(context);
 }
 
 /// Whether the built-in plugin `name` is on.
@@ -8533,14 +8576,19 @@ void App.ext_fire_slot(MED_ext.Event event, Slot slot, str file) {
         return;
     }
     MED_ext.Ctx context = MED_ext.context(ext, slot.editor, file);
-    ext.fire(event, context, MED_ext.Info(file: file, buffer_id: slot.id));
+    context.buffer_id = slot.id;
+    MED_ext.Info info = MED_ext.Info(file: file, buffer_id: slot.id);
+    if (MED_ext.event_index(event) == MED_ext.event_index(MED_ext.Event.BufferOpen)) {
+        info.filetype = SYN_detect.language_of(slot.path, slot.editor.buffer.line(0));
+    }
+    ext.fire(event, context, info);
     ext_finish(context);
 }
 
 /// `write_slot` with the BufWritePre / BufWritePost events around it.
 str App.write_hooked(Slot slot, str target) {
     lsp_format_before_write(slot);
-    if (!ext.has_handler(MED_ext.Event.BufWritePre) && !ext.has_handler(MED_ext.Event.BufWritePost)) {
+    if (!ext.has_handler(MED_ext.Event.BufferWritePre) && !ext.has_handler(MED_ext.Event.BufferWritePost)) {
         return write_slot(slot, target);
     }
     str file = target.trim();
@@ -8550,10 +8598,10 @@ str App.write_hooked(Slot slot, str target) {
     if (slot.is_listing) {
         return write_slot(slot, target);
     }
-    ext_fire_slot(MED_ext.Event.BufWritePre, slot, file);
+    ext_fire_slot(MED_ext.Event.BufferWritePre, slot, file);
     str result = write_slot(slot, target);
     if (!result.starts_with("E")) {
-        ext_fire_slot(MED_ext.Event.BufWritePost, slot, file);
+        ext_fire_slot(MED_ext.Event.BufferWritePost, slot, file);
     }
     str problem = ext_problem_text();
     if (problem.size() > 0) {
@@ -8566,6 +8614,7 @@ str App.write_hooked(Slot slot, str target) {
 /// (so the user's keymap file, read next, overrides them).
 pub void App.ext_install() {
     MED_ext_enabled.install(ext);
+    ext.finish_install();
     if (ext.is_empty()) {
         return;
     }
@@ -8591,14 +8640,16 @@ pub void App.ext_started() {
     ext_row = editor.row;
     ext_col = editor.col;
     ext_tick = editor.buffer.tick;
+    ext.activate_eager();
     for (Slot slot in slots) {
         if (!slot.is_listing) {
-            ext_fire_slot(MED_ext.Event.BufOpen, slot, slot.path);
+            ext_fire_slot(MED_ext.Event.BufferOpen, slot, slot.path);
         }
     }
-    if (ext.has_handler(MED_ext.Event.Startup)) {
+    if (ext.has_handler(MED_ext.Event.Ready)) {
         MED_ext.Ctx context = MED_ext.context(ext, editor, path);
-        ext.fire(MED_ext.Event.Startup, context, MED_ext.Info(file: path, buffer_id: current_id));
+        context.buffer_id = current_id;
+        ext.fire(MED_ext.Event.Ready, context, MED_ext.Info(file: path, buffer_id: current_id));
         ext_finish(context);
     }
     str problem = ext_problem_text();

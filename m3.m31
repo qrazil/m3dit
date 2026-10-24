@@ -7,7 +7,8 @@
 //   m3 --no-mouse     do not ask the terminal for mouse reports
 //   m3 --no-anim      no animation (also $M3_NO_ANIM=1, TERM=dumb, or :set noanimate)
 //   m3 --theme NAME   start with that colour theme
-//   m3 --version      print the version and exit; --help is generated, --completions SHELL
+//   m3 --version      print the version, the API version and the compiled plugins, and exit; --help is generated, --completions SHELL
+//   m3 --list-plugins print the compiled plugins (tab separated) and exit
 //
 // The keymap file holds ex lines (`nnoremap`, `let mapleader`, `set` ...); by
 // default it is $XDG_CONFIG_HOME/m3/keymap.vim (~/.config/...).
@@ -24,6 +25,8 @@ import tui.core.TUI_buffer;
 import tui.core.TUI_geometry;
 import tui.core.TUI_mouse;
 import tui.core.TUI_style;
+import ext.MED_ext;
+import ext.MED_ext_enabled;
 import ui.MED_theme;
 import ui.MED_app;
 import ui.MED_clip;
@@ -91,11 +94,20 @@ void say(str text) {
 // `--keymap FILE`, `--keymap=FILE`, `--k FILE`; `-word` would be a command and
 // there are none. vim's `-u` was the one single-dash option; it, `-v` and `-h`
 // still work for this one release (each warns) and are then deleted.
+// What is built in: `--version` names the API and the plugins, `--list-plugins` prints them.
+MED_ext.Registry compiled = MED_ext.Registry();
+MED_ext_enabled.install(compiled);
+compiled.finish_install();
+str built_in = compiled.built_in_names().join(" ");
+if (built_in == "") {
+    built_in = "none";
+}
 args.Parser table = args.Parser("m3", summary: "a terminal modal editor with Vim keys");
-table.version = VERSION;
+table.version = VERSION + " (api " + MED_ext.API_VERSION + "; plugins: " + built_in + ")";
 table.value("keymap", short: "k", placeholder: "FILE|NONE", help: "read FILE as the keymap file; NONE reads none and keeps no state files (default: $M3_KEYMAP, else $XDG_CONFIG_HOME/m3/keymap.vim)");
 table.value("theme", placeholder: "NAME", help: "start with that colour theme (:theme NAME, <Space>fC, ~/.config/m3/themes/NAME.toml adds one)");
 table.value("colors", placeholder: "DEPTH", help: "the colour depth --dump-sample writes at: 16, 256 or true (default: the terminal's)");
+table.flag("list-plugins", help: "write the plugins compiled into this binary (name, summary, requires, wants; tab separated) and exit");
 table.flag("dump-sample", help: "write the theme (every built-in one without --theme) drawn on sample code as ANSI text and exit");
 table.flag("no-session", help: "start with an empty buffer instead of the files the project had open at its last exit");
 table.flag("no-anim", help: "no animation (M3_NO_ANIM=1 or TERM=dumb does the same, and so does :set noanimate)");
@@ -110,6 +122,12 @@ str theme_name = given.value("theme").or("");
 str dump_colours = given.value("colors").or("");
 if (dump_colours != "" && dump_colours != "16" && dump_colours != "256" && dump_colours != "true" && dump_colours != "24") {
     table.fail("'--colors' needs 16, 256 or true, and got '" + dump_colours + "'");
+}
+if (given.is_flag_set("list-plugins")) {
+    for (str line in compiled.plugin_table()) {
+        say(line + "\n");
+    }
+    os.exit(0);
 }
 bool is_dump = given.is_flag_set("dump-sample");
 if (is_dump) {

@@ -37,6 +37,6 @@ pub void register(MED_ext.Registry api) {
     if (!api.did_declare("TrimWhitespace", "strip trailing blanks on write", MED_ext.API_MAJOR, MED_ext.API_MINOR)) {
         return;
     }
-    api.did_hook(MED_ext.Event.BufWritePre, (MED_ext.Ctx context, MED_ext.Info info) => trim_all(context));
+    api.did_hook(MED_ext.Event.BufferWritePre, (MED_ext.Ctx context, MED_ext.Info info) => trim_all(context));
     api.did_command("TrimTrailing", "strip trailing blanks now", (MED_ext.Ctx context, str arguments, bool is_bang) => trim_all(context));
 }
