@@ -3,7 +3,7 @@
 ## Unreleased
 
 The foundation of the core/plugins reorganisation (docs/CORE-AND-PLUGINS.md, owner decisions at its top; migration steps
-S0 and S1). Nothing a user sees changes: the default build reproduces the 0.15.0 screens and pty output byte for byte
+S0, S1 and S2). Nothing a user sees changes: the default build reproduces the 0.15.0 screens and pty output byte for byte
 (`tests/screen_pty.py`, 49 scenarios), the nvim oracle corpus (40,887 cases) is green, `bench/uxperf.py` bytes columns are
 equal. Plugins are compiled in, never loaded: m31 compiles ahead of time.
 
@@ -20,7 +20,16 @@ equal. Plugins are compiled in, never loaded: m31 compiles ahead of time.
   `scripts/build.sh --profile`, `--no-plugins` (the plugins tree is not linked into the build), `--plugins`, `--without`,
   `--plugin-dir` and the `M3_PROFILE`, `M3_NO_PLUGINS`, `M3_PLUGINS`, `M3_WITHOUT`, `M3_PLUGIN_DIR` variables;
   `scripts/plugins.sh` resolves and generates the registry. The checked-in `ext/MED_ext_enabled.m31` is the default
-  profile's generated registry (a test checks it). The default profile is empty until the first feature moves.
+  profile's generated registry (a test checks it). The default profile holds `move`, the reference plugin (below).
+- **`move` is the first plugin** (`plugins/move/`, step S2; the owner chose one plugin to test the API and the plugin system,
+  all themes and every other feature stay in the core). Alt-j, Alt-k, Alt-h and Alt-l move or shift the line and the Visual
+  selection as before: eight key maps of the new action `Action.Keys`, no code at run time; `App.did_alt_move` is gone. An Alt key
+  still reaches the engine as Escape plus the key, unless a map of the mode starts with it (`<M-j>`), in which case the engine
+  gets one key (`App.alt_key_of`); users can now map `<M-x>` keys in the keymap file too. `bash scripts/build.sh --without move`
+  and `--no-plugins` build without it (no keys, no `:Plugins` row); `:PluginDisable move` switches it off at run time. A finished
+  mapping closes its undo block at once (the modified flag and `u` agree with the screen). Plugin tests live in
+  `plugins/NAME/tests/` and `tests/test.sh` sources them for the plugins of the default profile. One difference: the line moved
+  through the map is not remembered in the `:` register.
 - **`m3 --version`** prints `m3 VERSION (api 0.2.0; plugins: ...)` and `m3 --list-plugins` prints the compiled plugins;
   `:Plugins` lists them with their state under the core features' switches, and `:PluginDisable` / `:PluginEnable` switch
   a compiled plugin at run time (its keys are unmapped and mapped again).

@@ -264,7 +264,7 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 These are the features of the core that have a switch; as each one moves into a compiled-in plugin
 (`plugins/NAME/`, docs/CORE-AND-PLUGINS.md) it keeps its name and the same two commands, and `:Plugins` shows the
 compiled plugins under "Compiled plugins" with their state (`active`, `lazy`, `off`, `refused: requires x`)
-and the extension API they were written for. None has moved yet: the default build has no compiled plugin.
+and the extension API they were written for. Only `move` is a compiled plugin so far (it keeps its row in the table above); everything else is in the core.
 `:Keys` or `<Space>?` browses every key. `:set nojk_escape` turns the Insert-mode `jk` off.
 
 Shell: `:!cmd` shows the output, `:{range}!cmd` filters lines, `:r !cmd` and `:r file` read, `!{motion}` and
@@ -393,7 +393,7 @@ Colour depth follows `COLORTERM` / `TERM`; `--no-mouse` (or `M3_NO_MOUSE=1`) lea
     ./m3 FILE...
 
 Which plugins are compiled in is a build-time choice (docs/CORE-AND-PLUGINS.md 5.2; the default profile is
-`plugins/profiles/default.txt`, empty until the first feature moves):
+`plugins/profiles/default.txt`, which holds `move`):
 
     bash scripts/build.sh --profile full             # plugins/profiles/full.txt
     bash scripts/build.sh --no-plugins               # the core only (plugins/ is not even linked into the build)
@@ -460,7 +460,7 @@ Options: `:set treeglyphs` (Nerd Font icons), `:set treewidth=40`, `:set treehid
                        clip sources state vt lsp shell theme theme_data sample
     themes/            the built-in themes as .toml (scripts/gen_themes.sh embeds them in ui/MED_theme_data.m31)
     tests/             test.sh (entry), t_*.m31 unit programs, MED_check.m31, oracles/
-    plugins/           profiles/*.txt and, from the first feature that moves, NAME/ (plugin.txt, MEDX_NAME.m31)
+    plugins/           profiles/*.txt and NAME/ (plugin.txt, MEDX_NAME.m31, README.md, tests/); so far `move`
     ext/               the extension API (MED_ext), the generated registry of built-in plugins, a sample extension
     scripts/           build.sh, plugins.sh, check_plugins.sh, oracle.sh, gen_keymap.sh (docs/KEYMAP.md from the keymap table), gen_themes.sh
     docs/              KEYMAP.md (generated), EXTENSIONS.md, CORE-AND-PLUGINS.md

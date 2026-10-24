@@ -26,9 +26,10 @@ by the build; nothing is loaded at run time. What 0.2.0 adds to the extension fo
 * **Names.** Events are nox's: `Ready Shutdown BufferOpen BufferWritePre BufferWritePost BufferClose ModeChanged
   CursorMoved TextChanged Tick` (strings `ready`, `buffer_write_pre` ... in specs). The 0.1.0 names are gone, without
   aliases (owner decision Q7). `hook_with(event, hook, HookOpts)` returns an id for `did_unhook`; `is_once` runs once.
-* **Maps.** `MapSpec(mode, keys, action, desc, group, buffer, is_silent)`: `Action.Command(":Name args")` or
-  `Action.Call(KeyFn)`. Modes Normal and Visual work today; Insert, OperatorPending and Command, and buffer-local
-  maps, arrive with `<Cmd>` and `<buffer>` mappings in the engine (migration step S1).
+* **Maps.** `MapSpec(mode, keys, action, desc, group, buffer, is_silent)`: `Action.Command(":Name args")` (run with `<Cmd>`),
+  `Action.Call(KeyFn)` or `Action.Keys("...")` (typed keys, a `:noremap` right-hand side: use it where the ex line needs the
+  Visual marks). Every mode works (`Normal Visual Insert OperatorPending Command`, from the `<Cmd>` mappings of step S1);
+  `Ctx.did_map` sets buffer-local maps for the buffer a handler runs for.
 * **Run time.** `:PluginDisable NAME` and `:PluginEnable NAME` switch a compiled plugin off and on (its hooks, commands
   and keys go inactive; owner decision Q3); `:Plugins` lists compiled plugins with their state (`active`, `lazy`,
   `pending`, `off`, `refused: requires x`). `m3 --version` prints `m3 0.16.0 (api 0.2.0; plugins: ...)` and
@@ -55,8 +56,9 @@ M3_PROFILE=full M3_WITHOUT=terminal bash scripts/build.sh   # the same through t
 
 `plugins/NAME/plugin.txt` has four keys (`name`, `summary`, `requires`, `wants`); `tests/test_plugins.sh` checks it
 against the `Spec` through `m3 --list-plugins`. The checked-in `ext/MED_ext_enabled.m31` is the generated registry of
-the default profile (a bare `m31c m3.m31` equals the release; a test checks it). The default profile is empty until
-the first feature moves (step S2); `--ext` extensions still work as before and come after the plugins.
+the default profile (a bare `m31c m3.m31` equals the release; a test checks it). The default profile holds `move`, the
+reference plugin (`plugins/move/`: eight `Action.Keys` maps, no handler; its README is the smallest example); `--ext`
+extensions still work as before and come after the plugins.
 
 ## 1. What an extension is
 
