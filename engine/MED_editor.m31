@@ -21,6 +21,7 @@ import engine.MED_wrapmap;
 import engine.MED_snippet;
 import engine.MED_num;
 import engine.MED_motion;
+import engine.MED_cmdtab;
 import engine.MED_map;
 import engine.MED_regex;
 import syntax.core.SYN_highlight;
@@ -305,6 +306,8 @@ pub type Editor {
     /// Ex commands extensions defined (`:Name args` becomes the request "Name args" for the front end). Empty unless
     /// an extension is built in (docs/EXTENSIONS.md).
     pub List<str> user_commands = [];
+    /// The ex commands the front end carries out (MED_cmdtab); `MED_ex` hands them over as requests instead of failing.
+    pub List<str> ui_commands = MED_cmdtab.core_ui_commands();
     /// The theme names `:theme` and `:colorscheme` complete (set by the front end).
     pub List<str> theme_names = [];
     pub List<str> hist_search = [];
