@@ -44,7 +44,7 @@ import engine.MED_surround;
 /// Process one key, then run the ex lines it queued. Mappings apply: the key
 /// joins the typeahead and is resolved against the `:map` tables.
 pub void feed(MED_editor.Editor editor, int key) {
-    if (editor.ta_keys.size() == 0 && !editor.maps.has_any_mapping()) {
+    if (editor.ta_keys.size() == 0 && !editor.maps.has_any_mapping() && !editor.local_maps.has_any_mapping()) {
         feed_plain(editor, key);
         return;
     }
@@ -88,7 +88,7 @@ pub void pump(MED_editor.Editor editor, bool is_flush) {
         if (editor.ta_flags[0] != NOREMAP) {
             str mode = MED_vim.map_mode(editor);
             if (mode != "") {
-                List<MED_map.Mapping> table = editor.maps.table(mode);
+                List<MED_map.Mapping> table = editor.maps.table_with(editor.local_maps, mode);
                 int found = MED_map.resolve(table, editor.ta_keys, is_flush);
                 if (found == MED_map.WAIT) {
                     return;
@@ -109,6 +109,10 @@ pub void pump(MED_editor.Editor editor, bool is_flush) {
         }
         int key = editor.ta_keys[0];
         int origin = editor.ta_flags[0];
+        if (key == MED_key.CMD && origin != TYPED) {
+            run_cmd_key(editor);
+            continue;
+        }
         editor.ta_keys.remove_at(0);
         editor.ta_flags.remove_at(0);
         if (origin != TYPED && key == MED_key.NOP) {
@@ -139,6 +143,108 @@ pub void pump(MED_editor.Editor editor, bool is_flush) {
                 editor.ta_flags.remove_at(0);
             }
         }
+    }
+}
+
+// `<Cmd>` at the front of the typeahead: the keys of the mapping up to the next <CR> are an ex line. It runs here,
+// in the mode the editor is in (Visual keeps its selection, Insert its session), is not echoed and is not
+// remembered in the `:` register or the history. In operator-pending mode the line may move the cursor, and the
+// operator then applies from where the cursor was to where the line left it, as a characterwise exclusive motion
+// (nvim's nv_colon).
+void run_cmd_key(MED_editor.Editor editor) {
+    int stop = -1;
+    int index = 1;
+    while (index < editor.ta_keys.size() && editor.ta_flags[index] != TYPED) {
+        if (editor.ta_keys[index] == MED_key.ESC) {
+            // <Esc> cancels the command; the keys after it go on as keys
+            for (int position in 0 .. index + 1) {
+                editor.ta_keys.remove_at(0);
+                editor.ta_flags.remove_at(0);
+            }
+            return;
+        }
+        if (editor.ta_keys[index] == MED_key.CARRIAGE_RETURN) {
+            stop = index;
+            break;
+        }
+        index = index + 1;
+    }
+    if (stop < 0) {
+        // the mapping ends inside the command: nothing of it runs
+        drop_mapped(editor);
+        editor.message = "E1255: <Cmd> mapping must end with <CR>";
+        editor.is_failed = true;
+        return;
+    }
+    List<int> text = [];
+    for (int position in 1 .. stop) {
+        text.push(editor.ta_keys[position]);
+    }
+    for (int position in 0 .. stop + 1) {
+        editor.ta_keys.remove_at(0);
+        editor.ta_flags.remove_at(0);
+    }
+    str line = str.from_chars(text);
+    bool was_failed = editor.is_failed;
+    editor.is_failed = false;
+    editor.is_map_key = true;
+    editor.block_hold = editor.block_hold + 1;
+    bool is_operator = MED_vim.map_mode(editor) == "o";
+    MED_buffer.Pos from = MED_buffer.Pos(editor.row, editor.col);
+    int want_before = editor.want;
+    // the line runs on a clean pending state (`:normal` inside it must not complete the operator or take the count)
+    List<int> stashed = editor.pending;
+    editor.pending = [];
+    bool is_insert_normal = (editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE) && is_normal_line(line);
+    if (is_insert_normal) {
+        // `:normal` inside an insert session runs as Normal mode commands and the session goes on after it
+        MED_vim.feed(editor, 15);
+    }
+    editor.ex_queue.push(line);
+    drain(editor);
+    if (is_insert_normal) {
+        editor.is_restart_skip = false;
+        MED_vim.try_restart(editor);
+    }
+    if (is_operator) {
+        editor.pending = stashed;
+        if (editor.is_failed) {
+            editor.row = from.row;
+            editor.col = from.col;
+            feed_plain(editor, MED_key.ESC);
+        } else {
+            editor.cmd_row = editor.row;
+            editor.cmd_col = editor.col;
+            editor.row = from.row;
+            editor.col = from.col;
+            editor.want = want_before;
+            feed_plain(editor, MED_key.CMD);
+        }
+    }
+    editor.block_hold = editor.block_hold - 1;
+    editor.is_map_key = false;
+    MED_view.update(editor);
+    bool is_bad = editor.is_failed;
+    editor.is_failed = was_failed || is_bad;
+    if (is_bad) {
+        drop_mapped(editor);
+    }
+}
+
+// Whether the ex line is a `:normal` command (after blanks and colons).
+bool is_normal_line(str line) {
+    int index = 0;
+    while (index < line.size() && (line.byte_at(index) == 32 || line.byte_at(index) == 58)) {
+        index = index + 1;
+    }
+    return line.substr(index, line.size()).starts_with("norm");
+}
+
+// An error flushes what mappings still have queued.
+void drop_mapped(MED_editor.Editor editor) {
+    while (editor.ta_keys.size() > 0 && editor.ta_flags[0] != TYPED) {
+        editor.ta_keys.remove_at(0);
+        editor.ta_flags.remove_at(0);
     }
 }
 
@@ -176,12 +282,25 @@ Step run_map(MED_editor.Editor editor, Cmd cmd) {
     str kind = MED_map.kind_of(cmd.name);
     str modes = MED_map.modes_of(cmd.name, cmd.is_bang);
     if (kind == "clear") {
+        // `:mapclear <buffer>` clears this buffer's mappings, `:mapclear` the global ones
+        MED_map.Args flags = MED_map.split_arguments(cmd.arg);
+        if (flags.error != "") {
+            return fail(editor, flags.error);
+        }
+        MED_map.Maps owner = editor.maps;
+        if (flags.is_buffer) {
+            owner = editor.local_maps;
+        }
         for (int letter in modes.chars()) {
-            MED_map.clear(editor.maps.table(str.from_chars([letter])));
+            MED_map.clear(owner.table(str.from_chars([letter])));
         }
         return done();
     }
     MED_map.Args parsed = MED_map.split_arguments(cmd.arg);
+    MED_map.Maps tables = editor.maps;
+    if (parsed.is_buffer) {
+        tables = editor.local_maps;
+    }
     if (parsed.error != "") {
         return fail(editor, parsed.error);
     }
@@ -192,7 +311,7 @@ Step run_map(MED_editor.Editor editor, Cmd cmd) {
         List<int> lhs = MED_key.parse(parsed.lhs, leader: editor.maps.leader);
         bool is_removed = false;
         for (int letter in modes.chars()) {
-            if (MED_map.did_remove(editor.maps.table(str.from_chars([letter])), lhs)) {
+            if (MED_map.did_remove(tables.table(str.from_chars([letter])), lhs)) {
                 is_removed = true;
             }
         }
@@ -207,7 +326,16 @@ Step run_map(MED_editor.Editor editor, Cmd cmd) {
         List<int> prefix = MED_key.parse(parsed.lhs, leader: editor.maps.leader);
         for (int letter in modes.chars()) {
             str mode = str.from_chars([letter]);
-            for (str line in MED_map.describe(editor.maps.table(mode), mode, prefix)) {
+            if (parsed.is_buffer) {
+                for (str line in MED_map.describe(editor.local_maps.table(mode), mode, prefix, true)) {
+                    lines.push(line);
+                }
+                continue;
+            }
+            for (str line in MED_map.describe(editor.local_maps.table(mode), mode, prefix, true)) {
+                lines.push(line);
+            }
+            for (str line in MED_map.describe(editor.maps.table(mode), mode, prefix, false)) {
                 lines.push(line);
             }
         }
@@ -220,7 +348,7 @@ Step run_map(MED_editor.Editor editor, Cmd cmd) {
     }
     MED_map.Mapping made = MED_map.make(parsed, !MED_map.is_remapping(cmd.name), editor.maps.leader);
     for (int letter in modes.chars()) {
-        MED_map.add(editor.maps.table(str.from_chars([letter])), made);
+        MED_map.add(tables.table(str.from_chars([letter])), made);
     }
     return done();
 }

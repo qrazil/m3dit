@@ -1,0 +1,89 @@
+# <Cmd> mappings (nvim: K_COMMAND): the keys up to <CR> are an ex line that runs without leaving the mode. Normal, Visual, Insert and operator-pending
+# mode, counts, dot repeat, undo, <Esc> cancelling the line, an error flushing the rest of the mapping (docs/CORE-AND-PLUGINS.md 7.2, step S1).
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! x<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! x<lt>CR><CR>vlQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>normal! x<lt>CR><CR>vlQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>s/o/0/<lt>CR><CR>vjQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap Q <lt>Cmd>s/one/ONE/<lt>CR><CR>iaQb<Esc>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<lt>CR><CR>Q:echo 1<CR>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>dQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! x<lt>CR><CR>3Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! x<lt>CR><CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! x<lt>CR><CR>Q.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! x<lt>CR><CR>"a3Q"ap
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>echo 1<lt>CR><CR>dQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! $<lt>CR><CR>dQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	1,2	:onoremap Q <lt>Cmd>normal! j<lt>CR><CR>dQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	1,2	:onoremap Q <lt>Cmd>normal! j<lt>CR><CR>yQP
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>d2Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>cQXY<Esc>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>dQ.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>nosuchcommand<lt>CR><CR>dQx
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>nosuchcommand<lt>CR>x<CR>Qx
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<lt>CR>x<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<lt>CR><lt>Cmd>s/two/TWO/<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<lt>CR><lt>Cmd>s/two/TWO/<lt>CR><CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! dd<lt>CR>j<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! dd<lt>CR>j<CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! ix<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,4	:nnoremap Q <lt>Cmd>.m+1<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	1,0	:nnoremap Q <lt>Cmd>.m-2<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>2<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>$<lt>CR><CR>Qx
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>$<lt>CR><CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! G<lt>CR><CR>Q``
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>normal! d<lt>CR><CR>vjQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>nohlsearch<lt>CR>d<CR>vjQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>$<lt>CR><CR>vQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>$<lt>CR>y<CR>vQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>2<lt>CR>y<CR>vQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>s/o/0/<lt>CR><CR>VjjQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>s/o/0/<lt>CR><CR><C-v>jlQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap Q <lt>Cmd>normal! x<lt>CR><CR>iaQb<Esc>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap Q <lt>Cmd>nohlsearch<lt>CR><CR>iaQb<Esc>u
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap Q <lt>Cmd>nohlsearch<lt>CR><CR>iaQb<Esc>.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap Q <lt>Cmd>$<lt>CR><CR>iaQb<Esc>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap Q <lt>Cmd>s/two/2/<lt>CR><CR>3iaQb<Esc>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	1,0	:inoremap Q <lt>Cmd>normal! dd<lt>CR><CR>iaQb<Esc>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap jk <lt>Cmd>s/one/1/<lt>CR><lt>Esc><CR>ixjk
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:cnoremap Q <lt>Cmd>s/one/ONE/<lt>CR><CR>:s/two/2Q<CR>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:cnoremap Q <lt>Cmd>2<lt>CR>x<CR>:s/two/2Q/<CR>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<CR>Qx
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/<lt>lt>/<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/1/<lt>bar>s/two/2/<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/1/<lt>CR><CR>:nnoremap Qx dd<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/1/<lt>CR><CR>:nnoremap Qx dd<CR>Qx
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nmap Q <lt>Cmd>normal! x<lt>CR><CR>:nmap Z Q<CR>Z
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! xx<lt>CR><CR>2Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! xx<lt>CR><CR>Q3.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! ihi<lt>Esc><lt>CR><CR>Q.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! ihi<lt>Esc><lt>CR><CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! ihi<lt>Esc><lt>CR><CR>jQu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>g/e/s//E/<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>g/e/s//E/<lt>CR><CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>%s/e/E/g<lt>CR><CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>2,3d<lt>CR><CR>Qp
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>2,3y<lt>CR><CR>Qp
+one two three\nfour five six\nseven eight nine\nten eleven twelve	2,3	:nnoremap Q <lt>Cmd>normal! kdd<lt>CR><CR>Qp
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>set tw=7<lt>CR><CR>Qgqq
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>delmarks a<lt>CR><CR>majjQ`a
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>k a<lt>CR><CR>jjQ`a
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,5	:nnoremap Q <lt>Cmd>normal! ma<lt>CR><CR>Qjj`a
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>normal! <lt>Esc><lt>CR><CR>vjQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>normal! o<lt>CR>d<CR>vjQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>normal! y<lt>CR><CR>vjQP
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>normal! j<lt>CR>d<CR>vQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap Q <lt>Cmd>normal! u<lt>CR><CR>vjQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! j<lt>CR><CR>dQp
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>gUQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>dvQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>dVQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,5	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>dVQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:onoremap Q <lt>Cmd>normal! w<lt>CR><CR>"adQ"ap
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,5	:onoremap Q <lt>Cmd>normal! j<lt>CR><CR>d2Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,5	:onoremap Q <lt>Cmd>normal! j<lt>CR><CR>gUQ.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,5	:onoremap Q <lt>Cmd>normal! j<lt>CR><CR>=Q

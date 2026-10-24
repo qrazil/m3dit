@@ -1,0 +1,66 @@
+# <buffer> mappings: buffer-local tables tried before the global ones, :unmap and :mapclear with and without <buffer>, flag order, all modes,
+# <nowait>, remapping through a global map, <Cmd> in a buffer map. The oracle has one buffer; the isolation between buffers is in t_map and e2e.py.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nmap <buffer> Q dd<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q x<CR>:nnoremap <buffer> Q dd<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nnoremap Q x<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q x<CR>:nnoremap <buffer> Q dd<CR>:nunmap <buffer> Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q x<CR>:nnoremap <buffer> Q dd<CR>:nunmap Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nunmap Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q x<CR>:nnoremap <buffer> Q dd<CR>:nmapclear <buffer><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q x<CR>:nnoremap <buffer> Q dd<CR>:nmapclear<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q x<CR>:nnoremap <buffer> Q dd<CR>:mapclear <buffer><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q x<CR>:nnoremap <buffer> Q <lt>Nop><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap ab x<CR>:nnoremap <buffer> a dd<CR>ab
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap ab x<CR>:nnoremap <buffer> a dd<CR>a
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap ab x<CR>:nnoremap <buffer> a dd<CR>az
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap a x<CR>:nnoremap <buffer> ab dd<CR>ab
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap a x<CR>:nnoremap <buffer> ab dd<CR>a
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap a x<CR>:nnoremap <buffer> ab dd<CR>az
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap ab x<CR>:nnoremap <buffer> <lt>nowait> a dd<CR>ab
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap ab x<CR>:nnoremap <buffer> <lt>nowait> a dd<CR>a
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> <lt>nowait> a x<CR>:nnoremap ab dd<CR>a
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <lt>silent> <buffer> Q dd<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> <lt>silent> Q dd<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <lt>nowait><buffer> Q dd<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nmap Z x<CR>:nmap <buffer> Q Z<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Z x<CR>:nmap <buffer> Q Z<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nmap <buffer> Z x<CR>:nmap Q Z<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Z x<CR>:nnoremap <buffer> Q Z<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap <buffer> jk <lt>Esc><CR>ifoojkbar
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap jk X<CR>:inoremap <buffer> jk Y<CR>ijk
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap jk X<CR>:inoremap <buffer> jk Y<CR>:iunmap <buffer> jk<CR>ijk
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:inoremap <buffer> jk Y<CR>:iunmap jk<CR>ijk
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap <buffer> Q d<CR>vlQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:xnoremap x j<CR>:xnoremap <buffer> x d<CR>vlx
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,5	:onoremap <buffer> Q iw<CR>dQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,5	:onoremap w e<CR>:onoremap <buffer> w iw<CR>dw
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:cnoremap <buffer> Q two<CR>/Q<CR>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:cnoremap Q one<CR>:cnoremap <buffer> Q two<CR>/Q<CR>
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:noremap <buffer> Q x<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:noremap <buffer> Q x<CR>vlQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:noremap <buffer> Q w<CR>dQ
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:noremap! <buffer> X Y<CR>iaXb
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:map! <buffer> X Y<CR>iaXb
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q <lt>Cmd>normal! x<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>normal! x<lt>CR><CR>:nnoremap <buffer> Q <lt>Cmd>normal! dd<lt>CR><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>Qu
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>Q.
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>2Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> x dd<CR>x
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> dd x<CR>dd
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> d x<CR>dd
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> gx dd<CR>gj
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> <lt>leader>x dd<CR>\x
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:let mapleader=","<CR>:nnoremap <buffer> <lt>leader>x dd<CR>,x
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nnoremap <buffer> Q x<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nunmap <buffer> Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nunmap <buffer> Q<CR>:nunmap <buffer> Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:unmap <buffer> Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:vunmap <buffer> Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:xmapclear <buffer><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nmap <buffer><CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nmap<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nmap Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> Q dd<CR>:nmap <buffer> Q<CR>Q
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> <expr> Q "dd"<CR>Q

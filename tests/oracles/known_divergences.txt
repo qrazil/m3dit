@@ -72,3 +72,9 @@ alpha beta\ngamma delta\nepsilon	1,3	cwxx<Esc>gg`.x
 alpha beta\ngamma delta\nepsilon	1,3	ihello<Esc>jj`.x
 # nvim feeds a burst of typed keys as one change and puts '. at the start of what a command inserted; typed one key at a time it is, as :help '. says, on the last character, which is where the engine puts it (a harness artifact of feedkeys, not reproduced)
 alpha beta\ngamma delta\nepsilon	1,3	ihello world<Esc>ggg;x
+# nvim keeps reading the text of a <Cmd> mapping that does not end with <CR> from the typed keys (the `x` after Q is swallowed); the engine runs nothing and reports E1255, since it has no way to wait inside a mapping
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap Q <lt>Cmd>s/one/ONE/<CR>Qx
+# a <nowait> buffer map beats a longer global map only when the keys arrive one by one; the oracle feeds both keys at once, so nvim picks the longest match, and the engine decides at the first key
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap ab x<CR>:nnoremap <buffer> <lt>nowait> a dd<CR>ab
+# <expr> mappings are not supported (E474)
+one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> <expr> Q "dd"<CR>Q

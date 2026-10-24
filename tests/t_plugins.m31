@@ -292,7 +292,7 @@ with_maps.maps.push(MED_ext.map_call(MED_ext.MapMode.Normal, "<Space>q", (MED_ex
 with_maps.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<M-j>", "Other", "same keys"));
 check.ok("a map with the same keys inside a spec is not an error at registration", keys.did_plugin(with_maps, fake(key_log, "mapper")));
 keys.finish_install();
-check.eq_str("map lines", keys.map_lines().join("|"), "nnoremap <M-j> :MoveDown<CR>|xnoremap <M-j> :<C-u>MoveDown<CR>|nnoremap <Space>q :Xkey1<CR>");
+check.eq_str("map lines", keys.map_lines().join("|"), "nnoremap <M-j> <Cmd>MoveDown<CR>|xnoremap <M-j> <Cmd>MoveDown<CR>|nnoremap <Space>q <Cmd>Xkey1<CR>");
 check.eq_str("unmap lines", keys.unmap_lines_of(0).join("|"), "nunmap <M-j>|xunmap <M-j>|nunmap <Space>q");
 check.eq_int("the duplicate was a problem", keys.take_problems().size(), 1);
 check.eq_str("hidden commands are not listed", keys.listed_command_names().join(","), "");
@@ -393,4 +393,55 @@ match (MED_app.open("")) {
         print("cannot open: " + message);
     }
 }
+// <buffer> maps belong to one buffer, and a handler can set them (Ctx.did_map) for the buffer it runs for
+match (MED_app.open("")) {
+    case Ok(MED_app.App app): {
+        app.ext.did_declare("Mapper", "x", 0, 2);
+        app.ext.did_command("Mapbuf", "map Q here", (MED_ext.Ctx context, str arguments, bool is_bang) => map_here(context, arguments));
+        app.ext.did_command("Mapfn", "map Z here", (MED_ext.Ctx context, str arguments, bool is_bang) => map_function(context));
+        app.ext.did_command("Mapother", "map a foreign buffer", (MED_ext.Ctx context, str arguments, bool is_bang) => map_foreign(context));
+        app.ext_install();
+        type_text(app, ":nnoremap <buffer> Q dd\r");
+        check.ok("a <buffer> map is the buffer's", app.editor.local_maps.has_prefix("n", 81) && !app.editor.maps.has_prefix("n", 81));
+        type_text(app, ":enew\r");
+        check.ok("another buffer has none", !app.editor.local_maps.has_prefix("n", 81));
+        type_text(app, ":Mapbuf\r");
+        check.ok("Ctx.did_map with the handler's buffer: " + app.notice + app.ext.problems.join("|"), app.editor.local_maps.has_prefix("i", 106) && app.editor.local_maps.has_prefix("n", 122) && !app.editor.maps.has_prefix("n", 122));
+        type_text(app, ":Mapfn\r");
+        check.ok("a function map from a handler", app.editor.local_maps.has_prefix("n", 90));
+        type_text(app, ":Mapother\r");
+        check.ok("another buffer's number is refused", app.ext.problems.size() >= 0 && !app.editor.local_maps.has_prefix("v", 0));
+        type_text(app, ":bprevious\r");
+        check.ok("the first buffer keeps its map", app.editor.local_maps.has_prefix("n", 81));
+        check.ok("and does not have the second's", !app.editor.local_maps.has_prefix("n", 90));
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
 check.finish("t_plugins");
+
+Result<bool, str> map_here(MED_ext.Ctx context, str arguments) {
+    if (!context.did_map(MED_ext.MapSpec(MED_ext.MapMode.Insert, "jk", MED_ext.Action.Command("Hello"), buffer: context.buffer_id))) {
+        return Result<bool, str>.Err("could not map");
+    }
+    if (!context.did_map(MED_ext.MapSpec(MED_ext.MapMode.Normal, "zz", MED_ext.Action.Command(":Hello"), buffer: context.buffer_id))) {
+        return Result<bool, str>.Err("could not map");
+    }
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> map_function(MED_ext.Ctx context) {
+    Log log = Log();
+    if (!context.did_map(MED_ext.MapSpec(MED_ext.MapMode.Normal, "Z", MED_ext.Action.Call((MED_ext.Ctx inner) => ran(log, "Z", "", false)), buffer: context.buffer_id))) {
+        return Result<bool, str>.Err("could not map");
+    }
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> map_foreign(MED_ext.Ctx context) {
+    if (context.did_map(MED_ext.MapSpec(MED_ext.MapMode.Visual, "v", MED_ext.Action.Command("Hello"), buffer: context.buffer_id + 5))) {
+        return Result<bool, str>.Err("a foreign buffer was accepted");
+    }
+    return Result<bool, str>.Ok(true);
+}

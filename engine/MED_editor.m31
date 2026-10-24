@@ -437,6 +437,11 @@ pub type Editor {
     pub int blk_current_col = 0;
     /// The `:map` tables (the UI shares one set between buffers).
     pub MED_map.Maps maps = MED_map.Maps();
+    /// The `<buffer>` mappings of this buffer (each buffer has its own Editor): they are tried before `maps`.
+    pub MED_map.Maps local_maps = MED_map.Maps();
+    /// Where a `<Cmd>` line left the cursor, for the operator waiting in operator-pending mode (a motion of `MED_key.CMD`).
+    pub int cmd_row = 0;
+    pub int cmd_col = 0;
     /// Keys waiting to be resolved against the maps, and where each came from
     /// (see MED_ex: 0 typed, 1 mapped, 2 mapped without remapping).
     pub List<int> ta_keys = [];

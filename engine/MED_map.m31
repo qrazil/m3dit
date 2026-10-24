@@ -67,6 +67,23 @@ pub bool Maps.has_any(str mode) {
     return table(mode).size() > 0;
 }
 
+/// The mappings of `mode` that apply in a buffer whose own mappings are `local`: its `<buffer>` mappings first,
+/// then the global ones (Vim tries the buffer's first, and the first of two equally long matches wins).
+pub List<Mapping> Maps.table_with(Maps local, str mode) {
+    List<Mapping> own = local.table(mode);
+    if (own.size() == 0) {
+        return table(mode);
+    }
+    List<Mapping> both = [];
+    for (Mapping one in own) {
+        both.push(one);
+    }
+    for (Mapping one in table(mode)) {
+        both.push(one);
+    }
+    return both;
+}
+
 /// Whether any mode has a mapping.
 pub bool Maps.has_any_mapping() {
     return normal.size() + visual.size() + operator.size() + insert.size() + command.size() > 0;
@@ -249,6 +266,8 @@ pub type Args {
     pub str lhs = "";
     pub str rhs = "";
     pub bool is_nowait = false;
+    /// `<buffer>`: the mapping belongs to the current buffer.
+    pub bool is_buffer = false;
     pub str error = "";
 }
 
@@ -288,8 +307,13 @@ pub Args split_arguments(str text) {
                 index = index + 8;
                 is_flag = true;
             }
-            if (!is_flag && (rest.starts_with("<buffer>") || rest.starts_with("<expr>"))) {
-                parsed.error = "E474: Invalid argument: only global, non-expression mappings are supported";
+            if (!is_flag && rest.starts_with("<buffer>")) {
+                parsed.is_buffer = true;
+                index = index + 8;
+                is_flag = true;
+            }
+            if (!is_flag && rest.starts_with("<expr>")) {
+                parsed.error = "E474: Invalid argument: <expr> mappings are not supported";
                 return parsed;
             }
         }
@@ -337,7 +361,7 @@ pub Mapping make(Args parsed, bool is_noremap, str leader) {
 
 /// The lines `:map` lists for one mode letter; with `prefix` only the
 /// mappings whose left-hand side begins with it.
-pub List<str> describe(List<Mapping> table, str mode, List<int> prefix) {
+pub List<str> describe(List<Mapping> table, str mode, List<int> prefix, bool is_local) {
     List<str> lines = [];
     for (Mapping candidate in table) {
         if (prefix.size() > 0 && !is_prefixed(candidate.lhs, prefix)) {
@@ -346,6 +370,9 @@ pub List<str> describe(List<Mapping> table, str mode, List<int> prefix) {
         str flag = " ";
         if (candidate.is_noremap) {
             flag = "*";
+        }
+        if (is_local) {
+            flag = flag + "@";
         }
         lines.push(mode + "  " + MED_key.show(candidate.lhs) + "  " + flag + " " + MED_key.show(candidate.rhs));
     }

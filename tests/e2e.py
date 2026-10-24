@@ -752,6 +752,35 @@ def user_maps_in_which_key(binary, root):
 
 
 @scenario
+def cmd_and_buffer_maps(binary, root):
+    keymap = os.path.join(root, "keys.vim")
+    with open(keymap, "w") as f:
+        f.write("let mapleader = \" \"\nnnoremap <leader>x <Cmd>s/hello/HELLO/<CR>\nxnoremap Q <Cmd>s/second/SECOND/<CR>\n")
+    s = Session(binary, root, ["hello.txt"], keymap=keymap)
+    try:
+        assert s.wait_for("hello world")
+        # <Cmd> runs the line without a command line: no ':' echo, the mode stays
+        s.send(" x", settle=0.3)
+        assert s.wait_for("HELLO world"), s.text()
+        s.send("jvQ", settle=0.4)
+        assert s.wait_for("SECOND line"), s.text()
+        assert "VISUAL" in s.text(), "Visual mode must survive a <Cmd> mapping:\n" + s.text()
+        s.send("\x1b", settle=0.2)
+        # a <buffer> map belongs to one buffer
+        s.send(":nnoremap <buffer> Q dd\r", settle=0.3)
+        s.send(":e src/main.py\r", settle=0.4)
+        assert s.wait_for("def main"), s.text()
+        s.send("Q", settle=0.3)
+        assert "def main" in s.text(), "the other buffer must not have the map:\n" + s.text()
+        s.send(":b1\r", settle=0.4)
+        assert s.wait_for("HELLO world"), s.text()
+        s.send("Q", settle=0.3)
+        assert "SECOND line" not in s.text(), "the map must work in its own buffer:\n" + s.text()
+    finally:
+        s.close()
+
+
+@scenario
 def themes(binary, root):
     import re as regex
     # --theme paints the whole screen in the theme's background (truecolor)

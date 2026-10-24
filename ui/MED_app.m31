@@ -3483,7 +3483,7 @@ void App.cancel_leader() {
 /// maps under <Space> added (their right-hand side is the label).
 List<MED_keymap.Binding> App.leader_table() {
     List<MED_keymap.Binding> table = MED_keymap.enabled(MED_keymap.defaults(), disabled_plugins);
-    for (MED_map.Mapping one in editor.maps.table(leader_mode)) {
+    for (MED_map.Mapping one in editor.maps.table_with(editor.local_maps, leader_mode)) {
         if (one.lhs.size() > 1 && one.lhs[0] == MED_key.SPACE) {
             bool is_plain = true;
             for (int key in one.lhs) {
@@ -3645,7 +3645,7 @@ str App.prefix_typed() {
 List<MED_keymap.Binding> App.prefix_table(str typed) {
     List<MED_keymap.Binding> table = MED_keymap.enabled(MED_keymap.prefixes(), disabled_plugins);
     // the user's own maps that continue the typed prefix
-    for (MED_map.Mapping one in editor.maps.table("n")) {
+    for (MED_map.Mapping one in editor.maps.table_with(editor.local_maps, "n")) {
         if (one.lhs.size() > typed.size() && typed.size() > 0 && one.lhs[0] != MED_key.SPACE) {
             bool is_plain = true;
             for (int key in one.lhs) {
@@ -3945,7 +3945,7 @@ bool App.should_quit_after(int key) {
         return false;
     }
     int sent = key;
-    if (editor.mode == MED_editor.INSERT && key == 107 && last_key == 106 && !editor.maps.has_prefix("i", 106) && editor.is_option_on("jk_escape", true)) {
+    if (editor.mode == MED_editor.INSERT && key == 107 && last_key == 106 && !editor.maps.has_prefix("i", 106) && !editor.local_maps.has_prefix("i", 106) && editor.is_option_on("jk_escape", true)) {
         // jk: take back the j and leave Insert mode
         MED_ex.feed(editor, MED_key.BACKSPACE);
         sent = MED_key.ESC;
@@ -4068,9 +4068,11 @@ bool App.did_quit_after_paste(List<int> keys) {
     bool was_autoindent = editor.is_autoindent;
     str was_pairs = editor.opts.get("autopairs").or("");
     MED_map.Maps was_maps = editor.maps;
+    MED_map.Maps was_local = editor.local_maps;
     editor.is_autoindent = false;
     editor.opts.set("autopairs", "false");
     editor.maps = MED_map.Maps();
+    editor.local_maps = MED_map.Maps();
     if (editor.mode == MED_editor.INSERT && editor.textwidth == 0 && keys.size() > 64) {
         // a big paste goes in as one piece
         List<int> body = [];
@@ -4085,6 +4087,7 @@ bool App.did_quit_after_paste(List<int> keys) {
     }
     editor.is_autoindent = was_autoindent;
     editor.maps = was_maps;
+    editor.local_maps = was_local;
     if (was_pairs == "") {
         editor.opts.remove("autopairs");
     } else {
@@ -8546,6 +8549,15 @@ str App.ext_problem_text() {
 
 /// What handlers that just ran asked for: a message, the finder, their problems.
 void App.ext_finish(MED_ext.Ctx context) {
+    List<str> known = ext.command_names();
+    if (known.size() != ext_commands.size()) {
+        // a handler added a command (the hidden one of a function mapping): the ex parser must know it
+        ext_commands = known;
+        for (int position in 0 .. slots.size()) {
+            slots[position].editor.user_commands = ext_commands;
+        }
+        editor.user_commands = ext_commands;
+    }
     if (context.notice.size() > 0) {
         notice = context.notice;
     }

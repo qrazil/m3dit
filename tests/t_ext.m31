@@ -69,7 +69,9 @@ check.ok("command twice by one owner refused", !api.did_command("Hello", "again"
 check.ok("built-in name refused", !api.did_command("Files", "x", (MED_ext.Ctx context, str arguments, bool is_bang) => hello(context, arguments)));
 check.ok("lowercase command refused", !api.did_command("hello2", "x", (MED_ext.Ctx context, str arguments, bool is_bang) => hello(context, arguments)));
 check.ok("map", api.did_map(MED_ext.map(MED_ext.MapMode.Normal, "<leader>zh", "Hello", "hello")));
-check.ok("map mode i refused until <Cmd> maps", !api.did_map(MED_ext.map(MED_ext.MapMode.Insert, "jj", "Hello", "x")));
+check.ok("map mode i", api.did_map(MED_ext.map(MED_ext.MapMode.Insert, "jj", "Hello", "x")));
+check.ok("map mode o", api.did_map(MED_ext.map(MED_ext.MapMode.OperatorPending, "zo", "Hello", "x")));
+check.ok("map mode c", api.did_map(MED_ext.map(MED_ext.MapMode.Command, "zc", "Hello", "x")));
 check.ok("map keys with a space refused", !api.did_map(MED_ext.map(MED_ext.MapMode.Normal, "a b", "Hello", "x")));
 check.ok("buffer-local map refused at registration", !api.did_map(MED_ext.MapSpec(MED_ext.MapMode.Normal, "zq", MED_ext.Action.Command("Hello"), buffer: 3)));
 check.ok("second extension", api.did_declare("Beta", "two", MED_ext.API_MAJOR, MED_ext.API_MINOR));
@@ -77,7 +79,7 @@ check.ok("command taken by the first owner", !api.did_command("Hello", "mine", (
 check.ok("same keys: first wins", !api.did_map(MED_ext.map(MED_ext.MapMode.Normal, "<leader>zh", "Hello", "mine")));
 check.ok("other keys", api.did_map(MED_ext.map(MED_ext.MapMode.Visual, "<leader>zb", "Hello", "mine")));
 check.ok("second handler", api.did_hook(MED_ext.Event.BufferWritePre, (MED_ext.Ctx context, MED_ext.Info info) => hit(second, info)));
-check.eq_str("map lines", api.map_lines().join("|"), "nnoremap <leader>zh :Hello<CR>|xnoremap <leader>zb :<C-u>Hello<CR>");
+check.eq_str("map lines", api.map_lines().join("|"), "nnoremap <leader>zh <Cmd>Hello<CR>|inoremap jj <Cmd>Hello<CR>|onoremap zo <Cmd>Hello<CR>|cnoremap zc <Cmd>Hello<CR>|xnoremap <leader>zb <Cmd>Hello<CR>");
 MED_editor.Editor editor = MED_editor.new("abc  \ndef\n");
 MED_ext.Ctx main_context = MED_ext.context(api, editor, "/tmp/x.txt");
 check.eq_int("fire runs both in order", api.fire(MED_ext.Event.BufferWritePre, main_context, MED_ext.Info(file: "/tmp/x.txt")), 2);

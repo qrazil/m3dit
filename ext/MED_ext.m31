@@ -998,23 +998,43 @@ pub bool Registry.did_command(str name, str summary, CommandFn run) {
     return true;
 }
 
-/// Bind a key. The same keys in the same mode bound by an earlier owner: refused, the first keeps them.
-/// The user's own keymap file is read after the plugins, so it overrides both.
+/// Bind a key in any mode (the mapping runs its command with `<Cmd>`: the mode is not left, a Visual selection
+/// stays). The same keys in the same mode bound by an earlier owner: refused, the first keeps them. The user's own
+/// keymap file is read after the plugins, so it overrides both. Buffer-local maps are set from a handler with
+/// `Ctx.did_map`.
 pub bool Registry.did_map(MapSpec spec) {
     if (current < 0) {
         problem("api.did_map called before a successful api.did_declare or outside activate");
         return false;
     }
+    return did_map_of(current, spec);
+}
+
+// `did_map` for the extension `owner`.
+bool Registry.did_map_of(int owner, MapSpec spec) {
     str why = map_problem(spec);
     if (why.size() > 0) {
-        problem(extensions[current].name + ": " + why);
+        problem(extensions[owner].name + ": " + why);
         return false;
     }
     if (spec.buffer != 0) {
-        problem(extensions[current].name + ": buffer-local maps are set from a handler with Ctx.did_map");
+        problem(extensions[owner].name + ": buffer-local maps are set from a handler with Ctx.did_map");
         return false;
     }
-    return did_install_map(current, spec);
+    return did_install_map(owner, spec);
+}
+
+// The ex line of the mapping registered last (what `Ctx.did_map` installs).
+str Registry.map_line_of_last() {
+    return map_line(maps[maps.size() - 1]);
+}
+
+// A hidden command that runs `run` (for a function mapping set from a handler); the same key function gives the same name.
+str Registry.hidden_command_for(int owner, str summary, KeyFn run) {
+    str name = HIDDEN_PREFIX + next_key.to_str();
+    next_key = next_key + 1;
+    commands.push(CommandEntry(owner, name, summary, KeyCommand(run)));
+    return name;
 }
 
 /// Remove the registered mapping of `keys` in `mode`. False when there is none.
@@ -1392,10 +1412,6 @@ str spec_problem(Spec spec) {
 
 // What is wrong with one mapping ("" when nothing).
 str map_problem(MapSpec spec) {
-    str letter = mode_letter(spec.mode);
-    if (letter != "n" && letter != "x") {
-        return "map mode '" + letter + "' is not supported yet (n or x)";
-    }
     if (spec.keys.size() == 0 || spec.keys.contains(" ") || spec.keys.contains("|")) {
         return "map keys '" + spec.keys + "' are empty or contain a space or a bar";
     }
@@ -1439,10 +1455,16 @@ int word_count(str arguments) {
 }
 
 str map_line(MapEntry entry) {
-    if (mode_letter(entry.spec.mode) == "x") {
-        return "xnoremap " + entry.spec.keys + " :<C-u>" + entry.command + "<CR>";
+    return map_text(entry.spec, entry.command, false);
+}
+
+// The ex line of a mapping: `<Cmd>` runs the command in the mode the key was typed in.
+str map_text(MapSpec spec, str command, bool is_buffer) {
+    str flag = "";
+    if (is_buffer) {
+        flag = "<buffer> ";
     }
-    return mode_letter(entry.spec.mode) + "noremap " + entry.spec.keys + " :" + entry.command + "<CR>";
+    return mode_letter(spec.mode) + "noremap " + flag + spec.keys + " <Cmd>" + command + "<CR>";
 }
 
 // ------------------------------------------------------------------ names
@@ -1637,6 +1659,56 @@ pub void Ctx.close_edits() {
         editor.clamp();
         edits = 0;
     }
+}
+
+/// Map a key from a handler: `spec.buffer` 0 maps globally, the number of the buffer the handler runs for maps
+/// that buffer only (it is checked: another buffer's number is refused). A global mapping is remembered by the
+/// registry like those of a Spec. False (and a problem) when the spec is wrong.
+pub bool Ctx.did_map(MapSpec spec) {
+    if (spec.buffer != 0 && spec.buffer != buffer_id) {
+        registry.problem(registry.owner_name(owner) + ": map " + spec.keys + ": buffer " + spec.buffer.to_str() + " is not the buffer this handler runs for");
+        return false;
+    }
+    if (spec.buffer == 0) {
+        if (!registry.did_map_of(owner, spec)) {
+            return false;
+        }
+        return MED_ex.did_run_line(editor, registry.map_line_of_last());
+    }
+    str why = map_problem(spec);
+    if (why.size() > 0) {
+        registry.problem(registry.owner_name(owner) + ": " + why);
+        return false;
+    }
+    str line = "";
+    match (spec.action) {
+        case Command(str text): {
+            line = text.trim();
+            if (line.starts_with(":")) {
+                line = line.substr(1, line.size());
+            }
+        }
+        case Call(KeyFn run): {
+            line = registry.hidden_command_for(owner, spec.desc, run);
+        }
+    }
+    return MED_ex.did_run_line(editor, map_text(spec, line, true));
+}
+
+/// Remove a mapping from a handler: the registry's record of a global one and the editor's mapping.
+pub bool Ctx.did_unmap(MapMode mode, str keys, int buffer) {
+    if (buffer != 0 && buffer != buffer_id) {
+        registry.problem(registry.owner_name(owner) + ": unmap " + keys + ": buffer " + buffer.to_str() + " is not the buffer this handler runs for");
+        return false;
+    }
+    if (buffer == 0) {
+        registry.did_unmap(mode, keys, 0);
+    }
+    str flag = "";
+    if (buffer != 0) {
+        flag = "<buffer> ";
+    }
+    return MED_ex.did_run_line(editor, mode_letter(mode) + "unmap " + flag + keys);
 }
 
 /// Show `text` in the message line.

@@ -1022,6 +1022,12 @@ MED_motion.Motion list_motion(MED_editor.Editor editor, Option<MED_buffer.Pos> f
 MED_motion.Motion run_motion_raw(MED_editor.Editor editor, List<int> keys, int count, str operator) {
     int key = keys[0];
     MED_motion.Motion motion = motion_at(editor);
+    if (key == MED_key.CMD) {
+        // a `<Cmd>` line ran in operator-pending mode (MED_ex.run_cmd_key): characterwise exclusive, to where it left the cursor
+        motion.row = editor.cmd_row;
+        motion.col = editor.cmd_col;
+        return motion;
+    }
     if (key == 104 || key == 8 || key == 127 || key == 63234) {
         return move_left(editor, key, count, operator);
     }

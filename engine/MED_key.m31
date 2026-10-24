@@ -44,6 +44,9 @@ pub const int INSERT = 63241;
 pub const int FKEY_BASE = 63248;
 /// A key that does nothing: <Nop>.
 pub const int NOP = 63300;
+/// `<Cmd>` in a mapping's right-hand side: the keys up to the next <CR> are an ex command that runs without
+/// leaving the mode (nvim's K_COMMAND). It never comes from the terminal.
+pub const int CMD = 63302;
 const List<str> SPECIAL_NAMES = ["Up", "Down", "Left", "Right", "Home", "End", "PageUp", "PageDown", "Del", "Insert"];
 
 /// The control code for a letter (or one of `@ [ \ ] ^ _`).
@@ -92,6 +95,9 @@ int lookup(str word) {
     }
     if (lowered == "nop") {
         return NOP;
+    }
+    if (lowered == "cmd") {
+        return CMD;
     }
     if (lowered == "nul") {
         return NUL;
@@ -275,6 +281,8 @@ pub str name(int key) {
         base = "F" + (code - FKEY_BASE).to_str();
     } else if (code == NOP) {
         base = "Nop";
+    } else if (code == CMD) {
+        base = "Cmd";
     } else {
         if (mods == 0) {
             return str.from_chars([code]);
