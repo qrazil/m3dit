@@ -172,7 +172,7 @@ is a list of ex lines (`~/.config/m3/keymap.vim`, or `$M3_KEYMAP`, or
 `-u FILE`) using the `:map` / `:noremap` family for n, x, o, i and c modes,
 `:unmap`, `:mapclear`, `let mapleader`, `<nowait>` and `:source`. The engine
 resolves them (`MED_map`, `MED_ex.pump`) and the mapping behaviour is checked
-against nvim (corpus 60 and 61). Limits: no `<buffer>` or `<expr>` maps
+against nvim (corpus 60, 61, 63 and 64: `<Cmd>` and `<buffer>` maps are done, 0.16.0). Limits: no `<expr>` maps
 (E474), no select mode, mappings do not apply inside macros, dot repeat or
 `:normal`, and a macro register holds the keys after mapping (nvim records the
 typed keys). A user map starting with `<Space>` (or with `j` in Insert mode)

@@ -1,12 +1,62 @@
 # Extending m3
 
-Status: API 0.1.0, experimental. Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.2.0, experimental (the 0.2 plugin layer is section 0; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
 The code is `ext/MED_ext.m31` (the API and the registry), `ext/MED_ext_enabled.m31` (the list of built-in
 extensions, empty by default), `ext/MEDX_trim_whitespace.m31` (a sample) and a few delimited hooks in
 `ui/MED_app.m31`, `engine/MED_ex.m31`, `engine/MED_editor.m31` and `m3.m31`.
+
+## 0. API 0.2.0: plugins (docs/CORE-AND-PLUGINS.md)
+
+The first-party features of m3 are being moved out of the core into **plugins** that use this API (the design is in
+`docs/CORE-AND-PLUGINS.md`, the owner's decisions at its top). A plugin is a module in `plugins/NAME/` compiled in
+by the build; nothing is loaded at run time. What 0.2.0 adds to the extension form below:
+
+* **A description as data.** `api.did_plugin(spec, plugin)` takes a `MED_ext.Spec` (name in lower case equal to the
+  directory, summary, the API version, `requires` and `wants` (other plugins), `triggers`, `maps`, `commands`) and
+  a `MED_ext.Plugin` (`activate(api)`). `register` only describes the plugin; nothing of it runs yet.
+* **Activation.** After every module registered, the registry (`finish_install`) refuses a plugin whose `requires`
+  is missing, installs a stub for each command in the spec and each trigger, and installs the keys. A plugin
+  without triggers activates at `Ready` (after the keymap file), in dependency order; one with triggers
+  (`on_event`, `on_command`, `on_filetype`) at the first trigger, the handlers it registers taking part in that
+  very delivery or call. `activate` registers the real handlers (`did_hook`, `hook_with`, `did_command`, `did_map`,
+  `did_group`, `did_job`). Laziness saves initialisation (state files, caches, processes), not code loading.
+* **Names.** Events are nox's: `Ready Shutdown BufferOpen BufferWritePre BufferWritePost BufferClose ModeChanged
+  CursorMoved TextChanged Tick` (strings `ready`, `buffer_write_pre` ... in specs). The 0.1.0 names are gone, without
+  aliases (owner decision Q7). `hook_with(event, hook, HookOpts)` returns an id for `did_unhook`; `is_once` runs once.
+* **Maps.** `MapSpec(mode, keys, action, desc, group, buffer, is_silent)`: `Action.Command(":Name args")` or
+  `Action.Call(KeyFn)`. Modes Normal and Visual work today; Insert, OperatorPending and Command, and buffer-local
+  maps, arrive with `<Cmd>` and `<buffer>` mappings in the engine (migration step S1).
+* **Run time.** `:PluginDisable NAME` and `:PluginEnable NAME` switch a compiled plugin off and on (its hooks, commands
+  and keys go inactive; owner decision Q3); `:Plugins` lists compiled plugins with their state (`active`, `lazy`,
+  `pending`, `off`, `refused: requires x`). `m3 --version` prints `m3 0.16.0 (api 0.2.0; plugins: ...)` and
+  `m3 --list-plugins` prints them, tab separated.
+* **Version rule.** While the major is 0, a plugin built for `0.M.p` runs on host `0.M.q` when `p <= q`; another minor
+  is refused. From 1.0 a minor only adds. Signature changes of plugin-visible functions are compile errors, not run-time
+  surprises. A symbol is never reused for a new signature (0.2 removed `did_map(mode, keys, command, summary)` and
+  the 0.1.0 event names in the same release: the only consumer was the sample).
+* **Deprecated.** `Ctx.editor` stays public for 0.2 and is refused by `scripts/check_plugins.sh`, which also enforces
+  the import rules: a plugin imports only `ext.*`, `engine.MED_buffer`, `engine.MED_key`, the m31 standard library
+  without `proc`, `os` and `term`, m31git, and its own modules.
+
+**Selecting plugins at build time** (`scripts/build.sh`, resolved by `scripts/plugins.sh`):
+
+```
+bash scripts/build.sh                            # the default profile (plugins/profiles/default.txt)
+bash scripts/build.sh --profile full             # plugins/profiles/full.txt
+bash scripts/build.sh --no-plugins               # core only; plugins/ is not linked into the build at all
+bash scripts/build.sh --plugins git,finder       # exactly these; their requires are added and reported
+bash scripts/build.sh --without terminal,jump    # the profile minus these; refused if a kept plugin requires one
+bash scripts/build.sh --plugin-dir ~/src/plugins # also look in DIR/NAME/plugin.txt (fixtures, third-party)
+M3_PROFILE=full M3_WITHOUT=terminal bash scripts/build.sh   # the same through the environment
+```
+
+`plugins/NAME/plugin.txt` has four keys (`name`, `summary`, `requires`, `wants`); `tests/test_plugins.sh` checks it
+against the `Spec` through `m3 --list-plugins`. The checked-in `ext/MED_ext_enabled.m31` is the generated registry of
+the default profile (a bare `m31c m3.m31` equals the release; a test checks it). The default profile is empty until
+the first feature moves (step S2); `--ext` extensions still work as before and come after the plugins.
 
 ## 1. What an extension is
 
@@ -26,7 +76,7 @@ pub void register(MED_ext.Registry api) {
     if (!api.did_declare("TrimWhitespace", "strip trailing blanks on write", MED_ext.API_MAJOR, MED_ext.API_MINOR)) {
         return;
     }
-    api.did_hook(MED_ext.Event.BufWritePre, (MED_ext.Ctx context, MED_ext.Info info) => trim_all(context));
+    api.did_hook(MED_ext.Event.BufferWritePre, (MED_ext.Ctx context, MED_ext.Info info) => trim_all(context));
 }
 ```
 
@@ -69,8 +119,8 @@ methods are named `did_...` because `m31c -lint` requires it; they return false 
 |---|---|
 | Identify, check version | `api.did_declare(name, summary, api_major, api_minor)`, `MED_ext.version()`, `MED_ext.is_compatible(major, minor)` |
 | Ex command `:Name args` | `api.did_command(name, summary, CommandFn)`; `CommandFn.run(context, arguments, is_bang)` |
-| Key mapping per mode | `api.did_map(mode, keys, command, summary)` with mode `n` or `x` (section 6) |
-| Events | `api.did_hook(Event, Hook)`; events `Startup Shutdown BufOpen BufWritePre BufWritePost BufClose ModeChanged CursorMoved TextChanged Tick` |
+| Key mapping per mode | `api.did_map(MapSpec)` with mode `n` or `x` until `<Cmd>` maps exist (section 6) |
+| Events | `api.did_hook(Event, Hook)`; events `Ready Shutdown BufferOpen BufferWritePre BufferWritePost BufferClose ModeChanged CursorMoved TextChanged Tick` |
 | Read the buffer | `context.line_count() line(row) text() cursor() mode() file directory()` |
 | Modify the buffer | `context.did_replace(from, stop, text)`, `did_set_line(row, text)`, `set_cursor(pos)`, `did_run_ex(line)` |
 | Registers | `context.register(name)`, `context.did_set_register(name, text)` |
@@ -85,8 +135,8 @@ Mode constants are `MED_editor.NORMAL INSERT REPLACE VISUAL CMDLINE`; `Info` car
 `mode_before`, `mode_after`, `row`, `col` and `elapsed_ms` as the event allows.
 
 **Events.** They are delivered on the editor's one thread, in registration order, after the thing they report.
-`BufOpen` fires for each command-line file after start-up and for every later buffer. `BufWritePre` and
-`BufWritePost` wrap `:w`, `:wall`, autowrite and autosave (`Post` only after a write without an error). `BufClose`
+`BufferOpen` fires for each command-line file after start-up and for every later buffer. `BufferWritePre` and
+`BufferWritePost` wrap `:w`, `:wall`, autowrite and autosave (`Post` only after a write without an error). `BufferClose`
 fires before `:bdelete`. `ModeChanged`, `CursorMoved` and `TextChanged` are checked after each key event and each
 tick for the active buffer and are coalesced: one delivery per event however many keys it carried. Changes a
 handler makes are not reported back to handlers (no re-entrancy). `Tick` fires about every 250 ms.
@@ -96,7 +146,7 @@ marks, the change list, the `U` line and the highlighter's dirty row right). The
 block after each handler, so everything one handler did is **one undo step**, and `.` is untouched because dot
 repeat replays typed keys, not text changes. An edit is refused (the method returns false) while a command or
 insert session has an open undo block, because that block is not the extension's to close. In practice: edit
-in `BufWritePre`, `BufWritePost`, commands and ticks, not in `TextChanged` during Insert mode. `did_run_ex`
+in `BufferWritePre`, `BufferWritePost`, commands and ticks, not in `TextChanged` during Insert mode. `did_run_ex`
 runs an ex line as if typed (`set tabstop=2`, `normal! gg`), with the same rule; it is also the way to change options.
 
 **Not in 0.1.0** (stated so nobody looks for it): extension-defined options (needs registration in the engine's
@@ -162,7 +212,7 @@ installing the editor. Do not build an extension you did not read.
 Every handler runs on the thread that reads keys and draws frames; nothing can interrupt it.
 
 * Budget: a handler for `CursorMoved`, `TextChanged`, `ModeChanged` and `Tick` should finish in well under one
-  millisecond; one frame is 16 ms and a held key repeats every 30 ms or so. A `BufWritePre` handler may take
+  millisecond; one frame is 16 ms and a held key repeats every 30 ms or so. A `BufferWritePre` handler may take
   longer, but the user waits for it.
 * The cost of having no extension is a boolean per event point (`ext.is_empty()`, `has_handler`); with one
   extension the cost of an event nobody listens to is one list read.
@@ -187,7 +237,7 @@ Every handler runs on the thread that reads keys and draws frames; nothing can i
 
 ## 9. Example 1: trim trailing whitespace on save (built, `ext/MEDX_trim_whitespace.m31`)
 
-`register` declares the extension, hooks `BufWritePre` and defines `:TrimTrailing`. Both call `trim_all`, which
+`register` declares the extension, hooks `BufferWritePre` and defines `:TrimTrailing`. Both call `trim_all`, which
 checks `context.can_edit()`, walks the lines with `context.line(row)`, finds the end of the text by scanning
 back over spaces and tabs, and removes the tail with `context.did_replace(Pos(row, keep), Pos(row, size), "")`.
 It counts what it did and says `trimmed N line(s)`. Because the edits go through `editor.change` and the
@@ -208,15 +258,15 @@ pass over the lines and runs when the user asks. A project-wide variant uses
 `context.background("todo", ["rg", "--vimgrep", "TODO"])` and a `JobFn` that parses the `path:line:col:text` lines into entries
 and calls `context.pick` when the job ends (a pick from a `JobFn` opens the finder at that moment; take care
 not to steal the user's prompt, for example only pick when the mode is Normal). Bind it with
-`api.did_map("n", "<leader>xt", "TodoList", "TODO lines")`.
+`api.did_map(MED_ext.map(MED_ext.MapMode.Normal, "<leader>xt", "TodoList", "TODO lines"))`.
 
 ## 11. Example 3: statusline git-branch segment from m31git (prose; depends on D3)
 
 Decision D3 makes `m31git` a pinned dependency of m3 (roadmap item 12); it is not in `deps` yet, so this is the shape of
 the extension, not code that builds today, and the m31git function names are those of its current modules
 (`GIT_refs`) and may change with the library tag. The extension imports `m31git` for its in-process
-reading of `.git/HEAD` and the ref (no `git` process). `register` declares `GitBranch`, hooks `Startup`, `BufOpen`
-and `BufWritePost` to call `refresh(context)`, and hooks `Tick` with a counter captured in a small object so
+reading of `.git/HEAD` and the ref (no `git` process). `register` declares `GitBranch`, hooks `Ready`, `BufferOpen`
+and `BufferWritePost` to call `refresh(context)`, and hooks `Tick` with a counter captured in a small object so
 that it refreshes only every 4th tick (one second). `refresh` finds the repository for `context.directory()`
 with the library, reads the current branch, and calls `context.set_segment("branch", "git:" + branch)`
 only when the text changed (setting the same text is cheap, but it also avoids needless work). Reading two
@@ -237,7 +287,7 @@ should share the one event dispatch (`MED_ext.Event` is named after Vim's events
 
 * With no extension the editor takes the same code paths: the hooks are `if (ext.is_empty())`, an empty
   command list in the ex parser, and an unchanged write path. The default build passes the same suites as before.
-* A buffer-changing handler during `BufWritePre` on a buffer other than the active one (`:wall`) edits that buffer and
+* A buffer-changing handler during `BufferWritePre` on a buffer other than the active one (`:wall`) edits that buffer and
   it is then written; the active buffer's cursor is not touched.
 * `Event.Shutdown` runs only on a normal exit of the loop.
 * Background jobs have no exit status (the runtime's `Stream` does not expose it); a JobFn sees the lines only.

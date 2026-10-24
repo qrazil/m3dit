@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased
+
+The foundation of the core/plugins reorganisation (docs/CORE-AND-PLUGINS.md, owner decisions at its top; migration steps
+S0 and S1). Nothing a user sees changes: the default build reproduces the 0.15.0 screens and pty output byte for byte
+(`tests/screen_pty.py`, 49 scenarios), the nvim oracle corpus (40,887 cases) is green, `bench/uxperf.py` bytes columns are
+equal. Plugins are compiled in, never loaded: m31 compiles ahead of time.
+
+- **Extension API 0.2.0.** `MED_ext` gains `Spec` (name, summary, API version, `requires`, `wants`, `triggers`, `maps`,
+  `commands`), `Plugin` (`activate(api)`) and `did_plugin`. `register` only describes a plugin; after every module registered,
+  the registry refuses a plugin whose `requires` is missing, installs command stubs, keys and waits from the data, and wakes
+  the others at `Ready` in dependency order, or at the first trigger (an event, one of its commands, a file type), whose
+  delivery its handlers then take part in. Handlers get ids, `is_once` and `did_unhook`; `did_group` labels key prefixes.
+  A plugin built for `0.M.p` runs on host `0.M.q` for `p <= q`. The 0.1.0 event names are replaced by nox's, without
+  aliases (`Startup` is `Ready`, `BufOpen` is `BufferOpen`, `BufWritePre` is `BufferWritePre` ...); `did_map` takes a `MapSpec`.
+  `Ctx.editor` is deprecated (`scripts/check_plugins.sh` refuses it and the imports a plugin may not make). The 0.1.0
+  `did_declare` form still works for third-party extensions. `docs/EXTENSIONS.md` section 0 describes it.
+- **Build-time selection.** `plugins/profiles/{default,full,minimal}.txt` and `plugins/NAME/plugin.txt`;
+  `scripts/build.sh --profile`, `--no-plugins` (the plugins tree is not linked into the build), `--plugins`, `--without`,
+  `--plugin-dir` and the `M3_PROFILE`, `M3_NO_PLUGINS`, `M3_PLUGINS`, `M3_WITHOUT`, `M3_PLUGIN_DIR` variables;
+  `scripts/plugins.sh` resolves and generates the registry. The checked-in `ext/MED_ext_enabled.m31` is the default
+  profile's generated registry (a test checks it). The default profile is empty until the first feature moves.
+- **`m3 --version`** prints `m3 VERSION (api 0.2.0; plugins: ...)` and `m3 --list-plugins` prints the compiled plugins;
+  `:Plugins` lists them with their state under the core features' switches, and `:PluginDisable` / `:PluginEnable` switch
+  a compiled plugin at run time (its keys are unmapped and mapped again).
+- **`<Cmd>` mappings.** The keys of a mapping up to `<CR>` are an ex line that runs in the mode the key was typed in,
+  without a command line, an echo or a history entry. A Visual selection and an Insert session stay (a `:normal` inside
+  one runs as Normal commands), a count typed before is dropped, `<Esc>` cancels the line, and in operator-pending mode
+  the operator applies from the cursor to where the line left it (characterwise exclusive). Corpus 63, 87 cases against nvim.
+- **`<buffer>` mappings.** Each buffer has its own table, tried before the global one; `:unmap`, `:mapclear` and the listing
+  take `<buffer>`. Corpus 64, 64 cases against nvim. `<expr>` is still refused (E474). Known divergences (with reasons) are in
+  `tests/oracles/known_divergences.txt`: a `<Cmd>` mapping that does not end with `<CR>`, a `<nowait>` buffer map against a
+  longer global one when both keys are queued at once, `<expr>`.
+- **API maps in every mode.** `MapSpec` modes Normal, Visual, Insert, OperatorPending and Command run their command with
+  `<Cmd>`; `Ctx.did_map` and `Ctx.did_unmap` set buffer-local maps for the buffer a handler runs for.
+- The UI ex commands are data on the editor (`MED_cmdtab`, `Editor.ui_commands`) instead of a list rebuilt on every call.
+- Tests: `tests/screen_pty.py` and `tests/golden/screens.json` (the UI oracle, recorded from 0.15.0 before anything else
+  changed), `t_plugins`, `tests/test_plugins.sh` (generated registry, `plugin.txt` against the Spec, builds with the fixture
+  plugins in `tests/fixtures/plugins`, `tests/plugins_pty.py`), `tests/core_only.sh` (the `--no-plugins` build),
+  `scripts/check_plugins.sh`, `e2e.py` scenario `cmd_and_buffer_maps`.
+
 ## 0.15.0
 
 Pins tui 0.15.0 (f7c9189; its CHANGELOG has 0.14.0 and 0.15.0) and m31git 0.30.0 (9bbced1, which pins the same tui).

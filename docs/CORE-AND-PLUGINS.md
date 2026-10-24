@@ -52,6 +52,42 @@ accepted on the same rule (recommendation as written).
 
 Scope of the first implementation task: S0 and S1 of section 7, then stop.
 
+## Implementation status
+
+S0 (foundation) and S1 (`<Cmd>` and `<buffer>` maps) are implemented in 0.16.0 (branch `s0`); later steps are separate
+tasks. What was built and where it differs from the text below:
+
+* **S0.** `MED_ext` 0.2.0 with `Spec`, `Plugin`, `did_plugin`, triggers, command stubs, the run-time switch, handler ids and
+  `is_once`, groups, the nox event names; `ext/MED_ext_enabled.m31` generated from the default profile (empty: no feature has
+  moved); `plugins/profiles/`, `plugins/NAME/plugin.txt`, `scripts/plugins.sh`, `scripts/build.sh --profile --no-plugins
+  --plugins --without --plugin-dir`, `scripts/check_plugins.sh`, `t_plugins` and `tests/test_plugins.sh`, the golden screens
+  `tests/screen_pty.py` recorded from 0.15.0, `tests/core_only.sh`, `m3 --version` / `--list-plugins`, `:Plugins` from the
+  registry, the UI ex commands as data (`MED_cmdtab`).
+* **S1.** `<Cmd>` and `<buffer>` in `MED_ex` / `MED_map`; corpora 63 and 64; `MapSpec` in every mode; `Ctx.did_map`.
+* **Deviations, with reasons.** (1) `Spec` has no `options` or `segments` yet: the option registry and the segment slots belong
+  to the slices that wire them (B, C); adding a field to `Spec` is additive. (2) `CommandSpec` has `arguments_min` and
+  `arguments_max` (the naming lint forbids `args_`), no `is_range` or `complete` yet (the ex parser has no range or
+  completion hook for plugin commands). (3) Of the new events only the ten that exist were renamed; `BufferEnter`,
+  `BufferLeave`, `InsertEnter` ... arrive with the step that needs each. `emit` and custom events, `Buf` and `Win` handles,
+  `HookOpts.priority` are not built. (4) `MapSpec.buffer` is the buffer number (`:ls`), set only through `Ctx.did_map`; a Spec
+  cannot carry a buffer-local map because no buffer exists at registration. (5) `Plugin.activate` returns a `Result` and an
+  `Err` switches the plugin off. (6) `--plugin-dir DIR` and `scripts/plugins.sh` were added (the text mentions `--plugin-dir`
+  only in passing); `m3 --list-plugins` is new, it lets a test compare `plugin.txt` with the Spec. (7) Profiles may
+  `include` another profile. (8) The crash breaker and the m31 `on_trap` request: the request is written
+  (`docs/M31-ON-TRAP-REQUEST.md`); the breaker needs a first default plugin to protect and comes with step S2.
+  (9) `<Cmd>` that does not end with `<CR>` reports E1255 and runs nothing, where nvim keeps reading typed keys
+  (`known_divergences.txt`). (10) The core-only gate (`tests/core_only.sh`) runs the golden screens of the scenarios that
+  need no plugin; the unit and oracle gates of 7.4 are the ordinary suites until a step moves a feature out.
+* **Next, S2 and S3.** S2 (`move`) needs only what exists: `MapSpec` in Normal and Visual mode with `Action.Command`,
+  `plugins/move/{plugin.txt,MEDX_move.m31}`, a line in `plugins/profiles/default.txt`, regenerate `ext/MED_ext_enabled.m31`
+  (`bash scripts/plugins.sh gen $(bash scripts/plugins.sh resolve) > ext/MED_ext_enabled.m31`), remove `did_alt_move`
+  and its keymap rows and the `move` entry of `ui/MED_plugin.m31` (the registry plugin of the same name takes over
+  `:PluginDisable move`; `App.run_plugin_command` already handles both), then re-record nothing: the golden screens must
+  stay equal. The plugin runs `:m +1` and `gv` through `Ctx.did_run_ex`; `<M-j>` notation is in `MED_key`. S3 (`themes`)
+  needs the `did_theme(name, lines)` registry call (API slice A) and a per-plugin `gen_themes.sh`; it also splits
+  `MED_theme_data`, which `:theme` and `--dump-sample` read. `tests/core_only.sh` must then use a core-only golden file for
+  the `:theme` scenarios.
+
 ---
 
 ## 0. The proposal on one page

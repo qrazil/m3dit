@@ -47,7 +47,8 @@ output (exit 1).
 | `--colors DEPTH` | `16`, `256`, `true` | the terminal's | the depth `--dump-sample` writes at |
 | `--dump-sample` | switch | off | print the theme(s) on sample code as ANSI text and exit |
 | `--no-mouse` | switch | mouse on, unless `M3_NO_MOUSE` is non-empty | do not ask the terminal for mouse reports |
-| `--version` | | | `m3 0.5.0` |
+| `--version` | | | `m3 VERSION (api 0.2.0; plugins: ...)`: the version, the extension API and the compiled plugins |
+| `--list-plugins` | switch | off | print the compiled plugins (name, summary, requires, wants; tab separated) and exit |
 | `--completions SHELL` | `bash`, `zsh`, `fish` | | prints a completion script |
 | `FILE...` | paths | an empty buffer | a new buffer when a file does not exist yet |
 
@@ -260,6 +261,10 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 | lsp | `K gd grr grn gra`, `<Space>cr ca cf ll xx`, `:Lsp ...` | diagnostics, hover, definition, references, rename, code action, format |
 
 `:Plugins` lists them, `:PluginDisable NAME` / `:PluginEnable NAME` switch one (put the lines in the keymap file).
+These are the features of the core that have a switch; as each one moves into a compiled-in plugin
+(`plugins/NAME/`, docs/CORE-AND-PLUGINS.md) it keeps its name and the same two commands, and `:Plugins` shows the
+compiled plugins under "Compiled plugins" with their state (`active`, `lazy`, `off`, `refused: requires x`)
+and the extension API they were written for. None has moved yet: the default build has no compiled plugin.
 `:Keys` or `<Space>?` browses every key. `:set nojk_escape` turns the Insert-mode `jk` off.
 
 Shell: `:!cmd` shows the output, `:{range}!cmd` filters lines, `:r !cmd` and `:r file` read, `!{motion}` and
@@ -366,8 +371,11 @@ named by `$M3_KEYMAP`, or `m3 --keymap FILE`; `--keymap NONE` reads none) is a l
 
 `"` starts a comment line. A map on `<Space>` replaces the built-in leader menu, and a
 map starting with `j` in Insert mode replaces the built-in `jk`. Behaviour follows nvim
-(checked in the oracle corpus); `<buffer>` and `<expr>` maps are refused (E474), and maps do
-not apply inside macros, `.` or `:normal`.
+(checked in the oracle corpus: 60 and 61 for the maps, 63 for `<Cmd>`, 64 for `<buffer>`). `<Cmd>` mappings
+(`nnoremap <leader>x <Cmd>s/a/b/<CR>`) run the ex line without leaving the mode, without a command line and without a
+history entry, so a Visual selection and an Insert session stay; `<buffer>` mappings belong to the buffer they were
+defined in (`:nmap <buffer>`, `:nunmap <buffer>`, `:mapclear <buffer>`) and are tried before the global ones.
+`<expr>` maps are refused (E474), and maps do not apply inside macros, `.` or `:normal`.
 
 ## macOS (Apple silicon) in three lines
 
@@ -384,6 +392,16 @@ Colour depth follows `COLORTERM` / `TERM`; `--no-mouse` (or `M3_NO_MOUSE=1`) lea
     bash scripts/build.sh                 # -> ./m3   (bash scripts/build.sh -o NAME to rename)
     ./m3 FILE...
 
+Which plugins are compiled in is a build-time choice (docs/CORE-AND-PLUGINS.md 5.2; the default profile is
+`plugins/profiles/default.txt`, empty until the first feature moves):
+
+    bash scripts/build.sh --profile full             # plugins/profiles/full.txt
+    bash scripts/build.sh --no-plugins               # the core only (plugins/ is not even linked into the build)
+    bash scripts/build.sh --plugins git,finder       # exactly these; what they require is added and reported
+    bash scripts/build.sh --without terminal,jump    # the profile minus these (refused if a kept plugin requires one)
+    bash scripts/build.sh --plugin-dir DIR           # also look for plugins in DIR/NAME/plugin.txt
+    M3_PROFILE=full M3_WITHOUT=terminal bash scripts/build.sh      # the same through the environment
+
 Needs m31 v0.4.3 or later (the `proc` module); the first compile fetches the pinned `tui`, `syntax` and `m31git`
 into `.m31-deps/` (the commits are in `deps`, recorded in `deps.lock`). `m31git` (github.com/qrazil/m31git) is the
 git library the editor reads repositories with; its `deps` pins the same `tui` and `syntax` commits as ours (m31 allows
@@ -393,7 +411,10 @@ one source per dependency, so bump them together).
 
     M31_ROOT=... LANGC=... bash tests/test.sh
 
-`tests/test.sh` is the single entry point: `m31c fmt --check -r .`, `m31c lint .`,
+`tests/test.sh` is the single entry point: `m31c fmt --check -r .`, `m31c lint .`, the plugin checks
+(`tests/test_plugins.sh`: the generated registry, `plugin.txt` against the Spec, `scripts/check_plugins.sh`, builds with
+the fixture plugins and `tests/plugins_pty.py`, and `tests/core_only.sh`, the `--no-plugins` build), the golden
+screens (`tests/screen_pty.py` against `tests/golden/screens.json`, recorded from 0.15.0),
 the unit programs (`tests/test_units.sh`), the git oracle (`tests/oracles/oracle_git.py`: the in-process git against real
 `git` on twin repositories, and `tests/git_pty.py`), the nvim oracles
 (`tests/test_engine.sh`, skipped with a note when `nvim` is missing) and pty end-to-end
@@ -433,14 +454,16 @@ Options: `:set treeglyphs` (Nerd Font icons), `:set treewidth=40`, `:set treehid
     m3.m31        entry point: arguments, terminal check, tui loop
     engine/            editing core, no terminal dependency
                        buffer text charclass case key parse num nrfmt motion textobj
-                       register regex search editor ex vim view
+                       register regex search editor ex vim view map cmdtab
     ui/                drawing, input and navigation
                        app keymap plugin window picker picker_view fuzzy files grep ignore tree git gitlib gitcmd
                        clip sources state vt lsp shell theme theme_data sample
     themes/            the built-in themes as .toml (scripts/gen_themes.sh embeds them in ui/MED_theme_data.m31)
     tests/             test.sh (entry), t_*.m31 unit programs, MED_check.m31, oracles/
-    scripts/           build.sh, oracle.sh, gen_keymap.sh (docs/KEYMAP.md from the keymap table), gen_themes.sh
-    docs/              KEYMAP.md (generated)
+    plugins/           profiles/*.txt and, from the first feature that moves, NAME/ (plugin.txt, MEDX_NAME.m31)
+    ext/               the extension API (MED_ext), the generated registry of built-in plugins, a sample extension
+    scripts/           build.sh, plugins.sh, check_plugins.sh, oracle.sh, gen_keymap.sh (docs/KEYMAP.md from the keymap table), gen_themes.sh
+    docs/              KEYMAP.md (generated), EXTENSIONS.md, CORE-AND-PLUGINS.md
     DESIGN.md          plan, plugin audit, architecture, oracle plan, v0.1.0 acceptance
     RENAMES.md         old-to-new import and file table for the grouped layout
 

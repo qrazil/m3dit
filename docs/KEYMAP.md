@@ -6,6 +6,9 @@ The in-editor listing (`<Space>?`, `:Keys`) is built from the same table.
 Source column: `vim` is a Vim / Neovim default that the engine is checked against (nvim parity),
 `config` mirrors the owner's Neovim config, `m3` is specific to this editor.
 A plugin can be switched off with `:PluginDisable NAME`; its rows then disappear everywhere.
+Your own maps (the keymap file, `:map`) are tried before these rows and may use `<Cmd>` (an ex line that runs
+without leaving the mode) and `<buffer>` (this buffer only). A plugin compiled into the build adds its rows
+through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their command with `<Cmd>`.
 
 ## Leader (`<Space>`)
 

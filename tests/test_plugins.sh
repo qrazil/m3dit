@@ -43,7 +43,7 @@ if [ -x "$WORK/m3" ]; then
 fi
 
 # selection rules (no build)
-if out=$(bash scripts/plugins.sh resolve --plugin-dir "$fixtures" --plugins greeter 2>&1) && [ "$(printf '%s' "$out" | tr '\n' ' ')" = "plugins: added hello (required by greeter) hello greeter " ]; then
+if out=$(bash scripts/plugins.sh resolve --plugin-dir "$fixtures" --plugins greeter 2>&1) && [ "$(printf '%s' "$out" | tr '\n' ' ')" = "plugins: added hello (required by greeter) hello greeter" ]; then
     note "--plugins adds what a plugin requires, in dependency order"
 else
     bad "--plugins closure and order" "$out"
