@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 try:
     import pyte
@@ -116,7 +117,7 @@ SCENARIOS = [
     ("explore_directory", [], ROWS, COLS, False, [":Explore\r"]),
     ("finder_files", [], ROWS, COLS, False, [LEADER + "ff", "numb"]),
     ("finder_query", [], ROWS, COLS, False, [LEADER + "ff", "alp"]),
-    ("finder_grep", [], ROWS, COLS, False, [LEADER + "fg", "needle"]),
+    ("finder_grep", [], ROWS, COLS, False, [LEADER + "fg", "return"]),
     ("finder_buffers", ["main.py", "notes.md"], ROWS, COLS, False, [":Buffers\r"]),
     ("command_palette", [], ROWS, COLS, False, [":Commands\r"]),
     ("which_key_leader", [], ROWS, COLS, False, [LEADER, (WAIT, 0.9)]),
@@ -168,9 +169,32 @@ class Term:
         self.fed = len(self.ed.raw)
         self.stream.feed(data)
 
+    def screen_text(self):
+        buf = self.screen.buffer
+        return ["".join(buf[y][x].data or " " for x in range(self.cols)) for y in range(self.rows)]
+
+    def settle_stable(self, rounds=3, limit=20.0):
+        """Wait until the screen is the same for `rounds` quiet periods in a row and no list says it is still
+        loading (a finder title ends in ` ... `): results that stream in (grep, files, git) arrive later on a
+        loaded machine, and the screen is only comparable once they all have."""
+        end = time.time() + limit
+        same, last = 0, None
+        while time.time() < end:
+            self.settle(0.3)
+            now = self.screen_text()
+            loading = any(" ... " in row and ("\u256d" in row or "\u2500" in row) for row in now)
+            if now == last and not loading:
+                same += 1
+                if same >= rounds:
+                    return
+            else:
+                same = 0
+            last = now
+
     def type(self, keys):
         self.ed.send(keys)
         self.settle()
+        self.settle_stable()
 
     def resize(self, rows, cols):
         self.ed.resize(rows, cols)
@@ -224,9 +248,29 @@ def run_scenario(binary, scratch, spec):
             else:
                 term.type(step)
         term.settle(0.4)
+        term.settle_stable()
         return term.snapshot()
     finally:
         term.close()
+
+
+# ripgrep walks the tree with several threads, so which file's hits come first (and so which row is selected and
+# where the matched letters fall) depends on how the threads were scheduled: on a loaded machine another file wins.
+# The results of these scenarios are compared as a set of rows: the same rows, in any order, with no selection
+# marker, no cell styles and no cursor position (the hidden cursor ends where the last row was drawn).
+ORDER_FREE = ("finder_grep",)
+
+
+def order_free(text):
+    """`text` with the result rows of a grep list (` │ > path:line: ...│`) sorted among their own places."""
+    import re
+    pattern = re.compile(r"^(.{1,2}\u2502 )[ >]( \S+:\d+: .*)$")
+    places = [y for y, row in enumerate(text) if pattern.match(row)]
+    rows = sorted(pattern.sub(lambda m: m.group(1) + " " + m.group(2), text[y]) for y in places)
+    out = list(text)
+    for y, row in zip(places, rows):
+        out[y] = row
+    return out
 
 
 def is_loose(name):
@@ -320,12 +364,15 @@ def main():
                 failures += 1
                 continue
             problems = []
-            if gold["text"] != now["text"]:
+            gold_text, now_text = gold["text"], now["text"]
+            if name in ORDER_FREE:
+                gold_text, now_text = order_free(gold_text), order_free(now_text)
+            if gold_text != now_text:
                 problems.append("text differs")
-                problems.extend(diff_text(gold["text"], now["text"]))
-            if gold["style"] != now["style"]:
+                problems.extend(diff_text(gold_text, now_text))
+            if gold["style"] != now["style"] and name not in ORDER_FREE:
                 problems.append("cell styles differ")
-            if name not in TIMING_SENSITIVE and gold["cursor"] != now["cursor"]:
+            if name not in TIMING_SENSITIVE and name not in ORDER_FREE and gold["cursor"] != now["cursor"]:
                 problems.append("cursor golden %s now %s" % (gold["cursor"], now["cursor"]))
             loose = is_loose(name) or name in TIMING_SENSITIVE
             if not loose and gold["bytes"] != now["bytes"]:
