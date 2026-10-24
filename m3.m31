@@ -77,7 +77,7 @@ bool is_truecolour() {
     return colour_term == "truecolor" || colour_term == "24bit" || os.env("TERM_PROGRAM").or("") == "iTerm.app" || os.env("TERM_PROGRAM").or("") == "WezTerm" || os.env("TERM_PROGRAM").or("") == "ghostty";
 }
 
-const str VERSION = "0.15.0";
+const str VERSION = "0.16.0";
 
 // Standard output, for the options that print and exit.
 void say(str text) {

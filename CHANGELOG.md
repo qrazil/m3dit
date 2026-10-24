@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0
 
 The foundation of the core/plugins reorganisation (docs/CORE-AND-PLUGINS.md, owner decisions at its top; migration steps
 S0, S1 and S2). Nothing a user sees changes: the default build reproduces the 0.15.0 screens and pty output byte for byte
@@ -44,6 +44,11 @@ equal. Plugins are compiled in, never loaded: m31 compiles ahead of time.
 - **API maps in every mode.** `MapSpec` modes Normal, Visual, Insert, OperatorPending and Command run their command with
   `<Cmd>`; `Ctx.did_map` and `Ctx.did_unmap` set buffer-local maps for the buffer a handler runs for.
 - The UI ex commands are data on the editor (`MED_cmdtab`, `Editor.ui_commands`) instead of a list rebuilt on every call.
+- Measured against the 0.15.0 binary (`bench/uxperf.py`, 200x60, `bench/bench.py`), with `move` built in: with animation off
+  534 per-key byte and frame counts are equal (`--env M3_NO_ANIM=1`), and so are the bytes per frame of a held `j`, `<C-d>` and
+  `l` and of a resize; with animation on, the first frame of every action writes the same bytes and the animated actions
+  (scrolling, the finder opening) vary by the frame boundaries run to run in both builds. Start-up on a 1k-line file: 0.0128
+  and 0.0142 s (0.15.0) against 0.0121 and 0.0135 s, medians of 20 runs, interleaved.
 - Tests: `tests/screen_pty.py` and `tests/golden/screens.json` (the UI oracle, recorded from 0.15.0 before anything else
   changed), `t_plugins`, `tests/test_plugins.sh` (generated registry, `plugin.txt` against the Spec, builds with the fixture
   plugins in `tests/fixtures/plugins`, `tests/plugins_pty.py`), `tests/core_only.sh` (the `--no-plugins` build),
