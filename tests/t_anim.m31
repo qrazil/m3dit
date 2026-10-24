@@ -210,4 +210,16 @@ MED_anim.fade_in(popup, under, TUI_geometry.Rect(0, 0, 3, 1), 0, 0xd0d0d0, 0x000
 TUI_style.Style at_zero = TUI_style.Style.unpack(popup.style_at(0, 0));
 check.ok("fade at 0 has the background of what was behind", at_zero.background.eq(TUI_style.Colour.Rgb(0, 0, 0)));
 check.ok("and the text hidden in it", at_zero.foreground.eq(TUI_style.Colour.Rgb(0, 0, 0)));
+// --- the transparent fade invents no colour: dim for the first half, then nothing
+TUI_buffer.Buffer clear_under = TUI_buffer.Buffer.sized(6, 2);
+TUI_buffer.Buffer clear_popup = TUI_buffer.Buffer.sized(6, 2);
+clear_popup.set_str(0, 0, "abc", TUI_style.Style(foreground: TUI_style.Colour.Indexed(2)));
+int clear_whole = clear_popup.style_at(0, 0);
+MED_anim.fade_in_dim(clear_popup, clear_under, TUI_geometry.Rect(0, 0, 3, 1), 600);
+check.eq_int("the dim fade at 600 changes nothing", clear_popup.style_at(0, 0), clear_whole);
+MED_anim.fade_in_dim(clear_popup, clear_under, TUI_geometry.Rect(0, 0, 3, 1), 100);
+TUI_style.Style dimmed = TUI_style.Style.unpack(clear_popup.style_at(0, 0));
+check.eq_int("the dim fade at 100 is dim", dimmed.attrs & TUI_style.DIM, TUI_style.DIM);
+check.ok("keeps the colour", dimmed.foreground.eq(TUI_style.Colour.Indexed(2)));
+check.ok("and the terminal's own background", dimmed.background.eq(TUI_style.Colour.Default));
 check.finish("t_anim");

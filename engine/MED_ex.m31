@@ -2440,6 +2440,24 @@ Step cmd_set(MED_editor.Editor editor, Cmd cmd) {
         if (spec.name == "") {
             return fail(editor, "E518: Unknown option: " + word);
         }
+        if (spec.name == "transparent" && operator == "" && !is_query && !is_reset) {
+            // the one string option that reads like a flag: `:set transparent` is on, `notransparent` off
+            // (explicitly: the theme's own key no longer decides), `transparent!` flips it
+            str now = option_text(editor, spec);
+            bool is_now_on = now != "" && now != "auto" && now != "off" && now != "false" && now != "no" && now != "0";
+            if (is_invert) {
+                if (is_now_on) {
+                    option_store(editor, spec, "off");
+                } else {
+                    option_store(editor, spec, "on");
+                }
+            } else if (is_negate) {
+                option_store(editor, spec, "off");
+            } else {
+                option_store(editor, spec, "on");
+            }
+            continue;
+        }
         if (spec.kind == "bool") {
             if (operator != "" || ((is_negate || is_invert) && is_query)) {
                 return fail(editor, "E474: Invalid argument: " + token);

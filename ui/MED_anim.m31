@@ -387,6 +387,26 @@ pub void fade_in(TUI_buffer.Buffer frame, TUI_buffer.Buffer under, TUI_geometry.
     }
 }
 
+/// `fade_in` for a transparent theme (docs/TRANSPARENCY.md): there is no
+/// background to blend from and the colour of the desktop behind the popup is
+/// not known, so nothing may be mixed with it. The popup's cells are drawn dim
+/// for the first half of the fade and as they are after that; no colour is
+/// invented, and a cell with the terminal's own background keeps it.
+pub void fade_in_dim(TUI_buffer.Buffer frame, TUI_buffer.Buffer under, TUI_geometry.Rect rect, int permille) {
+    if (permille >= 500) {
+        return;
+    }
+    TUI_geometry.Rect area = frame.area();
+    for (int y in rect.y .. rect.bottom()) {
+        for (int x in rect.x .. rect.right()) {
+            if (!area.has_point(x, y) || frame.is_same_cell(under, x, y)) {
+                continue;
+            }
+            frame.set_style(x, y, TUI_style.Style.unpack(frame.style_at(x, y)).with_attrs(TUI_style.DIM));
+        }
+    }
+}
+
 /// How far a one-shot effect that began at `started_ns` has run at `now`, over
 /// `duration_ms`, as permille (0 at the start, 1000 when over); eased out.
 pub int progress(int started_ns, int now, int duration_ms) {

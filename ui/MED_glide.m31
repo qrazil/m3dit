@@ -86,6 +86,9 @@ pub type Glide {
     pub int flash_rgb = 0xe8c060;
     pub int default_fg_rgb = 0xd0d0d0;
     pub int default_bg_rgb = 0x000000;
+    /// The theme is drawn transparent: effects must not invent a background
+    /// (`use_theme`).
+    pub bool is_transparent = false;
     /// A popup fading in: what is showing (0 none, 1 which-key, 2 picker), when
     /// the fade began, and the frame as it was before the popup.
     int popup_seen = 0;
@@ -173,6 +176,7 @@ pub void Glide.use_theme(MED_theme.Theme theme, bool is_dark) {
         fallback_ink = 0x303030;
         fallback_paper = 0xffffff;
     }
+    is_transparent = theme.transparency != MED_theme.OFF;
     default_bg_rgb = MED_anim.colour_rgb(theme.style("ui.background").background, fallback_paper);
     default_fg_rgb = MED_anim.colour_rgb(theme.style("ui.text").foreground, fallback_ink);
     TUI_style.Style found = theme.style("search.match");
@@ -264,7 +268,14 @@ pub void Glide.finish(TUI_buffer.Buffer buffer, MED_editor.Editor subject) {
                 continue;
             }
             TUI_style.Style style = TUI_style.Style.unpack(buffer.style_at(x, y));
-            if (settings.is_truecolour) {
+            if (is_transparent && style.background.eq(TUI_style.Colour.Default)) {
+                // no background to mix from, and none to invent: the flash is the highlight's own
+                // colour for its first half, then gone
+                if (strength > 500) {
+                    TUI_style.Colour mark = TUI_style.Colour.Rgb(flash_rgb / 65536, flash_rgb / 256 % 256, flash_rgb % 256);
+                    style = style.with_background(mark).with_foreground(MED_theme.ink_for(mark));
+                }
+            } else if (settings.is_truecolour) {
                 style = style.with_background(MED_anim.mix_towards(style.background, flash_rgb, strength * 55 / 100, default_bg_rgb));
             } else if (strength > 500) {
                 style = style.with_attrs(TUI_style.REVERSE);
@@ -326,6 +337,10 @@ pub void Glide.after_popup(TUI_buffer.Buffer buffer, MED_editor.Editor subject) 
     int done = MED_anim.progress(fade_started_ns, MED_anim.now_ns(), FADE_MS);
     if (done >= 1000 || !under.area().eq(buffer.area())) {
         is_fade = false;
+        return;
+    }
+    if (is_transparent) {
+        MED_anim.fade_in_dim(buffer, under, buffer.area(), done);
         return;
     }
     MED_anim.fade_in(buffer, under, buffer.area(), done, default_fg_rgb, default_bg_rgb);

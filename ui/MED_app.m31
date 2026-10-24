@@ -1321,6 +1321,27 @@ void App.run_request(str request) {
     }
 }
 
+/// The transparency `loaded` is drawn with: the `transparent` option when it
+/// says on / off / popups, else what the theme's own `transparent` key asks, else off.
+int App.wanted_transparency(MED_theme.Theme loaded) {
+    int mode = MED_theme.mode_of(editor.opts.get("transparent").or(""));
+    if (mode == MED_theme.AUTO) {
+        mode = loaded.hint;
+    }
+    if (mode == MED_theme.ALL || mode == MED_theme.POPUPS) {
+        return mode;
+    }
+    return MED_theme.OFF;
+}
+
+/// `:set transparent` took effect (or the theme changed): draw with it.
+void App.follow_transparent() {
+    int wanted = wanted_transparency(theme);
+    if (wanted != theme.transparency) {
+        theme.set_transparency(wanted);
+    }
+}
+
 /// The theme loaded for `name`: the 16-colour twin of `default` and
 /// `default-light` when the terminal has no more colours than that.
 str App.theme_choice(str name) {
@@ -1340,6 +1361,7 @@ pub bool App.did_use_theme(str name) {
     str chosen = theme_choice(name);
     match (MED_theme.load(chosen, theme_directory)) {
         case Ok(MED_theme.Theme loaded): {
+            loaded.set_transparency(wanted_transparency(loaded));
             theme = loaded;
             theme_background = editor.opts.get("background").or("dark");
             if (loaded.warnings.size() > 0) {
@@ -5480,6 +5502,7 @@ void App.draw_wildmenu(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
 /// Draw the whole screen.
 pub void App.render(TUI_buffer.Buffer buffer, TUI_geometry.Rect full) {
     follow_background();
+    follow_transparent();
     if (!MED_theme.is_empty(theme.base)) {
         buffer.fill(full, " ", theme.base);
     }

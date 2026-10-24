@@ -61,7 +61,7 @@ pub str ansi_of(TUI_buffer.Buffer buffer, TUI_style.Depth depth) {
 }
 
 /// A fresh editor showing `sample` (and an empty second buffer, for the tab line).
-MED_app.App app_for(Sample sample, str theme_name, str themes_directory, TUI_style.Depth depth) {
+MED_app.App app_for(Sample sample, str theme_name, str themes_directory, TUI_style.Depth depth, str transparent) {
     match (MED_app.open_all([sample.path, "other.txt"])) {
         case Ok(MED_app.App app): {
             app.theme_directory = themes_directory;
@@ -73,6 +73,9 @@ MED_app.App app_for(Sample sample, str theme_name, str themes_directory, TUI_sty
                 }
                 case TrueColour: {
                 }
+            }
+            if (transparent != "") {
+                app.editor.opts.set("transparent", transparent);
             }
             app.did_use_theme(theme_name);
             app.editor.buffer.lines = sample.text.split("\n");
@@ -93,6 +96,11 @@ MED_app.App app_for(Sample sample, str theme_name, str themes_directory, TUI_sty
 /// The screens of theme `name` as ANSI text, led by a title line. A theme that
 /// does not load gives its error instead.
 pub str screens(str name, str themes_directory, TUI_style.Depth depth) {
+    return screens_in(name, themes_directory, depth, "");
+}
+
+/// `screens` with the `transparent` option set to `transparent` ("" leaves it alone).
+pub str screens_in(str name, str themes_directory, TUI_style.Depth depth, str transparent) {
     str out = "== theme " + name + " ==\n";
     match (MED_theme.load(name, themes_directory)) {
         case Ok(MED_theme.Theme loaded): {
@@ -102,17 +110,17 @@ pub str screens(str name, str themes_directory, TUI_style.Depth depth) {
         }
     }
     for (Sample sample in samples()) {
-        MED_app.App app = app_for(sample, name, themes_directory, depth);
+        MED_app.App app = app_for(sample, name, themes_directory, depth, transparent);
         TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(WIDTH, ROWS);
         app.render(screen, screen.area());
         out = out + ansi_of(screen, depth);
     }
-    MED_app.App picker_app = app_for(samples()[0], name, themes_directory, depth);
+    MED_app.App picker_app = app_for(samples()[0], name, themes_directory, depth, transparent);
     picker_app.open_picker("themes", "");
     TUI_buffer.Buffer picker_screen = TUI_buffer.Buffer.sized(WIDTH, ROWS + 4);
     picker_app.render(picker_screen, picker_screen.area());
     out = out + ansi_of(picker_screen, depth);
-    MED_app.App keys_app = app_for(samples()[0], name, themes_directory, depth);
+    MED_app.App keys_app = app_for(samples()[0], name, themes_directory, depth, transparent);
     keys_app.is_leader = true;
     keys_app.is_which_key = true;
     TUI_buffer.Buffer keys_screen = TUI_buffer.Buffer.sized(WIDTH, ROWS + 4);

@@ -100,6 +100,32 @@ MED_theme.Layer layer_of(str text) {
     }
 }
 
+// the built-in theme `name`
+MED_theme.Theme built_in(str name) {
+    match (MED_theme.load(name, "")) {
+        case Ok(MED_theme.Theme loaded): {
+            return loaded;
+        }
+        case Err(str message): {
+            print("unexpected: " + message);
+            return MED_theme.plain();
+        }
+    }
+}
+
+// the `transparent` hint of the user theme `name` in `directory`
+int load_hint(str name, str directory) {
+    match (MED_theme.load(name, directory)) {
+        case Ok(MED_theme.Theme loaded): {
+            return loaded.hint;
+        }
+        case Err(str message): {
+            print("unexpected: " + message);
+            return -9;
+        }
+    }
+}
+
 MED_theme.Theme theme_of(str text) {
     MED_theme.Layer layer = layer_of(text);
     return MED_theme.Theme.make("t", layer.entries);
@@ -681,6 +707,224 @@ match (MED_app.open_all([work + "/hl.py"])) {
         check.eq_str("and no background", screen.get(note, 0).style.background.to_str(), "default");
     }
 }
+// --- transparency ---------------------------------------------------------------------------------
+check.eq_int("mode_of: nothing is auto", MED_theme.mode_of(""), MED_theme.AUTO);
+check.eq_int("mode_of: auto", MED_theme.mode_of("Auto"), MED_theme.AUTO);
+check.eq_int("mode_of: on", MED_theme.mode_of("on"), MED_theme.ALL);
+check.eq_int("mode_of: true", MED_theme.mode_of("true"), MED_theme.ALL);
+check.eq_int("mode_of: 1", MED_theme.mode_of("1"), MED_theme.ALL);
+check.eq_int("mode_of: all", MED_theme.mode_of("ALL"), MED_theme.ALL);
+check.eq_int("mode_of: off", MED_theme.mode_of("off"), MED_theme.OFF);
+check.eq_int("mode_of: false", MED_theme.mode_of("false"), MED_theme.OFF);
+check.eq_int("mode_of: 0", MED_theme.mode_of("0"), MED_theme.OFF);
+check.eq_int("mode_of: popups", MED_theme.mode_of("popups"), MED_theme.POPUPS);
+check.eq_int("mode_of: a word that is none", MED_theme.mode_of("sideways"), MED_theme.BAD_MODE);
+check.eq_str("mode names", MED_theme.mode_name(MED_theme.ALL) + MED_theme.mode_name(MED_theme.POPUPS) + MED_theme.mode_name(MED_theme.OFF), "onpopupsoff");
+TUI_style.Colour navy = TUI_style.Colour.Rgb(47, 60, 89);
+TUI_style.Colour blue_bg = TUI_style.Colour.Rgb(106, 166, 248);
+TUI_style.Colour light_fg = TUI_style.Colour.Rgb(201, 206, 216);
+TUI_style.Colour ink_dark = TUI_style.Colour.Rgb(22, 24, 29);
+TUI_style.Style panel = TUI_style.Style(foreground: light_fg, background: TUI_style.Colour.Rgb(39, 44, 55), attrs: TUI_style.BOLD);
+check.ok("OFF returns the style as it was", MED_theme.transparent_style(MED_theme.OFF, "ui.popup", panel).to_str() == panel.to_str());
+check.ok("AUTO is OFF too", MED_theme.transparent_style(MED_theme.AUTO, "ui.popup", panel).to_str() == panel.to_str());
+TUI_style.Style stripped = MED_theme.transparent_style(MED_theme.ALL, "ui.popup", panel);
+check.ok("a surface loses its background", stripped.background.eq(TUI_style.Colour.Default));
+check.ok("keeps its text colour", stripped.foreground.eq(light_fg));
+check.eq_int("and its attributes", stripped.attrs, TUI_style.BOLD);
+check.ok("an unknown scope is a surface", MED_theme.transparent_style(MED_theme.ALL, "ui.future.panel", panel).background.eq(TUI_style.Colour.Default));
+check.ok("a syntax scope with a background loses it", MED_theme.transparent_style(MED_theme.ALL, "markup.raw.block", panel).background.eq(TUI_style.Colour.Default));
+check.ok("a style without a background is the same style", MED_theme.transparent_style(MED_theme.ALL, "keyword", TUI_style.Style(foreground: light_fg)).to_str() == TUI_style.Style(foreground: light_fg).to_str());
+check.ok("the resolver is idempotent", MED_theme.transparent_style(MED_theme.ALL, "ui.popup", stripped).to_str() == stripped.to_str());
+TUI_style.Style selection = TUI_style.Style(background: navy);
+check.ok("a selection keeps its background", MED_theme.transparent_style(MED_theme.ALL, "ui.selection", selection).background.eq(navy));
+check.ok("and its text colour stays unset", MED_theme.transparent_style(MED_theme.ALL, "ui.selection", selection).foreground.eq(TUI_style.Colour.Default));
+check.ok("a cursor line keeps it", MED_theme.transparent_style(MED_theme.ALL, "ui.cursorline.primary", selection).background.eq(navy));
+check.ok("the colour column keeps it", MED_theme.transparent_style(MED_theme.ALL, "ui.virtual.ruler", selection).background.eq(navy));
+check.ok("a search match keeps it", MED_theme.transparent_style(MED_theme.ALL, "search.match", selection).background.eq(navy));
+check.ok("the cursor keeps it", MED_theme.transparent_style(MED_theme.ALL, "ui.cursor.primary.insert", selection).background.eq(navy));
+check.ok("the cursor line and column are highlights", MED_theme.is_highlight("ui.cursorline") && MED_theme.is_highlight("ui.cursorcolumn.primary"));
+check.ok("the gutter, the line numbers and the popups are not", !MED_theme.is_highlight("ui.gutter") && !MED_theme.is_highlight("ui.linenr.selected") && !MED_theme.is_highlight("ui.popup") && !MED_theme.is_highlight("ui.statusline.normal"));
+TUI_style.Style picked = MED_theme.transparent_style(MED_theme.ALL, "ui.picker.selected", selection);
+check.ok("a highlighted row keeps its background", picked.background.eq(navy));
+check.ok("and gets light ink on a dark one", picked.foreground.eq(MED_theme.ink_for(navy)) && picked.foreground.eq(TUI_style.Colour.Rgb(230, 232, 238)));
+check.ok("dark ink on a light one", MED_theme.ink_for(TUI_style.Colour.Rgb(250, 250, 240)).eq(ink_dark));
+check.ok("ink for the terminal's own background is light", MED_theme.ink_for(TUI_style.Colour.Default).eq(TUI_style.Colour.Rgb(230, 232, 238)));
+check.ok("a row that has a text colour keeps it", MED_theme.transparent_style(MED_theme.ALL, "ui.menu.selected", TUI_style.Style(foreground: ink_dark, background: blue_bg)).foreground.eq(ink_dark));
+TUI_style.Style badge = TUI_style.Style(foreground: ink_dark, background: blue_bg, attrs: TUI_style.BOLD);
+TUI_style.Style moved = MED_theme.transparent_style(MED_theme.ALL, "ui.statusline.normal", badge);
+check.ok("a mode badge trades the block for the text colour", moved.foreground.eq(blue_bg) && moved.background.eq(TUI_style.Colour.Default));
+check.eq_int("and stays bold", moved.attrs, TUI_style.BOLD);
+check.ok("a TODO is a badge", MED_theme.transparent_style(MED_theme.ALL, "ui.todo", badge).foreground.eq(blue_bg));
+check.ok("so is a jump label", MED_theme.transparent_style(MED_theme.ALL, "ui.virtual.jump-label", badge).foreground.eq(blue_bg));
+check.ok("the plain statusline is not", MED_theme.transparent_style(MED_theme.ALL, "ui.statusline", badge).foreground.eq(ink_dark));
+TUI_style.Style reversed_bar = TUI_style.Style(attrs: TUI_style.REVERSE | TUI_style.DIM);
+TUI_style.Style unreversed = MED_theme.transparent_style(MED_theme.ALL, "ui.statusline.inactive", reversed_bar);
+check.eq_int("a reversed bar is not reversed", unreversed.attrs, TUI_style.DIM);
+check.eq_int("a reversed cursor stays", MED_theme.transparent_style(MED_theme.ALL, "ui.cursor", TUI_style.Style(attrs: TUI_style.REVERSE)).attrs, TUI_style.REVERSE);
+check.eq_int("a reversed mode badge is bold, not reversed", MED_theme.transparent_style(MED_theme.ALL, "ui.statusline.normal", TUI_style.Style(attrs: TUI_style.REVERSE | TUI_style.BOLD)).attrs, TUI_style.BOLD);
+check.ok("POPUPS strips a popup", MED_theme.transparent_style(MED_theme.POPUPS, "ui.popup", panel).background.eq(TUI_style.Colour.Default));
+check.ok("and a which-key title", MED_theme.transparent_style(MED_theme.POPUPS, "ui.which-key.title", panel).background.eq(TUI_style.Colour.Default));
+check.ok("and the finder", MED_theme.transparent_style(MED_theme.POPUPS, "ui.picker", panel).background.eq(TUI_style.Colour.Default));
+check.ok("and a menu", MED_theme.transparent_style(MED_theme.POPUPS, "ui.menu", panel).background.eq(TUI_style.Colour.Default));
+check.ok("POPUPS leaves the statusline", MED_theme.transparent_style(MED_theme.POPUPS, "ui.statusline", panel).to_str() == panel.to_str());
+check.ok("and the background", MED_theme.transparent_style(MED_theme.POPUPS, "ui.background", panel).to_str() == panel.to_str());
+check.ok("and the mode badges", MED_theme.transparent_style(MED_theme.POPUPS, "ui.statusline.normal", badge).to_str() == badge.to_str());
+check.ok("and the tab line", MED_theme.transparent_style(MED_theme.POPUPS, "ui.bufferline.active", panel).to_str() == panel.to_str());
+// the engine: the theme's styles come through the resolver, in every lookup
+MED_theme.Theme solid = theme_of("\"ui.background\" = { bg = \"#101010\", fg = \"#eeeeee\" }\n\"ui.popup\" = { fg = \"#cccccc\", bg = \"#202020\" }\n\"ui.statusline\" = { fg = \"#aaaaaa\", bg = \"#303030\" }\n\"ui.statusline.normal\" = { fg = \"#111111\", bg = \"#6aa6f8\", modifiers = [\"bold\"] }\n\"ui.cursorline\" = { bg = \"#181818\" }\n\"ui.selection\" = { bg = \"#2f3c59\" }\n\"ui.picker.selected\" = { bg = \"#2f3c59\" }\n\"ui.picker\" = { fg = \"#cccccc\", bg = \"#202020\" }\n\"keyword\" = \"red\"\n");
+str before_popup = solid.look("ui.popup").to_str();
+str before_base = solid.base.to_str();
+str before_class = solid.class_look(SYN_class.KEYWORD, MED_theme.ON_CURSOR_LINE).to_str();
+check.eq_int("a theme starts OFF", solid.transparency, MED_theme.OFF);
+solid.set_transparency(MED_theme.ALL);
+check.eq_int("set_transparency takes effect", solid.transparency, MED_theme.ALL);
+check.ok("the base has no background", solid.base.background.eq(TUI_style.Colour.Default));
+check.eq_str("and keeps its text colour", solid.base.foreground.to_str(), "rgb 238,238,238");
+check.ok("a popup look has none", solid.look("ui.popup").background.eq(TUI_style.Colour.Default));
+check.eq_str("but its text colour", solid.look("ui.popup").foreground.to_str(), "rgb 204,204,204");
+check.ok("a syntax look has none", solid.look("keyword").background.eq(TUI_style.Colour.Default));
+check.ok("over() has none: a popup's input line", solid.over("ui.picker", "ui.prompt").background.eq(TUI_style.Colour.Default));
+check.ok("the statusline has none", solid.look("ui.statusline").background.eq(TUI_style.Colour.Default));
+check.ok("the mode badge is its colour as text", solid.over("ui.statusline", "ui.statusline.normal").foreground.to_str() == "rgb 106,166,248" && solid.over("ui.statusline", "ui.statusline.normal").background.eq(TUI_style.Colour.Default));
+check.ok("a visual statusline mode falls back to the badge too", solid.style("ui.statusline.visual").background.eq(TUI_style.Colour.Default));
+check.ok("the cursor line stays", solid.class_look(SYN_class.KEYWORD, MED_theme.ON_CURSOR_LINE).background.to_str() == "rgb 24,24,24");
+check.ok("on the plain background class looks have none", solid.class_look(SYN_class.KEYWORD, MED_theme.PLAIN).background.eq(TUI_style.Colour.Default));
+check.ok("the selection stays", solid.style("ui.selection").background.to_str() == "rgb 47,60,89");
+check.ok("the picker's selected row stays, with ink", solid.over("ui.picker", "ui.picker.selected").background.to_str() == "rgb 47,60,89" && solid.over("ui.picker", "ui.picker.selected").foreground.to_str() == "rgb 230,232,238");
+check.ok("entries are the theme's own, untouched", solid.has_entry("ui.popup") && solid.entries.get("ui.popup").or(TUI_style.Style()).background.to_str() == "rgb 32,32,32");
+solid.set_transparency(MED_theme.POPUPS);
+check.ok("POPUPS: the base has its background", solid.base.background.to_str() == "rgb 16,16,16");
+check.ok("text keeps it", solid.look("keyword").background.to_str() == "rgb 16,16,16");
+check.ok("a popup has none, and not the base's either", solid.look("ui.popup").background.eq(TUI_style.Colour.Default) && solid.over("ui.picker", "ui.prompt").background.eq(TUI_style.Colour.Default));
+check.ok("the statusline keeps its own", solid.look("ui.statusline").background.to_str() == "rgb 48,48,48");
+solid.set_transparency(MED_theme.OFF);
+check.eq_str("OFF again: the popup is as it was", solid.look("ui.popup").to_str(), before_popup);
+check.eq_str("the base", solid.base.to_str(), before_base);
+check.eq_str("the class look", solid.class_look(SYN_class.KEYWORD, MED_theme.ON_CURSOR_LINE).to_str(), before_class);
+solid.set_transparency(77);
+check.eq_int("a mode out of range is OFF", solid.transparency, MED_theme.OFF);
+// a theme's own `transparent` key
+check.eq_int("no key is AUTO", theme_of("\"keyword\" = \"red\"\n").hint, MED_theme.AUTO);
+str key_directory = work + "/transparent_keys";
+match (fs.makedirs(key_directory)) {
+    case Ok(bool did_make): {
+    }
+    case Err(io.Error error): {
+        print("cannot make " + key_directory);
+    }
+}
+write_file(key_directory + "/yes.toml", "transparent = true\n\"keyword\" = \"red\"\n");
+write_file(key_directory + "/pop.toml", "transparent = \"popups\"\n\"keyword\" = \"red\"\n");
+write_file(key_directory + "/no.toml", "transparent = false\n");
+write_file(key_directory + "/child.toml", "inherits = \"yes\"\n\"string\" = \"green\"\n");
+write_file(key_directory + "/over.toml", "inherits = \"yes\"\ntransparent = \"off\"\n");
+write_file(key_directory + "/bad.toml", "transparent = sideways\n");
+check.eq_int("transparent = true", load_hint("yes", key_directory), MED_theme.ALL);
+check.eq_int("transparent = \"popups\"", load_hint("pop", key_directory), MED_theme.POPUPS);
+check.eq_int("transparent = false", load_hint("no", key_directory), MED_theme.OFF);
+check.eq_int("is inherited", load_hint("child", key_directory), MED_theme.ALL);
+check.eq_int("a child may take it back", load_hint("over", key_directory), MED_theme.OFF);
+check.ok("a bad value is an error naming the line", layer_error("transparent = sideways\n").contains("t:1:") && layer_error("transparent = sideways\n").contains("transparent"));
+match (MED_theme.load("bad", key_directory)) {
+    case Ok(MED_theme.Theme loaded): {
+        check.ok("a bad transparent value does not load", false);
+    }
+    case Err(str message): {
+        check.ok("a bad transparent value fails the theme, naming the file", message.contains("bad:1") && message.contains("transparent"));
+    }
+}
+check.eq_int("the built-in themes ask for nothing", built_in("default").hint, MED_theme.AUTO);
+// every built-in theme: ALL strips every background but the highlights', and OFF changes nothing
+for (str name in MED_theme_data.NAMES) {
+    MED_theme.Theme each = built_in(name);
+    str looks_off = "";
+    int leaked = 0;
+    int reversed_bars = 0;
+    for (str scope in each.entries.keys()) {
+        TUI_style.Style raw = each.entries.get(scope).or(TUI_style.Style());
+        looks_off = looks_off + scope + "=" + each.style(scope).to_str() + ";";
+        if (each.style(scope).to_str() != raw.to_str()) {
+            check.ok(name + ": OFF changed " + scope, false);
+        }
+    }
+    each.set_transparency(MED_theme.ALL);
+    for (str scope in each.entries.keys()) {
+        TUI_style.Style now = each.style(scope);
+        if (!MED_theme.is_highlight(scope) && !now.background.eq(TUI_style.Colour.Default)) {
+            leaked = leaked + 1;
+            print("  leaked " + scope);
+        }
+        if (!MED_theme.is_highlight(scope) && (now.attrs & TUI_style.REVERSE) != 0) {
+            reversed_bars = reversed_bars + 1;
+        }
+    }
+    check.eq_int(name + ": no scope but a highlight keeps a background", leaked, 0);
+    check.eq_int(name + ": no scope but the cursor is reversed", reversed_bars, 0);
+    for (str scope in MED_theme.required_scopes()) {
+        if (!MED_theme.is_highlight(scope) && !each.look(scope).background.eq(TUI_style.Colour.Default)) {
+            check.ok(name + ": the look of " + scope + " has a background", false);
+        }
+    }
+    each.set_transparency(MED_theme.OFF);
+    str again = "";
+    for (str scope in each.entries.keys()) {
+        again = again + scope + "=" + each.style(scope).to_str() + ";";
+    }
+    check.ok(name + ": and back to OFF is the same", again == looks_off);
+}
+// the editor: `:set transparent`, the theme's key, the environment of the options
+match (MED_app.open_all([""])) {
+    case Err(str message): {
+        check.ok("open for the transparency tests: " + message, false);
+    }
+    case Ok(MED_app.App app): {
+        TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(70, 12);
+        app.did_use_theme("tokyonight");
+        app.render(screen, screen.area());
+        check.ok("the theme paints its background by default", screen.get(2, 3).style.background.to_str() == "rgb 26,27,38");
+        check.eq_int("transparency is off", app.theme.transparency, MED_theme.OFF);
+        type_text(app, ":set transparent\n");
+        app.render(screen, screen.area());
+        check.eq_int(":set transparent turns it on (the next frame)", app.theme.transparency, MED_theme.ALL);
+        check.ok("an empty cell has the terminal's background", screen.get(2, 3).style.background.eq(TUI_style.Colour.Default));
+        check.ok("so does the status line", screen.get(2, 10).style.background.eq(TUI_style.Colour.Default));
+        check.eq_str("the option reads back", app.editor.opts.get("transparent").or("?"), "on");
+        app.did_use_theme("gruvbox");
+        check.eq_int("a theme switch keeps it", app.theme.transparency, MED_theme.ALL);
+        type_text(app, ":set transparent=popups\n");
+        app.render(screen, screen.area());
+        check.eq_int("popups", app.theme.transparency, MED_theme.POPUPS);
+        type_text(app, ":set transparent!\n");
+        app.render(screen, screen.area());
+        check.eq_int("transparent! from popups is off", app.theme.transparency, MED_theme.OFF);
+        type_text(app, ":set transparent!\n");
+        app.render(screen, screen.area());
+        check.eq_int("and again on", app.theme.transparency, MED_theme.ALL);
+        type_text(app, ":set notransparent\n");
+        app.render(screen, screen.area());
+        check.eq_int("notransparent is off", app.theme.transparency, MED_theme.OFF);
+        check.eq_str("explicitly", app.editor.opts.get("transparent").or("?"), "off");
+        type_text(app, ":set transparent&\n");
+        app.render(screen, screen.area());
+        check.eq_str("transparent& is auto again", app.editor.opts.get("transparent").or("?"), "");
+        app.theme_directory = key_directory;
+        app.did_use_theme("yes");
+        app.render(screen, screen.area());
+        check.eq_int("a theme that says transparent is drawn so", app.theme.transparency, MED_theme.ALL);
+        type_text(app, ":set notransparent\n");
+        app.render(screen, screen.area());
+        check.eq_int("the option, set, wins over the theme", app.theme.transparency, MED_theme.OFF);
+        app.did_use_theme("tokyonight");
+        app.render(screen, screen.area());
+        check.ok("and a plain frame is painted again", screen.get(2, 3).style.background.to_str() == "rgb 26,27,38");
+    }
+}
+// --- --dump-sample, transparent
+str clear_dump = MED_sample.screens_in("gruvbox", "", TUI_style.Depth.TrueColour, "on");
+check.ok("a transparent dump has the theme's colours", clear_dump.contains("\x1b[38;2;"));
+check.ok("and no background of the base, the popups or the bars", !clear_dump.contains("48;2;40;40;40"));
+check.ok("a plain dump has it", MED_sample.screens("gruvbox", "", TUI_style.Depth.TrueColour).contains("48;2;40;40;40"));
+check.ok("the dump is the same string with the option left alone", MED_sample.screens_in("gruvbox", "", TUI_style.Depth.TrueColour, "") == MED_sample.screens("gruvbox", "", TUI_style.Depth.TrueColour));
 // --- --dump-sample ----------------------------------------------------------------------------------
 str dark_dump = MED_sample.screens("tokyonight", "", TUI_style.Depth.TrueColour);
 check.ok("the dump has the theme's title", dark_dump.starts_with("== theme tokyonight ==\n"));

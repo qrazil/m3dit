@@ -111,6 +111,7 @@ table.flag("list-plugins", help: "write the plugins compiled into this binary (n
 table.flag("dump-sample", help: "write the theme (every built-in one without --theme) drawn on sample code as ANSI text and exit");
 table.flag("no-session", help: "start with an empty buffer instead of the files the project had open at its last exit");
 table.flag("no-anim", help: "no animation (M3_NO_ANIM=1 or TERM=dumb does the same, and so does :set noanimate)");
+table.flag("transparent", help: "draw every surface on the terminal's own background, for terminals with opacity or blur (M3_TRANSPARENT=1|popups|0 and :set transparent do the same; docs/TRANSPARENCY.md)");
 table.flag("no-mouse", help: "do not ask the terminal for mouse reports (M3_NO_MOUSE=1 does the same)");
 table.tail("files", placeholder: "FILE", help: "files to open as buffers (a new buffer when one does not exist yet); with none, an empty buffer");
 table.completions();
@@ -130,6 +131,10 @@ if (given.is_flag_set("list-plugins")) {
     os.exit(0);
 }
 bool is_dump = given.is_flag_set("dump-sample");
+str dump_transparent = os.env("M3_TRANSPARENT").or("");
+if (given.is_flag_set("transparent")) {
+    dump_transparent = "on";
+}
 if (is_dump) {
     TUI_style.Depth depth = colour_depth();
     if (dump_colours == "16") {
@@ -145,7 +150,7 @@ if (is_dump) {
         wanted = MED_theme.available(themes_directory);
     }
     for (str one in wanted) {
-        say(MED_sample.screens(one, themes_directory, depth));
+        say(MED_sample.screens_in(one, themes_directory, depth, dump_transparent));
     }
     os.exit(0);
 }
@@ -219,6 +224,18 @@ match (MED_app.open_all(files)) {
         }
         app.ext_install();
         app.load_keymap(keymap, is_keymap_required);
+        // the environment and the flag win over the keymap file's `set transparent`
+        str transparent_env = os.env("M3_TRANSPARENT").or("");
+        if (given.is_flag_set("transparent")) {
+            transparent_env = "on";
+        }
+        if (transparent_env != "") {
+            if (MED_theme.mode_of(transparent_env) == MED_theme.BAD_MODE) {
+                io.eprint("m3: M3_TRANSPARENT is 1, 0 or popups, and got '" + transparent_env + "'\n");
+            } else {
+                app.editor.opts.set("transparent", transparent_env);
+            }
+        }
         if (keymap != "") {
             // --keymap NONE is a clean run: no state files either
             app.state_directory = MED_state.default_directory();
