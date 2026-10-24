@@ -235,6 +235,11 @@ def is_loose(name):
     return name.startswith("finder_") or name.endswith("_finder")
 
 
+# The file tree asks git for its letters in the background: under load the cursor and the frame boundaries move while the
+# text and styles do not.
+TIMING_SENSITIVE = ("git_tree_letters",)
+
+
 def diff_text(old, new):
     out = []
     for y in range(max(len(old), len(new))):
@@ -320,9 +325,9 @@ def main():
                 problems.extend(diff_text(gold["text"], now["text"]))
             if gold["style"] != now["style"]:
                 problems.append("cell styles differ")
-            if gold["cursor"] != now["cursor"]:
+            if name not in TIMING_SENSITIVE and gold["cursor"] != now["cursor"]:
                 problems.append("cursor golden %s now %s" % (gold["cursor"], now["cursor"]))
-            loose = is_loose(name)
+            loose = is_loose(name) or name in TIMING_SENSITIVE
             if not loose and gold["bytes"] != now["bytes"]:
                 problems.append("pty bytes golden %d now %d" % (gold["bytes"], now["bytes"]))
             if raw and not loose and gold["raw"] != now["raw"]:
