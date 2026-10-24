@@ -39,6 +39,16 @@
 // a theme with no `ui.background` leaves the terminal's own background alone
 // (Helix's transparent background) and every cell the editor draws still gets
 // the same base.
+//
+// Transparency (docs/TRANSPARENCY.md). A terminal shows the desktop through a
+// cell only when the cell's background is the terminal's default, so a theme
+// that paints panels, popups or bars leaves holes in a translucent window.
+// `theme.set_transparency(ALL)` (`:set transparent`, M3_TRANSPARENT, a theme's
+// own `transparent = true`) makes `style` -- the one place every scope's style
+// comes through -- drop the background of every scope that is not an
+// interactive highlight (`transparent_style`): no widget has to know. OFF
+// returns the theme's styles untouched, so the default output is the same bytes
+// as before the mode existed. POPUPS does the same for popups and menus only.
 
 import fs;
 import io;
@@ -53,6 +63,18 @@ pub const str LIGHT = "default-light";
 /// The same two drawn with the terminal's own 16 colours (the default at 16 colours).
 pub const str DARK_16 = "term16-dark";
 pub const str LIGHT_16 = "term16-light";
+/// Transparency modes: nothing dropped (the default), every surface, or only
+/// the popups and menus. AUTO is "the option says nothing: ask the theme".
+pub const int OFF = 0;
+pub const int ALL = 1;
+pub const int POPUPS = 2;
+pub const int AUTO = -1;
+/// A word that is no mode.
+pub const int BAD_MODE = -2;
+/// The ink a highlighted row gets when the theme gave it a background and no
+/// text colour: near black on a light background, near white on a dark one.
+const int INK_DARK = 0x16181d;
+const int INK_LIGHT = 0xe6e8ee;
 /// How deep an `inherits` chain or a palette reference may go.
 const int MAX_DEPTH = 8;
 /// The variants of `class_look`: the plain background, the cursor line (and
@@ -88,6 +110,138 @@ pub str class_scope(int class_value) {
 /// A style that sets nothing: no colour, no modifier.
 pub bool is_empty(TUI_style.Style style) {
     return style.foreground.code() == 0 && style.background.code() == 0 && style.attrs == 0;
+}
+
+// ------------------------------------------------------------- transparency
+
+/// The mode a word names: "" and "auto" are AUTO, on / true / yes / 1 / all are
+/// ALL, off / false / no / 0 are OFF, "popups" is POPUPS; anything else BAD_MODE.
+pub int mode_of(str word) {
+    str lower = word.trim().to_lower();
+    if (lower == "" || lower == "auto") {
+        return AUTO;
+    }
+    if (lower == "on" || lower == "true" || lower == "yes" || lower == "1" || lower == "all") {
+        return ALL;
+    }
+    if (lower == "off" || lower == "false" || lower == "no" || lower == "0") {
+        return OFF;
+    }
+    if (lower == "popups" || lower == "popup") {
+        return POPUPS;
+    }
+    return BAD_MODE;
+}
+
+/// The name of a mode, as `:set transparent?` and the docs spell it.
+pub str mode_name(int mode) {
+    if (mode == ALL) {
+        return "on";
+    }
+    if (mode == POPUPS) {
+        return "popups";
+    }
+    return "off";
+}
+
+/// Whether `scope` is `prefix` itself or something under it (`ui.cursor` and
+/// `ui.cursor.primary.insert`, not `ui.cursorline`).
+bool is_under(str scope, str prefix) {
+    return scope == prefix || scope.starts_with(prefix + ".");
+}
+
+/// The scopes whose background is the point of them: what is selected, found,
+/// under the cursor or on the cursor's line, the colour column, a highlighted
+/// row of a list. They keep an explicit background in every mode.
+pub bool is_highlight(str scope) {
+    return is_under(scope, "ui.selection") || is_under(scope, "ui.highlight") || scope.starts_with("ui.cursor") || scope == "ui.virtual.ruler" || scope == "ui.menu.selected" || scope == "ui.picker.selected" || scope == "ui.picker.match" || is_under(scope, "ui.text.focus") || is_under(scope, "search");
+}
+
+/// The highlighted rows of lists: a theme that gives them a background and no
+/// text colour gets one that reads on it (`INK_DARK` / `INK_LIGHT`), because the
+/// text colour left to the terminal might be the other polarity.
+bool is_row_highlight(str scope) {
+    return scope == "ui.menu.selected" || scope == "ui.picker.selected" || scope == "ui.text.focus";
+}
+
+/// The scopes that are a coloured badge, text on a coloured block (the mode
+/// name in the statusline, a TODO, a jump label): without the block the colour
+/// moves to the text (`transparent_style`).
+pub bool is_badge(str scope) {
+    if (scope.starts_with("ui.statusline.")) {
+        str mode = scope.substr(14, scope.size());
+        return mode == "normal" || mode == "insert" || mode == "select" || mode == "visual" || mode == "replace" || mode == "command" || mode == "terminal";
+    }
+    return scope == "ui.todo" || scope == "ui.virtual.jump-label";
+}
+
+/// The scopes of popups and menus (not their highlighted rows): the surfaces
+/// that POPUPS makes transparent.
+pub bool is_popup(str scope) {
+    return is_under(scope, "ui.popup") || is_under(scope, "ui.which-key") || is_under(scope, "ui.help") || is_under(scope, "ui.menu") || is_under(scope, "ui.picker") || is_under(scope, "ui.prompt");
+}
+
+/// The 24-bit value of a colour, -1 for the terminal's own.
+int rgb_value(TUI_style.Colour colour) {
+    match (colour) {
+        case Default: {
+            return -1;
+        }
+        case Indexed(int index): {
+            return TUI_style.palette_rgb(index);
+        }
+        case Rgb(int red, int green, int blue): {
+            return red * 65536 + green * 256 + blue;
+        }
+    }
+}
+
+/// A text colour that reads on `background`: near black on a light one, near
+/// white on a dark one (perceived brightness, no gamma: it only has to be on
+/// the right side of the middle).
+pub TUI_style.Colour ink_for(TUI_style.Colour background) {
+    int rgb = rgb_value(background);
+    int ink = INK_LIGHT;
+    if (rgb >= 0 && (299 * (rgb / 65536) + 587 * (rgb / 256 % 256) + 114 * (rgb % 256)) / 1000 > 140) {
+        ink = INK_DARK;
+    }
+    return TUI_style.Colour.Rgb(ink / 65536, ink / 256 % 256, ink % 256);
+}
+
+/// The style `scope` is drawn in under transparency `mode`, given the style
+/// the theme defines for it. The whole rule:
+///
+///   * a highlight scope (`is_highlight`) keeps its background; a highlighted
+///     row of a list without a text colour gets `ink_for` its background;
+///   * a badge (`is_badge`) trades its background for the text colour, so the
+///     colour stays and the block goes (bold stays);
+///   * every other scope loses its background, and a reversed one its
+///     reversal (reverse video paints the terminal's text colour as a
+///     background);
+///   * POPUPS leaves everything but the scopes of popups (`is_popup`) alone.
+///
+/// Nothing here reads a colour of the desktop, or knows one.
+pub TUI_style.Style transparent_style(int mode, str scope, TUI_style.Style style) {
+    if (mode == OFF || mode == AUTO) {
+        return style;
+    }
+    if (is_highlight(scope)) {
+        if (is_row_highlight(scope) && style.background.code() != 0 && style.foreground.code() == 0) {
+            return style.with_foreground(ink_for(style.background));
+        }
+        return style;
+    }
+    if (mode == POPUPS && !is_popup(scope)) {
+        return style;
+    }
+    if (style.background.code() == 0 && (style.attrs & TUI_style.REVERSE) == 0) {
+        return style;
+    }
+    TUI_style.Colour text = style.foreground;
+    if (is_badge(scope) && style.background.code() != 0) {
+        text = style.background;
+    }
+    return TUI_style.Style(foreground: text, background: TUI_style.Colour.Default, attrs: style.attrs & ~TUI_style.REVERSE);
 }
 
 // ------------------------------------------------------------------ colours
@@ -403,6 +557,8 @@ int open_depth(str line) {
 pub type Layer {
     pub str name;
     pub str inherits = "";
+    /// The file's own `transparent = ...` ("" when it has none).
+    pub str transparent = "";
     /// Palette entries, name to the colour as written (a hex, a name or another entry).
     pub Map<str, str> palette = {};
     /// The styles, resolved: palette applied, modifiers and underline read.
@@ -624,6 +780,11 @@ Result<bool, str> read_entry(Reader reader, bool is_palette, Layer layer, int nu
             return Result<bool, str>.Err("inherits is a theme name");
         }
         layer.inherits = value.text;
+    } else if (key == "transparent") {
+        if (value.kind != NODE_STRING || mode_of(value.text) == BAD_MODE || value.text.size() == 0) {
+            return Result<bool, str>.Err("transparent is true, false or \"popups\"");
+        }
+        layer.transparent = value.text;
     } else {
         layer.scopes.push(key);
         layer.nodes.push(value);
@@ -643,6 +804,10 @@ pub type Theme {
     pub List<str> warnings = [];
     /// `ui.background` under `ui.text`: what every drawn cell starts from.
     pub TUI_style.Style base = TUI_style.Style();
+    /// The transparency in force (OFF, ALL, POPUPS): `set_transparency`.
+    pub int transparency = 0;
+    /// What the theme's own `transparent` key asks for (AUTO when it has none).
+    pub int hint = -1;
     Map<str, TUI_style.Style> found = {};
     Map<str, bool> missing = {};
     Map<str, TUI_style.Style> looks = {};
@@ -677,6 +842,19 @@ pub void Theme.seal() {
         class_looks.push(row);
         text_looks.push(base.merged(under));
     }
+}
+
+/// Draw under transparency `mode` from now on (OFF, ALL or POPUPS).
+pub void Theme.set_transparency(int mode) {
+    int wanted = mode;
+    if (wanted < OFF || wanted > POPUPS) {
+        wanted = OFF;
+    }
+    if (wanted == transparency) {
+        return;
+    }
+    transparency = wanted;
+    seal();
 }
 
 /// Where `scope` is defined, if anywhere: the scope itself, its fallbacks
@@ -733,8 +911,9 @@ pub TUI_style.Style Theme.style(str scope) {
     }
     match (find(scope, 0)) {
         case Some(TUI_style.Style defined): {
-            found.set(scope, defined);
-            return defined;
+            TUI_style.Style drawn = transparent_style(transparency, scope, defined);
+            found.set(scope, drawn);
+            return drawn;
         }
         case None: {
             missing.set(scope, true);
@@ -763,7 +942,12 @@ pub TUI_style.Style Theme.look(str scope) {
         case None: {
         }
     }
-    TUI_style.Style made = base.merged(style(scope));
+    TUI_style.Style beneath = base;
+    if (transparency == POPUPS && is_popup(scope) && !is_highlight(scope)) {
+        // `ui.background` stays under the text, not under the popups on it
+        beneath = base.with_background(TUI_style.Colour.Default);
+    }
+    TUI_style.Style made = beneath.merged(style(scope));
     looks.set(scope, made);
     return made;
 }
@@ -882,6 +1066,7 @@ Result<str, str> source_of(str name, str directory, bool is_user_allowed) {
 /// A theme and the ones it inherits from, merged: the child's entries over
 /// the parent's, the palettes laid over each other, the warnings of every file.
 type Merged {
+    str transparent = "";
     Map<str, TUI_style.Style> entries = {};
     Map<str, str> palette = {};
     List<str> warnings = [];
@@ -908,6 +1093,9 @@ Result<Merged, str> merge_chain(str name, str directory, bool is_user_allowed, L
         out = merge_chain(layer.inherits, directory, is_parent_user, seen)?;
     }
     layer.resolve(out.palette);
+    if (layer.transparent.size() > 0) {
+        out.transparent = layer.transparent;
+    }
     for (str scope in layer.entries.keys()) {
         out.entries.set(scope, layer.entries.get(scope).or(TUI_style.Style()));
     }
@@ -928,6 +1116,7 @@ pub Result<Theme, str> load(str name, str directory) {
     Merged merged = merge_chain(name, directory, true, [])?;
     Theme theme = Theme.make(name, merged.entries);
     theme.warnings = merged.warnings;
+    theme.hint = mode_of(merged.transparent);
     return Result<Theme, str>.Ok(theme);
 }
 
