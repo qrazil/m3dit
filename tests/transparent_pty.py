@@ -283,6 +283,7 @@ class Rules:
         self.kind = "text"
         self.popup_rows = 2
         self.bar = False
+        self.tabline = True     # row 0 is the tab line (two buffers are open), not text
         self.label = "start"
         self.problems = []
         self.checked = 0
@@ -306,7 +307,7 @@ class Rules:
                     per_row.setdefault(y, []).append((x, cell.bg))
         status_rows = (0, rows - 2, rows - 1)
         for y, cells in per_row.items():
-            if y == 0 or (y == rows - 2 and not self.bar):
+            if (y == 0 and self.tabline) or (y == rows - 2 and not self.bar):
                 self.say("row %d (tab or status line) has %d background cells, e.g. %r" % (y, len(cells), cells[0]))
             elif y == rows - 1 and len(cells) > 1:
                 self.say("the command line has %d background cells" % len(cells))
@@ -440,6 +441,7 @@ def one_run(binary, root, name, use_nobg, animated, quick, with_lsp, failures, c
         with open(os.path.join(root, "app.py"), "w") as f:
             f.write("import os\n\nx = 1\n\n" if body is not sessions[0][1] else "import os\n\n\ndef run(x):\n    return x + 1\n")
         term = Term(binary, root, files, env=env)
+        rules.tabline = len(files) > 1
         try:
             term.type(":set transparent\r:theme %s\r" % theme, 0.4)
             if use_nobg and "theme: nobg-" not in " ".join(term.text()[-2:]):

@@ -47,9 +47,10 @@ A highlight must stay visible, so it keeps an explicit background, the one its t
 reverse video and a computed "semi-contrast" background. The references: tokyonight.nvim's `transparent` only stops
 setting the main background (floats and sidebars are separate switches); lazygit has the selected line's background
 as its own key whose default is computed from whether the terminal is dark or light, offers `reverse` for high
-contrast and `default` for bold only; Helix themes with no `ui.background` keep their `bg` on `ui.selection` and
-`ui.menu.selected`. All of them keep an explicit highlight colour rather than reading the desktop. m3 does the same
-and adds only what is needed for legibility:
+contrast and `default` for bold only (both read from their documentation); Helix's themes format has the same split
+(`ui.background` optional, highlights are ordinary scopes with a `bg`). The references keep an explicit highlight
+colour, or offer reverse video, rather than reading the desktop. m3 does the same and adds only what is needed for
+legibility:
 
 * the colour is the theme's, so a dark theme's highlight is dark and `default-light`'s is light: pick the theme that
   matches the desktop (`:set background=light|dark` switches the two default themes; `COLORFGBG` sets it at start);
