@@ -9452,22 +9452,32 @@ pub Result<App, str> open(str path) {
     return open_all([path]);
 }
 
+/// The slot of one command line argument: a directory is its listing (`m3 .` is `:Explore .`), as in nvim.
+Result<Slot, str> startup_slot(int id, str path) {
+    if (path.size() > 0 && fs.is_directory(path)) {
+        return Result<Slot, str>.Ok(listing_slot(id, plain_directory(path), "", true));
+    }
+    return read_slot(id, path);
+}
+
 /// Open several files as buffers; the first is shown.
 pub Result<App, str> open_all(List<str> paths) {
     App app = App(MED_editor.new(""), "");
     app.next_id = 1;
     bool is_first = true;
     for (str path in paths) {
-        match (read_slot(app.next_id, path)) {
+        match (startup_slot(app.next_id, path)) {
             case Ok(Slot slot): {
                 if (is_first) {
                     app.slots.push(slot);
                     app.wins.push(MED_window.Win(1, slot.id));
                     app.current_id = slot.id;
                     app.editor = slot.editor;
-                    app.path = path;
+                    app.path = slot.path;
                     app.next_id = slot.id + 1;
-                    app.notice = file_note(path, slot.editor);
+                    if (!slot.is_listing) {
+                        app.notice = file_note(path, slot.editor);
+                    }
                     is_first = false;
                 } else {
                     slot.editor.view_height = app.editor.view_height;

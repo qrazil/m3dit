@@ -157,6 +157,28 @@ def encoding_and_line_endings(binary, root):
         s.close()
 
 
+@scenario
+def directory_argument_and_clean(binary, root):
+    os.makedirs(os.path.join(root, "sub"))
+    open(os.path.join(root, "sub", "inner.txt"), "w").write("inner\n")
+    s = Session(binary, root, ["sub"])
+    try:
+        assert s.wait_for("inner.txt"), "m3 DIR should open the directory listing:\n" + s.text()
+        s.send("\r", settle=0.5)
+        assert s.wait_for("inner"), s.text()
+    finally:
+        s.close()
+    # --clean: no state files are kept
+    state = os.path.join(root, ".state")
+    s = Session(binary, root, ["--clean", "a.txt"], keymap=os.path.join(root, "none.vim"))
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send("ggx:w\r", settle=0.4)
+    finally:
+        s.close()
+    assert not os.path.exists(os.path.join(state, "m3", "recent")), "--clean must keep no state"
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
