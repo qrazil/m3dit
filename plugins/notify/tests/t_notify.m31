@@ -1,0 +1,64 @@
+// The `notify` plugin through the App: :Notify makes a box, long text wraps, boxes age out on Tick, x
+// becomes an error box, the history lists them, the box is drawn in the top right corner, and with the plugin off a
+// message stays in the message line.
+
+import tests.MED_check;
+import tui.core.TUI_buffer;
+import ui.MED_app;
+import term;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+match (MED_app.open("")) {
+    case Ok(MED_app.App app): {
+        app.ext_install();
+        app.ext_started();
+        check.eq_str("lazy before the first message", app.ext.state_text(app.ext.find_plugin("notify")), "lazy");
+        check.eq_int("no boxes", app.ext.toasts.size(), 0);
+        type_text(app, ":Notify warn disk almost full\r");
+        check.eq_str("active after it", app.ext.state_text(app.ext.find_plugin("notify")), "active");
+        check.eq_int("one box", app.ext.toasts.size(), 1);
+        check.eq_str("titled by level", app.ext.toasts[0].title, "Warning");
+        check.eq_int("level 1", app.ext.toasts[0].level, 1);
+        check.eq_str("with the text", app.ext.toasts[0].lines.join("|"), "disk almost full");
+        TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 24);
+        app.render(screen, screen.area());
+        check.ok("the box is drawn", screen.to_str().contains("Warning") && screen.to_str().contains("disk almost full"));
+        check.ok("in the top right corner", screen.row_text(0).contains("Warning") && screen.row_text(0).ends_with("╮ ") || screen.row_text(0).contains("╮"));
+        type_text(app, ":Notify this is a long message that has to be wrapped at forty four bytes of width\r");
+        check.eq_int("two boxes", app.ext.toasts.size(), 2);
+        check.ok("the long one wraps", app.ext.toasts[1].lines.size() >= 2);
+        type_text(app, ":Notify error boom\r");
+        check.eq_int("error is level 2", app.ext.toasts[2].level, 2);
+        type_text(app, ":Notifications\r");
+        check.ok("the history is a list", app.has_picker);
+        type_text(app, "\x1b");
+        app.tick(300);
+        check.ok("boxes stay for a while", app.ext.toasts.size() == 3);
+        app.tick(7000);
+        check.eq_int("and go after their time", app.ext.toasts.size(), 0);
+        type_text(app, ":Notify info hello\r:NotifyClear\r");
+        check.eq_int(":NotifyClear dismisses them", app.ext.toasts.size(), 0);
+        type_text(app, ":PluginDisable notify\r");
+        app.notify_user(0, "plain message", true);
+        check.eq_str("off: the message goes to the message line", app.notice, "plain message");
+        check.eq_int("and makes no box", app.ext.toasts.size(), 0);
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_notify");

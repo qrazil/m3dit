@@ -1,0 +1,175 @@
+// The `notify` plugin: toast notifications. Language server messages (`window/showMessage`) and what other plugins `notify`
+// come to it as `Message` events (the editor's own errors stay in the message line); it keeps them as boxes in the
+// top right corner for a few seconds (a Tick handler ages them; the host draws what `set_toasts` gives it) and in a
+// history that `:Notifications` lists in the finder. `:Notify [info|warn|error] TEXT` sends one by hand, `:NotifyClear`
+// dismisses the boxes. With the plugin off (or not built in) a message goes to the message line, as before. Lazy:
+// nothing exists until the first message. Behaviour follows nox-notify (timeout 3000 ms, width 48, at most five boxes).
+
+import ext.MED_ext;
+
+const int TIMEOUT_MS = 3000;
+const int ERROR_TIMEOUT_MS = 6000;
+const int MAX_BOXES = 5;
+const int WIDTH = 44;
+const int HISTORY_LIMIT = 200;
+
+/// What the plugin keeps between events: the boxes (text, level, time left) and the history, newest last.
+type Boxes {
+    List<MED_ext.Toast> toasts = [];
+    List<int> left = [];
+    List<str> history = [];
+}
+
+str title_of(int level) {
+    if (level >= 2) {
+        return "Error";
+    }
+    if (level == 1) {
+        return "Warning";
+    }
+    return "Info";
+}
+
+/// `text` broken into lines of at most `width` bytes at blanks (a longer word is cut).
+List<str> wrap(str text, int width) {
+    List<str> lines = [];
+    for (str paragraph in text.split("\n")) {
+        str current = "";
+        for (str word in paragraph.split(" ")) {
+            str rest = word;
+            while (rest.size() > width) {
+                if (current.size() > 0) {
+                    lines.push(current);
+                    current = "";
+                }
+                lines.push(rest.substr(0, width));
+                rest = rest.substr(width, rest.size());
+            }
+            if (current.size() == 0) {
+                current = rest;
+            } else if (current.size() + 1 + rest.size() <= width) {
+                current = current + " " + rest;
+            } else {
+                lines.push(current);
+                current = rest;
+            }
+        }
+        lines.push(current);
+    }
+    return lines;
+}
+
+void show(Boxes boxes, MED_ext.Ctx context) {
+    context.set_toasts(boxes.toasts);
+}
+
+void add(Boxes boxes, MED_ext.Ctx context, int level, str text) {
+    boxes.history.push(title_of(level) + "  " + text.split("\n").join(" "));
+    if (boxes.history.size() > HISTORY_LIMIT) {
+        boxes.history.remove_at(0);
+    }
+    int time = TIMEOUT_MS;
+    if (level >= 2) {
+        time = ERROR_TIMEOUT_MS;
+    }
+    boxes.toasts.push(MED_ext.Toast(title_of(level), level: level, lines: wrap(text, WIDTH)));
+    boxes.left.push(time);
+    while (boxes.toasts.size() > MAX_BOXES) {
+        boxes.toasts.remove_at(0);
+        boxes.left.remove_at(0);
+    }
+    show(boxes, context);
+}
+
+Result<bool, str> message(Boxes boxes, MED_ext.Ctx context, MED_ext.Info info) {
+    add(boxes, context, info.level, info.text);
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> tick(Boxes boxes, MED_ext.Ctx context, MED_ext.Info info) {
+    if (boxes.toasts.size() == 0) {
+        return Result<bool, str>.Ok(true);
+    }
+    List<MED_ext.Toast> kept = [];
+    List<int> kept_left = [];
+    for (int index in 0 .. boxes.toasts.size()) {
+        int remaining = boxes.left[index] - info.elapsed_ms;
+        if (remaining > 0) {
+            kept.push(boxes.toasts[index]);
+            kept_left.push(remaining);
+        }
+    }
+    if (kept.size() != boxes.toasts.size()) {
+        boxes.toasts = kept;
+        boxes.left = kept_left;
+    } else {
+        boxes.left = kept_left;
+        return Result<bool, str>.Ok(true);
+    }
+    show(boxes, context);
+    return Result<bool, str>.Ok(true);
+}
+
+/// `:Notify [info|warn|error] TEXT`.
+Result<bool, str> notify(Boxes boxes, MED_ext.Ctx context, str arguments) {
+    str text = arguments.trim();
+    if (text.size() == 0) {
+        context.say("Notify: usage :Notify [info|warn|error] TEXT");
+        return Result<bool, str>.Ok(true);
+    }
+    int level = 0;
+    if (text.starts_with("warn ")) {
+        level = 1;
+        text = text.substr(5, text.size()).trim();
+    } else if (text.starts_with("error ")) {
+        level = 2;
+        text = text.substr(6, text.size()).trim();
+    } else if (text.starts_with("info ")) {
+        text = text.substr(5, text.size()).trim();
+    }
+    add(boxes, context, level, text);
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> history(Boxes boxes, MED_ext.Ctx context) {
+    if (boxes.history.size() == 0) {
+        context.say("No notifications");
+        return Result<bool, str>.Ok(true);
+    }
+    List<str> newest_first = [];
+    for (int index in 0 .. boxes.history.size()) {
+        newest_first.push(boxes.history[boxes.history.size() - 1 - index]);
+    }
+    context.pick_lines("Notifications", newest_first);
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> clear(Boxes boxes, MED_ext.Ctx context) {
+    boxes.toasts = [];
+    boxes.left = [];
+    show(boxes, context);
+    return Result<bool, str>.Ok(true);
+}
+
+type Notify {
+    Boxes boxes;
+}
+
+Result<bool, str> Notify.activate(MED_ext.Registry api) {
+    Boxes state = boxes;
+    api.did_hook(MED_ext.Event.Message, (MED_ext.Ctx context, MED_ext.Info info) => message(state, context, info));
+    api.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => tick(state, context, info));
+    api.did_command("Notify", "show a notification: :Notify [info|warn|error] TEXT", (MED_ext.Ctx context, str arguments, bool is_bang) => notify(state, context, arguments));
+    api.did_command("Notifications", "list the notifications of this session", (MED_ext.Ctx context, str arguments, bool is_bang) => history(state, context));
+    api.did_command("NotifyClear", "dismiss the notification boxes", (MED_ext.Ctx context, str arguments, bool is_bang) => clear(state, context));
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("notify", summary: "toast notifications in the top right corner, and :Notifications history");
+    spec.triggers.push(MED_ext.on_event(MED_ext.Event.Message));
+    spec.triggers.push(MED_ext.on_command("Notify"));
+    spec.commands.push(MED_ext.command("Notifications", "list the notifications of this session"));
+    spec.commands.push(MED_ext.command("NotifyClear", "dismiss the notification boxes"));
+    api.did_plugin(spec, Notify(Boxes()));
+}
