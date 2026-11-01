@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.19.0
+
+`session` becomes a plugin (API 0.4.0), project-wide replace arrives (`:cdo`, `:cfdo`, `:bufdo`), and the extractions that
+cannot be done cleanly yet are written down with the exact API each one is missing (`docs/CORE-AND-PLUGINS.md` section 10).
+
+- **`session` plugin** (`plugins/session/`): the cursor position of each file is put back when it is opened, the recent-files
+  list (`<Space>fr`) is kept, and each file in front counts as a visit for the finder's frecency ordering. It was
+  `App.note_state`, `remember_position`, `restore_position` and a one-second timer. The state files (`recent`, `positions` in
+  `$XDG_STATE_HOME/m3`) are the same, so nothing is lost. Differences: a `Tick` handler (250 ms) notes the file and its row, a
+  buffer left within 250 ms of its last cursor move keeps the previous row (closing a buffer and quitting still write it), and
+  a cursor already moved by a restored `:Session` is not overwritten. `:Session` itself stays in the core.
+- **`:cdo CMD`, `:cfdo CMD`, `:bufdo CMD`**: run an ex line at each quickfix entry, once for each file in the list (at its
+  first entry), or in each listed buffer; the first line that fails ends the run; nothing is written (add `| update`). Put
+  hits in the list with `<C-q>` in a finder list. `:windo`, `:argdo`, `:vimgrep` and `:grep` are still missing
+  (`docs/DAILY-DRIVER.md`).
+- **Extension API 0.4.0** (additive): `Ctx.global_state_lines`, `Ctx.did_set_global_state_lines`, `Ctx.note_visit`;
+  `Ctx.set_cursor` now also remembers the display column, so `j` and `k` keep the column after a plugin's jump (the `todo`
+  jump benefits too). `m3 --version` prints `(api 0.4.0; plugins: ...)`.
+- `docs/CORE-AND-PLUGINS.md` section 10 records, for surround, autopairs, git, finder, explorer and terminal, what is in the
+  core, how entangled it is (reference counts) and the API each plugin would need (an operator registry, an Insert-mode key hook,
+  gutter signs and a text overlay, a docked panel, a pty service); nothing there needed a risky core refactor to be left
+  as it is.
+- Tests: `t_session_plugin`, `t_cdo`; the version strings follow the API.
+
 ## 0.18.0
 
 Six features leave the core and become plugins on extension API 0.3.0, so that m3 is a daily editor whose parts can be
