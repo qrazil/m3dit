@@ -270,6 +270,29 @@ def long_line_idle_cpu(binary, root):
         s.close()
 
 
+@scenario
+def quickfix_commands(binary, root):
+    s = Session(binary, root, ["a.txt"])
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send(" fd", settle=0.8)
+        assert s.wait_for("Lines"), s.text()
+        s.send("\x11", settle=0.6)  # CTRL-Q: every entry to the quickfix list
+        s.send("\x1b", settle=0.4)
+        s.send(":clist\r", settle=0.5)
+        text = s.text()
+        assert "a.txt:1:" in text and "a.txt:3:" in text, "clist:\n" + text
+        s.send("\r", settle=0.3)
+        s.send(":cc 3\r", settle=0.5)
+        assert "(3 of 3)" in s.text() and "3:1" in s.text(), s.text()
+        s.send(":cc 1\r", settle=0.5)
+        assert "(1 of 3)" in s.text(), s.text()
+        s.send(":cwindow\r", settle=0.6)
+        assert "Quickfix" in s.text(), s.text()
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

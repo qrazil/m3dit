@@ -1412,6 +1412,14 @@ void App.run_request(str request) {
         open_picker("quickfix", "");
     } else if (name == "cclose") {
         has_picker = false;
+    } else if (name == "cc") {
+        go_quickfix_number(arg.trim());
+    } else if (name == "clist") {
+        list_quickfix();
+    } else if (name == "cwindow") {
+        if (quickfix_list.size() > 0) {
+            open_picker("quickfix", "");
+        }
     } else if (name == "cnext") {
         go_quickfix(1);
     } else if (name == "cprevious" || name == "cNext") {
@@ -6201,6 +6209,54 @@ void App.go_quickfix(int how) {
     MED_picker.Entry one = quickfix_list[quickfix_index];
     jump_to(one.path, one.line, one.column);
     notice = "(" + (quickfix_index + 1).to_str() + " of " + quickfix_list.size().to_str() + ") " + one.text;
+}
+
+/// `:cc [N]`: jump to entry N of the quickfix list (the current entry without N).
+void App.go_quickfix_number(str arg) {
+    if (quickfix_list.size() == 0) {
+        notice = "E42: No Errors";
+        return;
+    }
+    int number = quickfix_index + 1;
+    if (arg.size() > 0) {
+        match (arg.parse_int()) {
+            case Some(int given): {
+                number = given;
+            }
+            case None: {
+                notice = "E474: Invalid argument: " + arg;
+                return;
+            }
+        }
+    }
+    if (number < 1) {
+        number = 1;
+    }
+    if (number > quickfix_list.size()) {
+        number = quickfix_list.size();
+    }
+    quickfix_index = number - 1;
+    MED_picker.Entry one = quickfix_list[quickfix_index];
+    jump_to(one.path, one.line, one.column);
+    notice = "(" + number.to_str() + " of " + quickfix_list.size().to_str() + ") " + one.text;
+}
+
+/// `:clist`: every entry, numbered, the current one marked.
+void App.list_quickfix() {
+    if (quickfix_list.size() == 0) {
+        notice = "E42: No Errors";
+        return;
+    }
+    List<str> lines = [];
+    for (int position in 0 .. quickfix_list.size()) {
+        MED_picker.Entry one = quickfix_list[position];
+        str mark = " ";
+        if (position == quickfix_index) {
+            mark = ">";
+        }
+        lines.push(mark + (position + 1).to_str() + " " + one.path + ":" + (one.line + 1).to_str() + ":" + (one.column + 1).to_str() + " " + one.text);
+    }
+    overlay = lines;
 }
 
 /// Recent files below the project root, newest first.
