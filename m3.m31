@@ -222,7 +222,8 @@ match (MED_app.open_all(files)) {
         app.is_sixteen_colours = is_sixteen(colour_depth());
         app.did_use_theme(MED_theme.DARK);
         app.clipboard = MED_clip.detect();
-        app.editor.regs.has_clipboard = app.clipboard.is_present;
+        // without a clipboard tool the `+` register still works: its text goes to the terminal as OSC 52
+        app.editor.regs.has_clipboard = true;
         if (keymap != "") {
             // persistent undo is on by default in a normal run (`:set noundofile` in the keymap file turns it off)
             app.editor.opts.set("undofile", "true");

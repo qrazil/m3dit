@@ -4222,6 +4222,13 @@ void App.flush_clipboard() {
     if (clipboard.is_present && editor.regs.is_clip_dirty) {
         MED_clip.did_copy(clipboard, editor.regs.clip_text());
         editor.regs.did_flush_clipboard();
+    } else if (!clipboard.is_present && editor.regs.is_clip_dirty) {
+        // no tool to hand the text to (an ssh session, a bare container): ask the terminal, OSC 52
+        // (M3_NO_OSC52=1 turns that off; the `+` register then only holds the text)
+        if (os.env("M3_NO_OSC52").or("") == "") {
+            motion.loop.copy(editor.regs.clip_text());
+        }
+        editor.regs.did_flush_clipboard();
     }
 }
 

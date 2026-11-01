@@ -209,6 +209,36 @@ def set_query_toggle_reset(binary, root):
         s.close()
 
 
+@scenario
+def osc52_without_clipboard_tool(binary, root):
+    empty = os.path.join(root, "nobin")
+    os.makedirs(empty)
+    s = Session(binary, root, ["a.txt"], env={"PATH": empty})
+    raw = []
+    original = s.stream.feed
+    s.stream.feed = lambda data: (raw.append(data), original(data))[1]
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send('"+yy', settle=0.6)
+        got = b"".join(raw)
+        assert b"\x1b]52;c;b25lCg==" in got, "no OSC 52 for 'one\\n': %r" % got[-300:]
+        s.send('"+p', settle=0.3)
+        assert s.text().count("one") >= 2, s.text()
+    finally:
+        s.close()
+    # M3_NO_OSC52=1: nothing is written
+    s = Session(binary, root, ["a.txt"], env={"PATH": empty, "M3_NO_OSC52": "1"})
+    raw = []
+    original = s.stream.feed
+    s.stream.feed = lambda data: (raw.append(data), original(data))[1]
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send('"+yy', settle=0.6)
+        assert b"]52;" not in b"".join(raw)
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
