@@ -67,7 +67,51 @@ pub MED_regex.Regex compile_with(MED_editor.Editor editor, str pattern, bool is_
     if (is_no_scs) {
         is_scs = false;
     }
-    return MED_regex.compile(pattern, editor.is_ignorecase, is_scs, editor.sub_replacement);
+    return attach_context(editor, MED_regex.compile(pattern, editor.is_ignorecase, is_scs, editor.sub_replacement));
+}
+
+/// Give `regex` what `\%V` and `\%'m` need: the last Visual area (or the live one) and the marks.
+pub MED_regex.Regex attach_context(MED_editor.Editor editor, MED_regex.Regex regex) {
+    if (!regex.is_ok) {
+        return regex;
+    }
+    int kind = editor.last_vkind;
+    MED_buffer.Pos first = editor.last_vstart;
+    MED_buffer.Pos last = editor.last_vend;
+    if (editor.mode == MED_editor.VISUAL) {
+        kind = editor.vkind;
+        first = MED_buffer.Pos(editor.vrow, editor.vcol);
+        last = MED_buffer.Pos(editor.row, editor.col);
+    }
+    if (kind != 0) {
+        if (last.row < first.row || (last.row == first.row && last.col < first.col)) {
+            MED_buffer.Pos swap = first;
+            first = last;
+            last = swap;
+        }
+        regex.vis_kind = kind;
+        regex.vis_row1 = first.row;
+        regex.vis_col1 = first.col;
+        regex.vis_row2 = last.row;
+        regex.vis_col2 = last.col;
+        if (kind == 22 && first.row < editor.buffer.line_count() && last.row < editor.buffer.line_count()) {
+            int one = MED_text.display_col(editor.buffer.line(first.row), first.col, editor.tab);
+            int two = MED_text.display_col(editor.buffer.line(last.row), last.col, editor.tab);
+            if (editor.vcol_at(editor.last_vstart.row, editor.last_vstart.col) >= 0) {
+                one = editor.vcol_at(editor.last_vstart.row, editor.last_vstart.col);
+                two = editor.vcol_at(editor.last_vend.row, editor.last_vend.col);
+            }
+            if (two < one) {
+                int hold = one;
+                one = two;
+                two = hold;
+            }
+            regex.vis_left = one;
+            regex.vis_right = two;
+        }
+    }
+    regex.marks = editor.marks;
+    return regex;
 }
 
 // ----------------------------------------------------------- pattern ends

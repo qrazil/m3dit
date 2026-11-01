@@ -576,7 +576,8 @@ pub Option<MED_buffer.Pos> mark_position(MED_editor.Editor editor, int name) {
             return found;
         }
         case None: {
-            if (key == "'") {
+            if (key == "'" || key == "\"") {
+                // `'` and `"` start at the top of the buffer
                 return Option<MED_buffer.Pos>.Some(MED_buffer.Pos(0, 0));
             }
             return found;
@@ -2673,6 +2674,18 @@ bool did_operate(MED_editor.Editor editor, str operator, str reg, int count, Lis
         if (keys[0] == 103 && keys.size() > 1 && (keys[1] == 39 || keys[1] == 42 || keys[1] == 35)) {
             oap.is_reg_one = true;
         }
+    }
+    if (force == 22) {
+        // o_CTRL-V: the motion makes a block from where the operator started to where the cursor ends up
+        editor.vrow = start.row;
+        editor.vcol = start.col;
+        editor.row = end.row;
+        editor.col = end.col;
+        oap.is_visual = true;
+        Oap block = block_oap(editor, oap);
+        editor.row = block.start.row;
+        editor.col = block.start.col;
+        return did_block_operator(editor, block);
     }
     if (force == 118) {
         if (is_linewise) {
@@ -4981,7 +4994,10 @@ void insert_key(MED_editor.Editor editor, int key) {
             return;
         }
         stop_arrow(editor);
-        ins_register(editor, str.from_chars([key]), 0);
+        if (key >= 32) {
+            // a control character names no register: nothing is inserted
+            ins_register(editor, str.from_chars([key]), 0);
+        }
         return;
     }
     if (editor.ins_wait >= 19 && editor.ins_wait <= 21) {
@@ -7158,7 +7174,7 @@ void visual_operator(MED_editor.Editor editor, str operator, str reg, int count,
         is_ok = did_visual_addsub(editor, oap, operator.ends_with("x"), operator.starts_with("g"));
         editor.clamp();
         editor.want_from_cursor();
-    } else if (oap.is_block) {
+    } else if (oap.is_block && operator != "zf") {
         is_ok = did_block_operator(editor, oap);
     } else if (operator == "I" || operator == "A") {
         is_ok = did_visual_insert(editor, oap);
@@ -7752,6 +7768,11 @@ void visual_cmd(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> typ
     int key = parsed.keys[0];
     int kind = editor.vkind;
     str reg = parsed.reg;
+    if (key == 122 && parsed.keys.size() > 1 && parsed.keys[1] == 102) {
+        // zf on the selection: a fold over its lines
+        visual_operator(editor, "zf", reg, parsed.count, parsed.keys, kind, kind);
+        return;
+    }
     if (is_view_key(key)) {
         if (!did_view_cmd(editor, parsed)) {
             editor.is_failed = true;

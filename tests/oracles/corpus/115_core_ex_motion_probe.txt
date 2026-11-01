@@ -1,0 +1,509 @@
+# substitute flags, ranges, special replacements
+foo bar foo\nfoo baz foo\nqux		:%s/foo/X/g<CR>
+foo bar foo\nfoo baz foo\nqux		:%s/foo/X/<CR>
+foo bar foo\nfoo baz foo\nqux		:2s/foo/X/gc<CR>yn
+foo bar foo\nfoo baz foo\nqux		:%s/foo/X/gn<CR>
+Foo foo FOO		:s/foo/x/gi<CR>
+Foo foo FOO		:s/foo\c/x/g<CR>
+Foo foo FOO		:s/\cfoo/x/g<CR>
+a,b,c		:s/,/\r/g<CR>
+a,b,c		:s/,/\n/g<CR>
+abc abc		:s/\(a\)\(b\)/\2\1/g<CR>
+abc abc		:s/b/[&]/g<CR>
+abc abc		:s/b/[\&]/g<CR>
+hello world		:s/\w\+/\u&/g<CR>
+hello world		:s/\w\+/\U&/<CR>
+hello world		:s/\(\w\+\) \(\w\+\)/\U\1\E \2/<CR>
+a\nb\nc\nd		:2,3s/^/> /<CR>
+a\nb\nc\nd		:.,+1s/$/!/<CR>
+a\nb\nc\nd		:$s/d/D/<CR>
+a\nb\nc\nd		:'<,'>s/./X/<CR>
+a\nb\nc\nd		jVj:s/./X/<CR>
+a\nb\nc\nd		:%s/\n//<CR>
+a b c		:s/ /_/g|s/_/-/<CR>
+foo foo\nfoo		:%s/foo/bar/&&<CR>
+foo foo\nfoo		:s/foo/bar/<CR>:%&&<CR>
+foo foo\nfoo		:s/foo/bar/<CR>j:&&<CR>
+foo foo\nfoo		:s/foo/bar/<CR>jg&
+foo foo\nfoo foo		:s/foo/bar/<CR>j&
+foo foo\nfoo foo		:s/foo/bar/<CR>j:~<CR>
+a-b-c		:s#-#/#g<CR>
+a-b-c		:s!-!/!g<CR>
+x1 x22 x333		:s/\d\+/\=submatch(0)*2/g<CR>
+foo		:s/o/0/g|s/f/F/<CR>
+foo bar		:s/\v(foo) (bar)/\2 \1/<CR>
+aaa		:s/a/b/3<CR>
+a\na\na\na		:s/a/b/ 3<CR>
+tab\there		:s/\t/ /<CR>
+foo		:s/foo//<CR>
+foo bar		:s/\<bar\>/X/<CR>
+foo.bar		:s/\./-/<CR>
+foo.bar		:s/./-/g<CR>
+foo bar		:s/\s\+$//e<CR>
+foo bar		:s/xyz/1/e<CR>
+foo bar		:s/xyz/1/<CR>
+foo bar		:s/bar/&&/<CR>
+foo bar		:s/\%[fo]o/X/<CR>
+aXbXc		:s/X/\\/g<CR>
+a/b		:s/\//|/<CR>
+a/b		:s+/+|+<CR>
+# global
+a1\nb2\na3\nb4		:g/a/d<CR>
+a1\nb2\na3\nb4		:v/a/d<CR>
+a1\nb2\na3\nb4		:g!/a/d<CR>
+a1\nb2\na3\nb4		:g/a/s/\d/X/<CR>
+a1\nb2\na3\nb4		:g/a/normal Ahi<CR>
+a1\nb2\na3\nb4		:g/a/m0<CR>
+a1\nb2\na3\nb4		:g/^/m0<CR>
+a1\nb2\na3\nb4		:g/a/t.<CR>
+a1\nb2\na3\nb4		:g/b/j<CR>
+a1\nb2\na3\nb4		:g/a/+1d<CR>
+a1\nb2\na3\nb4		:2,3g/./s/$/!/<CR>
+a1\nb2\na3\nb4		:g/a/y A<CR>:$put a<CR>
+a1\nb2\na3\nb4		:g/a/normal dd<CR>u
+a1\nb2\na3\nb4		:g/\d/normal <C-a><CR>
+a1\nb2\na3\nb4		:g/a/.,+1j<CR>
+a1\nb2\na3\nb4		:g#a#d<CR>
+a1\nb2\na3\nb4		:g/a\|b/s/\d/N/<CR>
+a1\nb2\na3\nb4		:g/a/ s/1/one/<CR>
+x\ny		:g/x/normal Oabove<CR>
+# normal
+a b c\nd e f		:%normal Ax<CR>
+a b c\nd e f		:%normal 0wD<CR>
+a b c\nd e f		:2normal ihello<CR>
+a b c\nd e f		:normal! 2wx<CR>
+a b c\nd e f		:exe "normal \<Esc>Ax"<CR>
+a b c\nd e f		:normal gg<CR>:normal dd<CR>
+# ranges
+1\n2\n3\n4\n5		:2,4d<CR>
+1\n2\n3\n4\n5		:2;+1d<CR>
+1\n2\n3\n4\n5		:/3/d<CR>
+1\n2\n3\n4\n5		:/2/,/4/d<CR>
+1\n2\n3\n4\n5		:\/d<CR>
+1\n2\n3\n4\n5		3G:?1?,.d<CR>
+1\n2\n3\n4\n5		:$-1,$d<CR>
+1\n2\n3\n4\n5		:1,2m$<CR>
+1\n2\n3\n4\n5		:2,3t0<CR>
+1\n2\n3\n4\n5		:2,3co.<CR>
+1\n2\n3\n4\n5		:3<CR>dd
+1\n2\n3\n4\n5		:+2d<CR>
+1\n2\n3\n4\n5		3G:-,+d<CR>
+1\n2\n3\n4\n5		:%d<CR>
+1\n2\n3\n4\n5		:2,3y<CR>P
+1\n2\n3\n4\n5		:2,3>|<CR>
+1\n2\n3\n4\n5		:2,3>><CR>
+1\n2\n3\n4\n5		:3,2d<CR>
+1\n2\n3\n4\n5		ma3G:'a,.d<CR>
+1\n2\n3\n4\n5		:2ka<CR>:'ad<CR>
+1\n2\n3\n4\n5		:2mark b<CR>:'b,$d<CR>
+1\n2\n3\n4\n5		:/3/+1d<CR>
+1\n2\n3\n4\n5		:/3/-1,/3/+1d<CR>
+1\n2\n3\n4\n5		:2<CR>:.,.+2j<CR>
+1\n2\n3\n4\n5		:2,4j!<CR>
+1\n2\n3\n4\n5		:2,4w! /dev/null<CR>
+b\na\nc		:sort<CR>
+b\na\nc		:sort!<CR>
+b2\na10\nc1		:sort n<CR>
+B\na\nC		:sort i<CR>
+b\na\nb		:sort u<CR>
+x3\nx1\nx2		:sort /x/<CR>
+b a\nc a\na b		:sort /\a /<CR>
+b a\nc a\na b		:sort /\a /r<CR>
+a\nb		:2put! =3<CR>
+a\nb		:put ="x\ny"<CR>
+a\nb		:0put =5<CR>
+a\nb		:$put =[1,2]<CR>
+a\nb		yy:2put<CR>
+a\nb		yy:0put<CR>
+a\nb		yy:put!<CR>
+# registers
+a b\nc d		"ayw"byyj"ap"bp
+a b\nc d		"Ayw"Ayyj"ap
+a b\nc d		yw"_dw"0P
+a b\nc d		dwdd"1p"2p
+a b\nc d		dd"1pu.
+a b\nc d		"ayy"Ayy"ap
+a b\nc d		ywwcwX<Esc>"-p
+a b\nc d		yiwwviw"0p
+a b\nc d		yiwwviwp"0p
+a b\nc d		yiwwviwp"-p
+a b\nc d		:let @a='x'<CR>"ap
+a b\nc d		qaxjq@a
+a b\nc d		qaA!<Esc>jq@a@@
+a b\nc d		qaxq:let @b=@a<CR>"bp
+a b\nc d		qaxq"ap
+a b\nc d		:let @/='b'<CR>nx
+a b\nc d		yy:let @a=@0<CR>"ap
+a b\nc d		"=1+2<CR>p
+a b\nc d		i<C-r>=3*4<CR><Esc>
+a b\nc d		yw:<C-r>0<CR>
+a b\nc d		yiwo<C-r>0<Esc>
+a b\nc d		yiwo<C-r><C-w><Esc>
+a b\nc d		wyiwo<C-r>"<Esc>
+a b\nc d		"qyyj"qp"_ddk"qP
+a b\nc d		vjy$p
+a b\nc d		<C-v>jly$p
+a b\nc d		<C-v>jly$P
+a b\nc d		yyjp:reg a<CR>
+a b\nc d		"zyyjV"zp
+a b\nc d		xp
+a b\nc d		ddp
+a b\nc d		yyP
+a b\nc d		3yy
+a b\nc d		"ayw"Ayw"ap
+a b\nc d		yiw"xp
+# marks
+a b\nc d\ne f		majjd'a
+a b\nc d\ne f		wmajj`ax
+a b\nc d\ne f		jmajgg`ax
+a b\nc d\ne f		jjmAgg'Ax
+a b\nc d\ne f		jmajdd'ax
+a b\nc d\ne f		jmajOnew<Esc>'ax
+a b\nc d\ne f		jyyG`[x
+a b\nc d\ne f		jyyG`]x
+a b\nc d\ne f		wiX<Esc>gg`^iY<Esc>
+a b\nc d\ne f		wiX<Esc>gg`.iY<Esc>
+a b\nc d\ne f		wiX<Esc>jj`"iY<Esc>
+a b\nc d\ne f		jjgg``iX<Esc>
+a b\nc d\ne f		Gggx''x
+a b\nc d\ne f		3Gx''x
+a b\nc d\ne f		Gx<C-o>x
+a b\nc d\ne f		GggG<C-o><C-o>x
+a b\nc d\ne f		Ggg<C-o><C-i>x
+a b\nc d\ne f		jmxgg:'x<CR>x
+a b\nc d\ne f		jmxgg:delm x<CR>'xx
+a b\nc d\ne f		jmxjmyggd'y
+a b\nc d\ne f		vjj<Esc>gg`>x
+a b\nc d\ne f		Vj<Esc>gg'<x
+a b\nc d\ne f		wvj<Esc>gvd
+a b\nc d\ne f		wvj<Esc>gg1gvd
+a b\nc d\ne f		wvj<Esc>ggjjgvo<Esc>x
+a b\nc d\ne f		wvjy`>x
+a b\nc d\ne f		xjxjxg;iZ<Esc>
+a b\nc d\ne f		xjxjxg;g;iZ<Esc>
+a b\nc d\ne f		xjxjxg;g;g,iZ<Esc>
+a b\nc d\ne f		xjxjx:changes<CR>
+a b\nc d\ne f		Ax<Esc>jAy<Esc>ggg;iZ<Esc>
+# search offsets, incsearch-ish, n/N
+foo bar\nbaz foo\nbar		/foo/e<CR>x
+foo bar\nbaz foo\nbar		/foo/e+1<CR>x
+foo bar\nbaz foo\nbar		/foo/s-1<CR>x
+foo bar\nbaz foo\nbar		/foo/b+1<CR>x
+foo bar\nbaz foo\nbar		/bar/+1<CR>x
+foo bar\nbaz foo\nbar		/bar/-1<CR>x
+foo bar\nbaz foo\nbar		/foo/;/bar<CR>x
+foo bar\nbaz foo\nbar		/foo/e<CR>nx
+foo bar\nbaz foo\nbar		/foo/e<CR>Nx
+foo bar\nbaz foo\nbar		/foo/e<CR>//<CR>x
+foo bar\nbaz foo\nbar		/foo/e<CR>//b0<CR>x
+foo bar\nbaz foo\nbar		/foo<CR>//e<CR>x
+foo bar\nbaz foo\nbar		G?foo?e<CR>x
+foo bar\nbaz foo\nbar		G?foo<CR>nx
+foo bar\nbaz foo\nbar		G?foo<CR>Nx
+foo bar\nbaz foo\nbar		d/foo/e<CR>
+foo bar\nbaz foo\nbar		d/bar/+0<CR>
+foo bar\nbaz foo\nbar		d/baz<CR>
+foo bar\nbaz foo\nbar		y/foo/e<CR>P
+foo bar\nbaz foo\nbar		wd?foo<CR>
+foo bar\nbaz foo\nbar		*x
+foo bar\nbaz foo\nbar		#x
+foo bar\nbaz foo\nbar		g*x
+foo bar\nbaz foo\nbar		wg#x
+foo bar\nbaz foo\nbar		/FOO<CR>x
+foo bar\nbaz foo\nbar		:set ic<CR>/FOO<CR>x
+foo bar\nbaz foo\nbar		:set ic scs<CR>/Foo<CR>x
+foo bar\nbaz foo\nbar		:set ic scs<CR>/foo\C<CR>x
+foo bar\nbaz foo\nbar		:set nows<CR>G/foo<CR>x
+foo bar\nbaz foo\nbar		:set nows<CR>/baz<CR>nx
+foo bar\nbaz foo\nbar		/o\{2}<CR>x
+foo bar\nbaz foo\nbar		/\vo{2}<CR>x
+foo bar\nbaz foo\nbar		/\<b<CR>x
+foo bar\nbaz foo\nbar		/a\zsr<CR>x
+foo bar\nbaz foo\nbar		/foo\nbaz<CR>x
+foo bar\nbaz foo\nbar		/\n<CR>x
+foo bar\nbaz foo\nbar		/$<CR>x
+foo bar\nbaz foo\nbar		/^<CR>x
+foo bar\nbaz foo\nbar		/\%2l<CR>x
+foo bar\nbaz foo\nbar		/\%>1lfoo<CR>x
+foo bar\nbaz foo\nbar		/\%5c<CR>x
+foo bar\nbaz foo\nbar		/bar\|baz<CR>nx
+foo bar\nbaz foo\nbar		2/o<CR>x
+foo bar\nbaz foo\nbar		3nx
+foo bar\nbaz foo\nbar		/o<CR>3nx
+foo bar\nbaz foo\nbar		:s/o/0/<CR>/<CR>x
+foo bar\nbaz foo\nbar		:g/foo/s//X/<CR>
+foo bar\nbaz foo\nbar		/bar<CR>:%s//X/<CR>
+foo bar\nbaz foo\nbar		/bar<CR>:s/\(.\)/\1\1/<CR>
+foo bar\nbaz foo\nbar		/ba<CR>cgnX<Esc>.
+foo bar\nbaz foo\nbar		/ba<CR>dgn..
+foo bar\nbaz foo\nbar		/ba<CR>gnd
+foo bar\nbaz foo\nbar		/ba<CR>vgnd
+foo bar\nbaz foo\nbar		/ba<CR>ggdgN
+# visual block ops
+abcd\nefgh\nijkl		<C-v>jlx
+abcd\nefgh\nijkl		l<C-v>jjIX<Esc>
+abcd\nefgh\nijkl		l<C-v>jjAX<Esc>
+abcd\nefgh\nijkl		l<C-v>jj$AX<Esc>
+abcd\nefgh\nijkl		<C-v>jjcX<Esc>
+abcd\nefgh\nijkl		<C-v>jjlrX
+abcd\nefgh\nijkl		<C-v>jjly$p
+abcd\nefgh\nijkl		<C-v>jjlyGo<Esc>p
+abcd\nefgh\nijkl		<C-v>jlU
+abcd\nefgh\nijkl		<C-v>jl~
+abcd\nefgh\nijkl		<C-v>jjo<Esc>x
+abcd\nefgh\nijkl		<C-v>jjO<Esc>x
+abcd\nefgh\nijkl		<C-v>jj>
+abcd\nefgh\nijkl		<C-v>jlJ
+abcd\nefgh\nijkl		l<C-v>jlogvd
+abcd\nef\nijkl		$<C-v>jjd
+abcd\nef\nijkl		l<C-v>jjlD
+abcd\nef\nijkl		ll<C-v>jjIX<Esc>
+abcd\nef\nijkl		ll<C-v>jjAX<Esc>
+abcd\nef\nijkl		ll<C-v>jj$AX<Esc>
+abcd\nefgh\nijkl		<C-v>jjlIab<Esc>.
+abcd\nefgh\nijkl		<C-v>jjlcab<Esc>j.
+abcd\n\nijkl		l<C-v>jjIX<Esc>
+a\tb\nabcdefghij\nxy		<C-v>jjlx
+a\tb\nabcdefghij\nxy		l<C-v>jlIX<Esc>
+abcd\nefgh\nijkl		<C-v>jjlp
+abcd\nefgh\nijkl		yy<C-v>jjp
+abcd\nefgh\nijkl		<C-v>jlyjjp
+abcd\nefgh\nijkl		<C-v>jlzfj
+abcd\nefgh\nijkl		<C-v>jl:s/./X/<CR>
+abcd\nefgh\nijkl		<C-v>jl:s/\%V./X/<CR>
+abcd\nefgh\nijkl		<C-v>jl<Esc>gvd
+abcd\nefgh\nijkl		l<C-v>jl<Esc>ggl<C-v>gvd
+abcd\nefgh\nijkl		<C-v>3l<C-a>
+1\n1\n1		VG<C-a>
+1\n1\n1		VGg<C-a>
+1\n1\n1		VG2g<C-x>
+x 1\nx 1		<C-v>j$<C-a>
+# text objects
+foo(bar, baz) end		fbdi(
+foo(bar, baz) end		fbda(
+foo(bar, baz) end		fbci(x<Esc>
+foo(bar, (baz)) end		fzdi(
+foo(bar, (baz)) end		fzd2i(
+foo(bar, (baz)) end		fzvi(i(d
+foo "bar baz" end		fbdi"
+foo "bar baz" end		fbda"
+foo "bar baz" end		di"
+foo "bar baz" end		fbvi"i"d
+foo 'a\\'b' end		fadi'
+foo [a, b] end		fadi[
+foo {a, b} end		fadi{
+foo {a, b} end		fadiB
+foo {a, b} end		fada}
+foo <a b> end		fadi<
+foo <a b> end		fada>
+<a><b>x</b></a>		fxdit
+<a><b>x</b></a>		fxdat
+<a><b>x</b></a>		fxd2it
+<a><b>x</b></a>		fxvititd
+<div class="x">hi</div>		fhdit
+<div class="x">hi</div>		fhcitX<Esc>
+foo bar. Baz qux.  End.		fBdis
+foo bar. Baz qux.  End.		fBdas
+foo bar. Baz qux.  End.		fqdis
+foo bar. Baz qux.  End.		fqdas
+a b\n\nc d\ne f\n\ng		jjdip
+a b\n\nc d\ne f\n\ng		jjdap
+a b\n\nc d\ne f\n\ng		dap
+a b\n\nc d\ne f\n\ng		Gdap
+a b\n\nc d\ne f\n\ng		jjvipip<Esc>x
+a b\n\nc d\ne f\n\ng		jjyap
+a b\n\nc d\ne f\n\ng		jjyipGp
+foo bar baz		wdiw
+foo bar baz		wdaw
+foo bar baz		wd2aw
+foo bar baz		wd3iw
+foo bar baz		$daw
+foo bar baz		wcawX<Esc>
+foo bar baz		wdiW
+foo   bar   baz		fadiw
+foo   bar   baz		f dw
+foo   bar   baz		f daw
+foo-bar baz		fbdiw
+foo-bar baz		fbdiW
+foo-bar baz		fbdaW
+foo bar baz		viwiwiwd
+foo bar baz		vawawd
+foo bar baz		wvawy$p
+foo bar baz		wvi"<Esc>
+foo.bar(baz)		fzdi(
+foo.bar(baz)		fbdib
+foo.bar(baz)		fbdab
+a "b" c "d" e		fddi"
+a "b" c "d" e		fcdi"
+a "b" c "d" e		fcda"
+a "b" c "d" e		$di"
+a "b" c "d" e		fedi"
+a `b` c		fbdi`
+x ( y ) z		fydi(
+x (\n  y\n) z		jdi(
+x (\n  y\n) z		jda(
+x (\n  y\n) z		jvi(
+x (\n  y\n) z		jci(a<Esc>
+x {\n  y\n} z		jdi{
+x {\n  y\n} z		jdiB
+x {\n  y\n} z		jdaB
+x {\n  y\n} z		jyi{P
+x {\n  y\n} z		jvi{y
+# operators with motions
+foo bar baz		dw.
+foo bar baz		d2w
+foo bar baz		2dw
+foo bar baz		2d2w
+foo bar baz		dW
+foo bar baz		dE
+foo bar baz		de
+foo bar baz		wdb
+foo bar baz		wdB
+foo bar baz		wdge
+foo bar baz		$dgE
+foo bar baz		d$
+foo bar baz		wd0
+foo bar baz		wd^
+foo bar baz		wd|
+foo bar baz		d5|
+foo bar baz		dfb
+foo bar baz		dtb
+foo bar baz		$dFf
+foo bar baz		$dTf
+foo bar baz		dfz
+foo bar baz		d;
+foo bar baz		fbd;
+foo bar baz		fbd,
+foo bar baz		d2fa
+foo bar baz		d3tb
+foo bar baz		dl
+foo bar baz		dh
+foo bar baz		$dh
+foo bar baz		d5l
+foo bar baz		d99l
+foo bar baz		wdvb
+foo bar baz		dvw
+foo bar baz		dve
+foo bar baz		d<C-v>w
+a\nb\nc\nd		dj
+a\nb\nc\nd		dk
+a\nb\nc\nd		jdk
+a\nb\nc\nd		d2j
+a\nb\nc\nd		dG
+a\nb\nc\nd		jdgg
+a\nb\nc\nd		d3G
+a\nb\nc\nd		dvj
+a\nb\nc\nd		d<C-v>j
+a\nb\nc\nd		yjGp
+a\nb\nc\nd		cc
+a\nb\nc\nd		ccx<Esc>
+a\nb\nc\nd		2ccx<Esc>
+a\nb\nc\nd		S
+a\nb\nc\nd		jc2jx<Esc>
+a\nb\nc\nd		>>
+a\nb\nc\nd		>j
+a\nb\nc\nd		>2j.
+a\nb\nc\nd		3>>
+a\nb\nc\nd		=j
+a\nb\nc\nd		gUU
+a\nb\nc\nd		gUj
+a\nb\nc\nd		g~~
+a\nb\nc\nd		guu
+a\nb\nc\nd		gJ
+a\nb\nc\nd		3J
+a\nb\nc\nd		J.
+a\nb\nc\nd		gqj
+a\nb\nc\nd		gww
+a\nb\nc\nd		gqq
+a\nb\nc\nd		g??
+a\nb\nc\nd		g?j
+a\nb\nc\nd		!!echo hi<CR>
+a\nb\nc\nd		!jsort -r<CR>
+a\nb\nc\nd		:r !echo hi<CR>
+a\nb\nc\nd		:%!sort -r<CR>
+a\nb\nc\nd		:2,3!tac<CR>
+abc		~
+abc		3~
+abc		g~l
+abc		rX
+abc		3rX
+abc		r<CR>
+abc		4rX
+abc		R12<Esc>
+abc		R12<BS><BS><BS>X<Esc>
+abc		3Rxy<Esc>
+abc		gR12<Esc>
+abc		xu<C-r>
+abc		xxxuu<C-r>
+abc		3xu
+abc		ix<Esc>u
+abc		ix<Esc>ay<Esc>u
+abc		ix<C-g>uay<Esc>u
+abc		ix<C-o>uy<Esc>
+abc		ix<C-o>0y<Esc>
+abc		A<C-w>x<Esc>
+abc def		A<C-w><C-w>x<Esc>
+abc def		A<C-u>x<Esc>
+abc def		A<C-h>x<Esc>
+abc def		ix<C-t><Esc>
+abc def		ix<C-t><C-d><Esc>
+abc def		i<C-v>065<Esc>
+abc def		i<C-v>u00e9<Esc>
+abc def		i<C-k>e:<Esc>
+abc def		i<C-k>a'<Esc>
+abc def		i<C-r>a<Esc>
+abc def		yiwi<C-r>0<Esc>
+abc def		i<C-a><Esc>
+abc def		ix<Esc>o<C-a><Esc>
+abc def		ix<Esc>o<C-@>y<Esc>
+abc def		Ahello<Esc>3.
+abc def		3ix<Esc>
+abc def		3ix<Esc>.
+abc def		3ox<Esc>
+abc def		3Ax<Esc>
+abc def		5a-<Esc>
+abc def		2I-<Esc>
+abc def		gIx<Esc>
+abc def		wgix<Esc>
+abc def		wix<Esc>jgix<Esc>
+abc def		Ax<Esc>0gix<Esc>
+abc def\n  ghi		jgIx<Esc>
+abc def\n  ghi		jIx<Esc>
+abc def\n  ghi		j0ix<Esc>
+abc def\n  ghi		jox<Esc>
+abc def\n  ghi		j:set ai<CR>ox<Esc>
+abc def\n  ghi		j:set ai<CR>o<Esc>ix<Esc>
+abc def\n  ghi		j:set ai<CR>ox<CR>y<Esc>
+abc def\n  ghi		j:set ai<CR>Ox<Esc>
+abc def\n  ghi		j:set si<CR>ox<Esc>
+abc def\n  ghi		:set sw=4 et<CR>>>
+abc def\n  ghi		:set sw=4 et<CR>j>>
+abc def\n  ghi		:set sw=4 sr<CR>j>>
+abc def\n  ghi		:set sw=4 noet<CR>j>>>>
+abc def\n  ghi		:set ts=4 sw=0<CR>>>
+abc def\n  ghi		:set sts=4<CR>i<Tab><Esc>
+abc def\n  ghi		:set sts=4 et<CR>i<Tab><Tab><BS><Esc>
+abc def\n  ghi		:set sta sw=4<CR>i<Tab><Esc>
+abc def\n  ghi		:set et<CR>i<Tab><Esc>
+abc def\n  ghi		:set et ts=4<CR>i<Tab><Esc>
+abc def\n  ghi		:set et ts=4<CR>:retab<CR>
+abc def\n\tghi		:set et ts=4<CR>:retab<CR>
+abc def\n\tghi		:set et ts=4<CR>:retab!<CR>
+abc def\n        ghi		:set noet ts=4<CR>:retab!<CR>
+abc def\n        ghi		:set noet ts=8<CR>:retab! 4<CR>
+foo bar baz		y<C-v>wP
+foo bar baz\nabc def ghi\nxyz		wd<C-v>j
+foo bar baz\nabc def ghi\nxyz		wy<C-v>jjGp
+foo bar baz\nabc def ghi\nxyz		wc<C-v>jXX<Esc>
+foo bar baz\nabc def ghi\nxyz		w2d<C-v>w
+foo bar baz\nabc def ghi\nxyz		wd<C-v>$
+foo bar baz\nabc def ghi\nxyz		wd<C-v>2j
+foo bar baz\nabc def ghi\nxyz		wd<C-v>e
+foo bar baz\nabc def ghi\nxyz		w>v<C-v>j
+a\nb		:put =repeat("ab",3)<CR>
+a\nb		:put =toupper("abc")<CR>
+a\nb		:put =10/3<CR>
+a\nb		:put =1==1?"y":"n"<CR>
+a\nb		:put =[1,2]<CR>
+a\nb		:put =range(3)<CR>
+a\nb		:put =2.5*2<CR>

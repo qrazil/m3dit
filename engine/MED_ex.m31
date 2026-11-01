@@ -1197,7 +1197,7 @@ bool is_ui_command(MED_editor.Editor editor, str name) {
 // "full:shortest": a word names the first command whose full name it starts
 // and whose shortest form it reaches (Vim's order matters for ambiguity).
 List<str> command_table() {
-    return ["substitute:1", "delete:1", "move:1", "t:1", "copy:2", "join:1", "global:1", "vglobal:1", "yank:1", "undo:1", "print:1", "put:2", "normal:4", "execute:3", "k:1", "mark:2", "nohlsearch:3", "set:2", "echo:2", "echomsg:5", "redraw:4", "messages:3", "highlight:2", "syntax:2", "filetype:5", "version:2", "history:3", "pwd:2", "setlocal:4", "setglobal:4", "undojoin:5", "redo:3", "read:1", "sort:3", "number:2", "quit:1", "write:1", "wq:2", "delmarks:4", "earlier:2", "later:3", "list:1", "z:1", "update:2", "xit:1", "wall:2", "qall:2", "wqall:3", "xall:2", "registers:3", "display:2", "marks:5", "jumps:2", "changes:7", "startinsert:4", "stopinsert:5", "retab:3", "left:2", "right:2", "center:2", "noautocmd:3", "edit:1", "enew:3", "bnext:2", "bprevious:2", "bNext:2", "buffer:1", "bdelete:2", "bwipeout:2", "bunload:3", "bfirst:2", "brewind:2", "blast:2", "ls:2", "buffers:7", "files:5", "close:3", "only:2", "split:2", "vsplit:2", "new:3", "vnew:3", "wincmd:4", "Rename:3", "Delete:3", "Create:3", "Mkdir:2", "resize:3", "vertical:4", "tab:3", "tabnew:6", "tabedit:4", "tabnext:4", "tabprevious:4", "tabNext:4", "tabfirst:6", "tabrewind:4", "tablast:4", "tabclose:4", "tabonly:4", "tabs:4", "tabmove:4", "Files:1", "Buffers:2", "Grep:1", "Commands:3", "help:1", "Explore:2", "Sexplore:3", "Vexplore:3", "Neotree:7", "NeoTree:7", "Keys:4", "Plugins:7", "PluginEnable:12", "PluginDisable:13", "Recent:6", "Symbols:7", "Todo:4", "Branches:8", "Commits:7", "Changed:7", "Git:3", "Hunk:2", "colorscheme:4", "theme:5", "checktime:6", "recover:3", "Session:7", "fold:2", "foldopen:5", "foldclose:5", "map:3", "nmap:2", "vmap:2", "xmap:2", "omap:2", "imap:2", "cmap:2", "noremap:2", "nnoremap:2", "vnoremap:2", "xnoremap:2", "onoremap:3", "inoremap:3", "cnoremap:3", "unmap:3", "nunmap:3", "vunmap:2", "xunmap:2", "ounmap:2", "iunmap:2", "cunmap:2", "mapclear:4", "nmapclear:5", "vmapclear:5", "xmapclear:5", "omapclear:5", "imapclear:5", "cmapclear:5", "let:3", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "cabbrev:2", "cnoreabbrev:5", "cunabbrev:4", "cabclear:4", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "source:2", "terminal:2", "Lsp:3", "copen:3", "cclose:3", "cnext:2", "cprevious:2", "cNext:3", "cfirst:4", "clast:3", "write!:99"];
+    return ["substitute:1", "delete:1", "move:1", "t:1", "copy:2", "join:1", "global:1", "vglobal:1", "yank:1", "undo:1", "print:1", "put:2", "normal:4", "execute:3", "k:1", "mark:2", "nohlsearch:3", "set:2", "echo:2", "echomsg:5", "redraw:4", "messages:3", "highlight:2", "syntax:2", "filetype:5", "version:2", "history:3", "pwd:2", "setlocal:4", "setglobal:4", "undojoin:5", "redo:3", "read:1", "sort:3", "number:2", "quit:1", "write:1", "wq:2", "delmarks:4", "earlier:2", "later:3", "list:1", "z:1", "update:2", "xit:1", "wall:2", "qall:2", "wqall:3", "xall:2", "registers:3", "display:2", "marks:5", "jumps:2", "changes:7", "startinsert:4", "stopinsert:5", "retab:3", "left:2", "right:2", "center:2", "noautocmd:3", "edit:1", "enew:3", "bnext:2", "bprevious:2", "bNext:2", "buffer:1", "bdelete:2", "bwipeout:2", "bunload:3", "bfirst:2", "brewind:2", "blast:2", "ls:2", "buffers:7", "files:5", "close:3", "only:2", "split:2", "vsplit:2", "new:3", "vnew:3", "wincmd:4", "Rename:3", "Delete:3", "Create:3", "Mkdir:2", "resize:3", "vertical:4", "tab:3", "tabnew:6", "tabedit:4", "tabnext:4", "tabprevious:4", "tabNext:4", "tabfirst:6", "tabrewind:4", "tablast:4", "tabclose:4", "tabonly:4", "tabs:4", "tabmove:4", "Files:1", "Buffers:2", "Grep:1", "Commands:3", "help:1", "Explore:2", "Sexplore:3", "Vexplore:3", "Neotree:7", "NeoTree:7", "Keys:4", "Plugins:7", "PluginEnable:12", "PluginDisable:13", "Recent:6", "Registers:9", "Symbols:7", "Todo:4", "Branches:8", "Commits:7", "Changed:7", "Git:3", "Hunk:2", "colorscheme:4", "theme:5", "checktime:6", "recover:3", "Session:7", "fold:2", "foldopen:5", "foldclose:5", "map:3", "nmap:2", "vmap:2", "xmap:2", "omap:2", "imap:2", "cmap:2", "noremap:2", "nnoremap:2", "vnoremap:2", "xnoremap:2", "onoremap:3", "inoremap:3", "cnoremap:3", "unmap:3", "nunmap:3", "vunmap:2", "xunmap:2", "ounmap:2", "iunmap:2", "cunmap:2", "mapclear:4", "nmapclear:5", "vmapclear:5", "xmapclear:5", "omapclear:5", "imapclear:5", "cmapclear:5", "let:3", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "cabbrev:2", "cnoreabbrev:5", "cunabbrev:4", "cabclear:4", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "source:2", "terminal:2", "Lsp:3", "copen:3", "cclose:3", "cnext:2", "cprevious:2", "cNext:3", "cfirst:4", "clast:3", "write!:99"];
 }
 
 /// Whether `word` names (or abbreviates) one of the editor's own ex commands; extensions may not take those names.
@@ -1470,7 +1470,7 @@ Step run_one(MED_editor.Editor editor, str text) {
         }
     }
     bool is_bang = false;
-    if (at(text, argstart) == 33 && (is_ui_command(editor, name) || editor.user_commands.contains(name) || name == "foldopen" || name == "foldclose" || name == "global" || name == "join" || name == "put" || name == "z" || name == "normal" || name == "write" || name == "quit" || name == "sort" || name == "delmarks" || name == "wq" || name == "xit" || name == "update" || name == "qall" || name == "wall" || MED_map.kind_of(name) != "")) {
+    if (at(text, argstart) == 33 && (is_ui_command(editor, name) || editor.user_commands.contains(name) || name == "foldopen" || name == "foldclose" || name == "global" || name == "join" || name == "put" || name == "z" || name == "normal" || name == "write" || name == "quit" || name == "sort" || name == "retab" || name == "delmarks" || name == "wq" || name == "xit" || name == "update" || name == "qall" || name == "wall" || MED_map.kind_of(name) != "")) {
         is_bang = true;
         argstart = argstart + 1;
     }
@@ -1535,7 +1535,7 @@ Step run_one(MED_editor.Editor editor, str text) {
             cmd.line2 = 1;
         }
     }
-    if (cmd.addr_count == 0 && (name == "global" || name == "vglobal" || name == "sort")) {
+    if (cmd.addr_count == 0 && (name == "global" || name == "vglobal" || name == "sort" || name == "retab")) {
         cmd.line1 = 1;
         cmd.line2 = count;
     }
@@ -1854,6 +1854,9 @@ Step exec_cmd(MED_editor.Editor editor, Cmd cmd) {
     }
     if (name == "sort") {
         return cmd_sort(editor, cmd);
+    }
+    if (name == "retab") {
+        return cmd_retab(editor, cmd);
     }
     if (name == "!") {
         return cmd_bang(editor, cmd);
@@ -2845,7 +2848,107 @@ Step cmd_align(MED_editor.Editor editor, Cmd cmd) {
     return done();
 }
 
-// `:execute "cmd" 'cmd2' ...`: string literals only; the pieces are joined by a space.
+// `:[range]retab[!] [N]`: rewrite each run of white space that holds a tab (with `!`, also runs of two or more
+// spaces) for tabstop N (the current 'tabstop' without N), with tabs unless 'expandtab' is set; then 'tabstop' is N.
+// Vim's ex_retab: columns are measured with the old tabstop, the new one only decides the layout.
+Step cmd_retab(MED_editor.Editor editor, Cmd cmd) {
+    int new_tab = editor.tab;
+    str given = cmd.arg.trim();
+    if (given != "") {
+        if (skip_digits(given, 0) != given.size()) {
+            return fail(editor, "E475: Invalid argument: " + given);
+        }
+        new_tab = given.parse_int().or(0);
+        if (new_tab == 0) {
+            new_tab = editor.tab;
+        }
+        if (new_tab < 0 || new_tab > 9999) {
+            return fail(editor, "E487: Argument must be positive: " + given);
+        }
+    }
+    int old_tab = editor.tab;
+    int old_row = editor.row;
+    int old_col = editor.col;
+    for (int row in cmd.line1 - 1 .. cmd.line2) {
+        str line = editor.buffer.line(row);
+        if (line.index_of("\t").is_none() && !(cmd.is_bang && line.index_of("  ").is_some())) {
+            continue;
+        }
+        str out = "";
+        int col = 0;
+        int vcol = 0;
+        int start_col = 0;
+        int start_vcol = 0;
+        int spaces = 0;
+        bool is_tab = false;
+        while (true) {
+            int byte = 0;
+            if (col < line.size()) {
+                byte = line.byte_at(col);
+            }
+            if (byte == 32 || byte == 9) {
+                if (!is_tab && spaces == 0) {
+                    start_col = col;
+                    start_vcol = vcol;
+                }
+                if (byte == 32) {
+                    spaces = spaces + 1;
+                } else {
+                    is_tab = true;
+                }
+                if (byte == 32) {
+                    vcol = vcol + 1;
+                } else {
+                    vcol = vcol + old_tab - vcol % old_tab;
+                }
+                col = col + 1;
+                continue;
+            }
+            if (is_tab || (cmd.is_bang && spaces > 1)) {
+                int width = vcol - start_vcol;
+                int tabs = 0;
+                int pad = width;
+                if (!editor.is_expandtab) {
+                    int first = new_tab - start_vcol % new_tab;
+                    if (pad >= first) {
+                        pad = pad - first;
+                        tabs = 1;
+                    }
+                    tabs = tabs + pad / new_tab;
+                    pad = pad - (pad / new_tab) * new_tab;
+                }
+                out = out + "\t".repeat(tabs) + " ".repeat(pad);
+            } else if (spaces > 0) {
+                out = out + " ".repeat(spaces);
+            }
+            is_tab = false;
+            spaces = 0;
+            if (col >= line.size()) {
+                break;
+            }
+            int next = MED_text.next_col(line, col);
+            if (next <= col) {
+                next = line.size();
+            }
+            out = out + line.substr(col, next);
+            vcol = vcol + MED_text.cell_width(line, col, vcol, old_tab);
+            col = next;
+        }
+        if (out != line) {
+            replace_row(editor, row, out);
+        }
+    }
+    if (new_tab != editor.tab) {
+        editor.tab = new_tab;
+        editor.opts.set("tabstop", new_tab.to_str());
+    }
+    editor.row = old_row;
+    editor.col = old_col;
+    editor.clamp();
+    return done();
+}
+
+// `:execute "cmd" 'cmd2' ...``: string literals only; the pieces are joined by a space.
 Step cmd_execute(MED_editor.Editor editor, Cmd cmd) {
     str first_text = cmd.arg;
     List<str> parts = [];
@@ -3409,6 +3512,10 @@ Step sub_lines(MED_editor.Editor editor, MED_editor.SubRun run, int answer) {
                     if (!is_resuming) {
                         editor.row = run.lnum;
                         editor.col = run.match_value.scol;
+                        if (run.is_new_has) {
+                            // the line is shown with the substitutions made so far: the match moved with them
+                            editor.col = editor.col + run.new_start.size() - run.copycol;
+                        }
                         editor.want_from_cursor();
                         return sub_prompt(editor, run);
                     }
@@ -3813,9 +3920,9 @@ Step cmd_sub(MED_editor.Editor editor, Cmd cmd_value) {
     MED_search.set_last_pattern(editor, pattern, true);
     MED_regex.Regex regex = MED_regex.Regex();
     if (do_ic == 1) {
-        regex = MED_regex.compile(pattern, true, false, editor.sub_replacement);
+        regex = MED_search.attach_context(editor, MED_regex.compile(pattern, true, false, editor.sub_replacement));
     } else if (do_ic == 2) {
-        regex = MED_regex.compile(pattern, false, false, editor.sub_replacement);
+        regex = MED_search.attach_context(editor, MED_regex.compile(pattern, false, false, editor.sub_replacement));
     } else {
         regex = MED_search.compile_with(editor, pattern, false);
     }
@@ -4206,7 +4313,7 @@ Step cmd_sort(MED_editor.Editor editor, Cmd cmd) {
                     return fail(editor, "E35: No previous regular expression");
                 }
             }
-            regex = MED_regex.compile(pattern, editor.is_ignorecase, false, editor.sub_replacement);
+            regex = MED_search.attach_context(editor, MED_regex.compile(pattern, editor.is_ignorecase, false, editor.sub_replacement));
             if (!regex.is_ok) {
                 return fail(editor, regex.error);
             }

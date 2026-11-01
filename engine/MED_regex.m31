@@ -20,8 +20,9 @@
 // `\1 .. \9`, `\@= \@! \@<= \@<! \@>`, `\%[]`, `[]` collections with
 // `[:alpha:]` and `\d123 \x20 €`, the character classes `\s \S \d \D ...`
 // and their `\_x` forms, `\n`, `\t \e \r \b`, `\%d123 \%x2a \%u20AC`, `~`.
-// Not supported (reported as an error or never matching): `\%V`, `\%#`,
-// `\%'m`, `\%.l`, `\z(`, composing-character pattern syntax `\%C`, `\Z`.
+// `\%V` (the Visual area) and `\%'m` / `\%<'m` / `\%>'m` (marks) look at what the caller put in the Regex
+// (MED_search.attach_context).
+// Not supported (reported as an error or never matching): `\%#`, `\%.l`, `\z(`, composing-character pattern syntax `\%C`, `\Z`.
 //
 // A pattern is matched code point by code point; a combining mark never starts
 // a match of `.` or a collection and a literal does not match a base character
@@ -55,6 +56,8 @@ const int OP_EOF = 21;
 const int OP_LNUM = 22;
 const int OP_CNUM = 23;
 const int OP_VNUM = 24;
+const int OP_VIS = 27;
+const int OP_MARK = 28;
 const int OP_FAIL = 25;
 const int OP_SUBEND = 26;
 const int N_CHAR = 1;
@@ -81,6 +84,8 @@ const int N_LNUM = 21;
 const int N_CNUM = 22;
 const int N_VNUM = 23;
 const int N_NEVER = 24;
+const int N_VIS = 25;
+const int N_MARK = 26;
 const int LK_AHEAD = 0;
 const int LK_NOT_AHEAD = 1;
 const int LK_BEHIND = 2;
@@ -120,6 +125,17 @@ pub type Regex {
     pub int nguards = 0;
     /// A first literal character every match must start with, or -1.
     pub int first = -1;
+    /// What `\%V` and `\%'m` look at; the caller sets them (MED_search.attach_context): the Visual area as
+    /// kind (118 v, 86 V, 22 CTRL-V; 0: none), first and last position, the block's display columns,
+    /// and the marks by name.
+    pub int vis_kind = 0;
+    pub int vis_row1 = 0;
+    pub int vis_col1 = 0;
+    pub int vis_row2 = 0;
+    pub int vis_col2 = 0;
+    pub int vis_left = 0;
+    pub int vis_right = 0;
+    pub Map<str, MED_buffer.Pos> marks = {};
     // ---- parser state
     List<int> codes = [];
     int index = 0;
@@ -610,6 +626,47 @@ int Regex.parse_atom(int depth) {
     return node(N_CHAR, target, 0, []);
 }
 
+
+// Whether the position (row, byte col) is inside the Visual area `\%V` was given.
+pub bool Regex.is_in_visual(MED_buffer.Buffer buffer, int row, int col) {
+    if (vis_kind == 0 || row < vis_row1 || row > vis_row2) {
+        return false;
+    }
+    if (vis_kind == 86) {
+        return true;
+    }
+    if (vis_kind == 22) {
+        int shown = MED_text.display_col(buffer.line(row), col, 8);
+        return shown >= vis_left && shown <= vis_right;
+    }
+    if (row == vis_row1 && col < vis_col1) {
+        return false;
+    }
+    if (row == vis_row2 && col > vis_col2) {
+        return false;
+    }
+    return true;
+}
+
+// `\%'m` (cmp 0), `\%<'m` (1) and `\%>'m` (2): the position against mark `name`.
+pub bool Regex.is_at_mark(int name, int cmp, int row, int col) {
+    Option<MED_buffer.Pos> found = marks.get(str.from_chars([name]));
+    match (found) {
+        case Some(MED_buffer.Pos place): {
+            if (cmp == 1) {
+                return row < place.row || (row == place.row && col < place.col);
+            }
+            if (cmp == 2) {
+                return row > place.row || (row == place.row && col > place.col);
+            }
+            return row == place.row && col == place.col;
+        }
+        case None: {
+            return false;
+        }
+    }
+}
+
 int Regex.hex_digits(int max) {
     int value = -1;
     int count = 0;
@@ -729,7 +786,19 @@ int Regex.parse_percent(int depth) {
         cmp = 2;
         delta = raw();
     }
-    if (delta == 46 || delta == 39) {
+    if (delta == 86) {
+        return node(N_VIS, 0, 0, []);
+    }
+    if (delta == 39) {
+        // \%'m, \%<'m, \%>'m: at, before or after mark m
+        int name = raw();
+        if (name < 0) {
+            did_fail("E71: Invalid character after \\%");
+            return -1;
+        }
+        return node(N_MARK, name, cmp, []);
+    }
+    if (delta == 46) {
         did_fail("E71: Invalid character after \\%: unsupported");
         return -1;
     }
@@ -1032,6 +1101,10 @@ void Regex.gen(int count) {
         emit(OP_CNUM, node_first[count], node_second[count]);
     } else if (key == N_VNUM) {
         emit(OP_VNUM, node_first[count], node_second[count]);
+    } else if (key == N_VIS) {
+        emit(OP_VIS, 0, 0);
+    } else if (key == N_MARK) {
+        emit(OP_MARK, node_first[count], node_second[count]);
     } else if (key == N_NEVER) {
         emit(OP_FAIL, 0, 0);
     } else if (key == N_EMPTY) {
@@ -1722,6 +1795,20 @@ bool Run.did_run_from(Regex regex, int pc0, int start_row, int first_char) {
                 nbytes = nbytes + utf8_length(cps[key]);
             }
             is_good = is_byte_col_ok(regex.program_b[from_col], regex.program_a[from_col], MED_text.display_col(buffer.line(row), nbytes, 8) + 1);
+            from_col = from_col + 1;
+        } else if (opc == OP_VIS) {
+            int nbytes = 0;
+            for (int key in 0 .. code_index) {
+                nbytes = nbytes + utf8_length(cps[key]);
+            }
+            is_good = regex.is_in_visual(buffer, row, nbytes);
+            from_col = from_col + 1;
+        } else if (opc == OP_MARK) {
+            int nbytes = 0;
+            for (int key in 0 .. code_index) {
+                nbytes = nbytes + utf8_length(cps[key]);
+            }
+            is_good = regex.is_at_mark(regex.program_a[from_col], regex.program_b[from_col], row, nbytes);
             from_col = from_col + 1;
         } else if (opc == OP_FAIL) {
             is_good = false;
