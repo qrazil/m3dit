@@ -7,6 +7,7 @@
 
 import engine.MED_editor;
 import engine.MED_semtok;
+import engine.MED_text;
 import syntax.core.SYN_detect;
 import syntax.core.SYN_highlight;
 import syntax.core.SYN_registry;
@@ -33,7 +34,7 @@ pub str language(MED_editor.Editor editor) {
     }
     str first = "";
     if (editor.buffer.line_count() > 0) {
-        first = editor.buffer.line(0);
+        first = MED_text.head(editor.buffer.line(0));
     }
     return SYN_detect.language_of(editor.buffer.path, first);
 }

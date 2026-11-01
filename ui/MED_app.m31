@@ -543,7 +543,7 @@ pub void App.apply_project(Slot slot) {
     if (file.size() == 0) {
         return;
     }
-    str language = SYN_detect.language_of(slot.path, slot.editor.buffer.line(0));
+    str language = SYN_detect.language_of(slot.path, MED_text.head(slot.editor.buffer.line(0)));
     MED_projconf.Conf conf = MED_projconf.for_file(file, language);
     slot.local_lines = conf.lines;
     run_local(slot);
@@ -5153,7 +5153,7 @@ void App.draw_status(TUI_buffer.Buffer buffer, MED_window.Placed frame, MED_edit
     int percent = (subject.row + 1) * 100 / count;
     str where = (subject.row + 1).to_str() + ":" + (vcol + 1).to_str() + "  " + percent.to_str() + "% ";
     if (is_plugin_on("statusline")) {
-        str lang = SYN_detect.language_of(file, subject.buffer.line(0));
+        str lang = SYN_detect.language_of(file, MED_text.head(subject.buffer.line(0)));
         if (lang.size() > 0) {
             where = lang + "  " + where;
         }
@@ -8746,7 +8746,7 @@ void App.ext_fire_slot(MED_ext.Event event, Slot slot, str file) {
     context.buffer_id = slot.id;
     MED_ext.Info info = MED_ext.Info(file: file, buffer_id: slot.id);
     if (MED_ext.event_index(event) == MED_ext.event_index(MED_ext.Event.BufferOpen)) {
-        info.filetype = SYN_detect.language_of(slot.path, slot.editor.buffer.line(0));
+        info.filetype = SYN_detect.language_of(slot.path, MED_text.head(slot.editor.buffer.line(0)));
     }
     ext.fire(event, context, info);
     ext_finish(context);
@@ -8945,13 +8945,7 @@ str paste_text(List<int> keys) {
 /// The language a file is served as: what `SYN_detect` says, with TypeScript
 /// folded onto JavaScript (one language server handles both).
 pub str server_language_of(str path, str first_line) {
-    // only the start of the line can be a shebang or a modeline; a minified one-line file must not be scanned
-    // whole by every tick
-    str head = first_line;
-    if (head.size() > 512) {
-        head = head.substr(0, 512);
-    }
-    str lang = SYN_detect.language_of(path, head);
+    str lang = SYN_detect.language_of(path, MED_text.head(first_line));
     if (lang == "typescript") {
         return "javascript";
     }
