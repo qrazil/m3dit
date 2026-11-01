@@ -1,6 +1,6 @@
 # Extending m3
 
-Status: API 0.3.0, experimental (the plugin layer is section 0, what 0.3.0 added is section 0.1; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.4.0, experimental (the plugin layer is section 0, what 0.3.0 and 0.4.0 added is sections 0.1 and 0.2; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
@@ -32,7 +32,7 @@ by the build; nothing is loaded at run time. What 0.2.0 adds to the extension fo
   `Ctx.did_map` sets buffer-local maps for the buffer a handler runs for.
 * **Run time.** `:PluginDisable NAME` and `:PluginEnable NAME` switch a compiled plugin off and on (its hooks, commands
   and keys go inactive; owner decision Q3); `:Plugins` lists compiled plugins with their state (`active`, `lazy`,
-  `pending`, `off`, `refused: requires x`). `m3 --version` prints `m3 0.18.0 (api 0.3.0; plugins: ...)` and
+  `pending`, `off`, `refused: requires x`). `m3 --version` prints `m3 0.19.0 (api 0.4.0; plugins: ...)` and
   `m3 --list-plugins` prints them, tab separated.
 * **Version rule.** While the major is 0, a plugin built for `0.M.p` runs on host `0.M.q` when `p <= q`; another minor
   is refused. From 1.0 a minor only adds. Signature changes of plugin-visible functions are compile errors, not run-time
@@ -58,7 +58,7 @@ M3_PROFILE=full M3_WITHOUT=terminal bash scripts/build.sh   # the same through t
 against the `Spec` through `m3 --list-plugins`. The checked-in `ext/MED_ext_enabled.m31` is the generated registry of
 the default profile (a bare `m31c m3.m31` equals the release; a test checks it). The default profile holds `move`, the
 reference plugin (`plugins/move/`: eight `Action.Keys` maps, no handler; its README is the smallest example), and since 0.18.0
-`bracketed`, `harpoon`, `todo`, `whichkey`, `notify` and `statusline` (each directory has a README); `--ext`
+`bracketed`, `harpoon`, `todo`, `whichkey`, `notify` and `statusline`, and since 0.19.0 `session` (each directory has a README); `--ext`
 extensions still work as before and come after the plugins.
 
 ### 0.1 API 0.3.0 (m3 0.18.0): what six plugins needed
@@ -88,6 +88,16 @@ Two behaviours changed for every plugin. A `Tick` handler no longer forces a red
 a segment or the toasts changed, the buffer changed, or the handler said something (before: always). `Registry.fire` still
 runs handlers in registration order; `fire` of an event nobody takes returns 0, which is how `notify` falls back to the
 message line.
+
+### 0.2 API 0.4.0 (m3 0.19.0): what `session` needed
+
+Additive again; `0.3` plugins are refused until rebuilt (`Spec` defaults to `0.4`).
+
+| addition | what it is | used by |
+|---|---|---|
+| `Ctx.global_state_lines(name)`, `Ctx.did_set_global_state_lines(name, lines)` | the user's state file `name` in m3's state directory, not per project (`recent`, `positions`) | session |
+| `Ctx.note_visit(abs)` | count a visit for the finder's frecency ordering | session |
+| `Ctx.set_cursor` | now also remembers the display column (`j` and `k` keep the column the plugin set) | session, todo |
 
 ## 1. What an extension is
 

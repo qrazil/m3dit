@@ -15,7 +15,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 | Symbols (this file), diagnostics list, TODO list, word under cursor | core + plugin | finder sources; `todo` for the TODO list | `<Space>fs fx fw ft`; symbols are line patterns or LSP |
 | File tree | core | `ui/MED_tree.m31`, `:Neotree`, `:Explore` | `<Space>e`, `<Space>E`; git letters; planned plugin `explorer` (step 12) |
 | Buffers: next, previous, alternate, delete, list, buffer line | core + plugin | core commands; `bracketed` keys; `statusline` buffer line | |
-| Windows, tab pages, session of the open files | core | window model, `:Session` | cursor, layout and tab pages; sizes are shared out again |
+| Windows, tab pages, session of the open files | core + plugin | window model, `:Session`; `session` (cursor positions, recent files, frecency) | cursor, layout and tab pages; sizes are shared out again |
 | LSP: hover, definition, references, rename, code action, format, signature, inlay hints, semantic tokens, completion popup, snippets | core | `ui/MED_lsp.m31` | `K gd grr grn gra`, `<Space>cr ca cf ck ch`; `:Lsp ...`; servers found on `$PATH` |
 | Diagnostics: signs, list, next and previous, float at cursor | core + plugin | LSP client; `bracketed` (`[d ]d`) | `<Space>ll xx xX`; toast for server messages via `notify` |
 | Git gutter, hunk stage/reset/undo/preview, blame line and list, diff, log, branches, commits, checkout | core | `ui/MED_git*.m31` over m31git (in process) | `<Space>g...`, `:Git`, `:Hunk`; `]h [h ]c [c` are `bracketed`; planned plugin `git` (step 10) |
@@ -29,7 +29,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 | Project settings | core | `.editorconfig`, `.m3.toml` | tabstop, formatting, per-project options |
 | Themes, transparent terminals, truecolor with fallbacks | core | theme engine (14 themes) | decision: stays in core |
 | Clipboard, mouse, bracketed paste | core | | OSC 52 / wl-copy / xclip / pbcopy detected |
-| Multi-buffer / project search and replace | **missing** | | no `:cdo` `:cfdo` `:bufdo` `:windo` `:argdo`, no `:vimgrep` or `:grep`; the finder sends hits to quickfix (`<C-q>`) but a substitute cannot be run over them |
+| Multi-buffer / project search and replace | core (0.19.0), partial | `:cdo` `:cfdo` `:bufdo` in `MED_app.run_do` | the finder sends hits to quickfix (`<C-q>`), then `:cdo s/old/new/ \| update`; stops at the first failing line. Still missing: `:windo`, `:argdo`, `:vimgrep`, `:grep` (below) |
 | Diff mode (`:diffthis`, `]c` between two windows) | **missing** | | `:Git diff` and hunk preview exist; two-window diff does not |
 | `:make` and the quickfix errorformat | **missing** | | quickfix is fed by the finder and LSP only |
 | Spell checking | **declined** | ROADMAP | not before 1.x |
@@ -40,16 +40,16 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 
 ## Gaps, in the order they hurt a daily user
 
-1. **Project-wide replace.** `:cdo` / `:cfdo` over the quickfix list and `:bufdo` / `:argdo` / `:windo` are the Vim answer to
-   "rename this across files", and the finder already builds quickfix lists. It needs the ex engine to run a line in each
-   buffer in turn and write it; that is core work (a loop over `slots` in `MED_app`, since only the App owns buffers), not a
-   plugin. The plugin API has no buffer handle yet (0.3.0 reads and edits the active buffer only), which is also why this is
-   not done as `comment`-style plugin. Proposed: `:cdo`, `:cfdo`, `:bufdo`, `:windo`, `:argdo` in the App with nvim's
-   semantics (`!`, `:update` is the user's), checked against nvim in the oracle with files on disk.
+1. **Project-wide replace: done in 0.19.0 for `:cdo`, `:cfdo` and `:bufdo`** (core, `App.run_do`: an ex line at each quickfix
+   entry, once per file, in each listed buffer; the first failing line ends the run; nothing is written, add `| update`).
+   The plugin API still has no buffer handle (it reads and edits the active buffer only), so this had to be core code in
+   the App, which owns the buffers. Left: `:windo` and `:argdo` (rarely used), and checking `:cdo` against nvim in the oracle
+   with files on disk (the unit test `t_cdo` covers the semantics, not the corner cases of `:cnext` at the end of the list).
 2. **`:grep`, `:vimgrep`, `:make`** feeding the quickfix list, with `:cwindow`. The pieces exist (quickfix list, grep sources);
    the commands do not. Same owner: the App.
-3. **Session as a plugin with autosave per directory** (step 9): today `:Session` is explicit. Restoring on `m3` with no
-   arguments in a project directory is what `persistence.nvim` does and what nox's session plugin was for.
+3. **Restore the session on `m3` with no arguments** in a project directory (what `persistence.nvim` does). `session` (0.19.0)
+   restores cursors and keeps the recent files; the named `:Session` and the project session saved on exit are core and
+   explicit.
 4. **Two-window diff** (`:diffthis`, `:diffoff`, `]c [c` in diff windows, `do`/`dp`). Large (a diff algorithm in the
    renderer, scroll binding, fold of equal runs); the hunk preview covers the common case of "what did I change".
 5. **Entangled core features that stay core for now:** surround, autopairs, comment (engine options with oracle
@@ -59,7 +59,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 
 ## What changed in 0.18.0 to get here
 
-Six features left the core and became plugins on API 0.3.0, each with `plugin.txt`, a module, a README and tests, in the
+Six features left the core and became plugins on API 0.3.0 (and `session` on 0.4.0 in 0.19.0), each with `plugin.txt`, a module, a README and tests, in the
 default profile and switched off by `--without NAME`: `bracketed`, `harpoon`, `todo`, `whichkey`, `notify` (new) and
 `statusline`. The core keeps a minimal status line (mode, file, filetype, position) and the tab-page line, so
 `--no-plugins` is a working editor. No daily feature was removed. Comment toggle was not missing (it is `gc` in the engine,

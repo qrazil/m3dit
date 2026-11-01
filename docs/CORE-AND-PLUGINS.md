@@ -55,7 +55,7 @@ switched off at run time with `:PluginDisable`; migrate later, when wanted; none
 | bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` pairs, muscle memory | **done, 0.18.0** (`plugins/bracketed`) |
 | harpoon | pinned files per project, `<Space>1..9` | **done, 0.18.0** (`plugins/harpoon`) |
 | todo | TODO/FIXME highlight and list | **done, 0.18.0** (`plugins/todo`) |
-| session | cursor position, layout and buffers restored | later |
+| session | cursor position, layout and buffers restored | **done, 0.19.0** (`plugins/session`: positions, recent, visits; `:Session` stays core) |
 | terminal | `:terminal` and `<Space>t` | later (needs slice D) |
 | notify (new) | toasts over the message ring | **done, 0.18.0** (`plugins/notify`; the ring stays core) |
 | surround | `ys ds cs`, Visual `S` | later, last: it is entangled with the engine and goes only with the oracle green |
@@ -160,7 +160,29 @@ later steps are not scheduled (see the decision record). What was built and wher
 | D9 | `bracketed` owns `[t ]t` (as `:Todo next|prev`, `wants: todo`) and `[c ]c` is the same as `[h ]h`, both `:Hunk next|prev`; the core gained `:Hunk next|prev` and `:Lsp next_diag|prev_diag`. | ordinary ex commands the user can map; the old `[c` was a copy of `[h` |
 | D10 | A `Tick` handler redraws only when something visible changed (`Registry.is_screen_dirty`, buffer tick, notice, pick). | the always-redraw rule made any Tick plugin cost 4 frames a second |
 | D11 | `Ctx.open_file` queues `:edit` and `say_later` queues the message after it (request `extsay`), so a harpoon jump ends with `Harpoon 2/3: ...` as before. | the file's own message used to replace it |
+| D13 | `session` (0.19.0) is the cursor positions, the recent-files list and the frecency visits; the state files are the core's own (`recent`, `positions`), so nothing is lost. `:Session` and the project session saved on exit stay in the core (they are the window and buffer model). It notes on `Tick` (250 ms) instead of every second, and a cursor already moved by a restored `:Session` is not overwritten at `BufferOpen`. | smallest real cut of the old `session` row; API 0.4.0 adds only global state and `note_visit` |
 | D12 | `comment` was not built as a plugin: `gc` is in the engine and checked against nvim 0.11 (an engine feature, Q5 order applies). | not missing |
+
+
+### 10. Extractions that stopped at a seam (0.19.0)
+
+Items 7 and 8 and 10 to 13 of the daily-driver order are extractions of code that is entangled with the engine or the
+renderer. The rule was: extract only if it becomes a genuine plugin with `--no-plugins` green and the default build
+unchanged, otherwise stop at the clean seam and say what is missing. Counts are references in the current tree. Every missing
+piece is an additive API (0.5.0 and later) and each is the first thing the plugin would use.
+
+| item | what is there now | what the plugin API lacks (the seam) | size |
+|---|---|---|---|
+| 7 surround | `engine/MED_surround.m31` (800 lines); 71 references in `MED_vim`, 22 `Editor.sur_*` fields, 12 in `MED_ex` | an **operator registry**: a plugin declares a Normal-mode operator with extra input stages (`ys{motion}{char}`, `ds{char}`, `cs{old}{new}`, Visual `S`), receives the range of the motion or text object, and its typed keys take part in `.` repeat, counts and the undo block. `MED_vim` must resolve motions for a plugin operator and replay the plugin's stages. The surround corpus (nvim oracle) must stay green, which is why Q5 puts it last | L, risk: dot repeat |
+| 8 autopairs | `engine/MED_autopair.m31` (356 lines); 20 references in `MED_vim`, 6 `MED_ex.drain` sentinels, 15 in `MED_editor` (`ap_return_row`), 29 in `MED_app` (paste, `jk`) | an **Insert-mode key hook**: `Event.InsertCharPre` (the typed character; the handler may replace what is inserted), and hooks for `<BS>`, `<CR>` and `<Space>` between a pair, all inside the insert undo block and `.` repeat, off during a paste and a macro | M, risk: repeat and undo |
+| 10 git | `ui/MED_git*.m31` (744 + 372 + 1113 lines, a library over m31git); 114 mentions in `MED_app` (gutter, `git_info`, blame, hunks, `:Git`, branch and commit pickers) | **gutter signs** (`Registry.did_signs`: per-row sign text and scope, asked by the renderer like `did_decorate`), a **text overlay** (`Ctx.show_text(lines)`, for `:Git log`, blame and hunk preview), picker entries that run an ex line (`MED_picker.Entry.action`), the `ih` / `ah` text objects (engine). The plugin may import m31git itself (R2 allows it). `:Hunk next|prev` and the status line counts are already plugin-shaped (0.18.0) | M, signs are the work |
+| 11 finder | the picker primitive and its core sources are **core by decision**; what a plugin could own is the key set (`<Space>ff fg fr fb ...`, 15 rows of `picker:NAME` in `MED_keymap`) and the frecency heat | nothing new: the keys are `Action.Call` maps over `Ctx.open_picker(name, arg)` (0.3.0). Deferred as low value until `:PluginDisable finder` has a meaning: today it also switches off the async sources (`is_plugin_on("finder")` in `load_files`) | S, no seam |
+| 12 explorer | `ui/MED_tree.m31` (551 lines, the model) and 148 `tree.` references in `MED_app`: the sidebar takes columns from the window layout, is drawn, focused, clicked, and shows git letters | a **docked panel** API: `Registry.did_panel(PanelSpec)` (side, width, `draw(Canvas)`, `key(Key)`, `mouse(Mouse)`), focus events, a way to give columns back to the layout, a `Canvas` that draws with theme scopes (so transparency still applies), directory reads (`fs` is allowed) and git status (`Ctx.status`-like) | M to L |
+| 13 terminal | `Term` and 70 references in `MED_app`; the pty needs `proc` (plugins may not import it), the screen is `MED_vt` | a **pty service** (`Ctx.spawn_pty(argv, rows, columns)` returning a handle with `write`, `resize`, `poll`), a **panel buffer** kind the host draws from a VT screen (`Ctx.new_panel_buffer(title)`), an input-capture hook so keys go to the program until `<C-\><C-n>`, and resize and exit events | L |
+
+What was done instead: **9 session** (above). Not planned, as decided: the lazygit dashboard and miller columns. Optional
+later: `colors`, `icons`. Next in order of value per risk: 11 (no seam, only a decision), 10 (signs and overlay are small),
+12, 13, then 7 and 8 with the oracle.
 
 ---
 
