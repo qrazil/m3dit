@@ -179,6 +179,36 @@ def directory_argument_and_clean(binary, root):
     assert not os.path.exists(os.path.join(state, "m3", "recent")), "--clean must keep no state"
 
 
+@scenario
+def registers_picker(binary, root):
+    s = Session(binary, root, ["a.txt"])
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send("yy", settle=0.2)
+        s.send(":Registers\r", settle=0.6)
+        assert s.wait_for("Registers"), s.text()
+        assert "one" in s.text().split("Registers", 1)[1], s.text()
+        s.send("\x1b", settle=0.3)
+        assert s.wait_for("NORMAL"), s.text()
+    finally:
+        s.close()
+
+
+@scenario
+def set_query_toggle_reset(binary, root):
+    s = Session(binary, root, ["a.txt"])
+    try:
+        assert s.wait_for("one"), s.text()
+        for keys, shown in ((":set ts?\r", "tabstop=8"), (":set sw=3 sw?\r", "shiftwidth=3"), (":set sw&\r:set sw?\r", "shiftwidth=8"),
+                            (":set invwrap wrap?\r", "nowrap"), (":set wrap!\r:set wrap?\r", "  wrap"), (":set fenc?\r", "fileencoding=utf-8"),
+                            (":set inccommand?\r", "inccommand="), (":set nosuchopt\r", "E518")):
+            s.send(keys, settle=0.4)
+            assert shown in s.text(), "%r: %r not on screen:\n%s" % (keys, shown, s.text())
+            s.send("\x1b", settle=0.2)
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

@@ -1376,6 +1376,8 @@ void App.run_request(str request) {
         run_git_read(arg);
     } else if (name == "Hunk") {
         run_hunk_command(arg);
+    } else if (name == "Registers") {
+        open_picker("registers", arg);
     } else if (name == "Recent") {
         open_picker("recent", arg);
     } else if (name == "Symbols") {
@@ -4334,7 +4336,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Registers", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -6018,6 +6020,15 @@ bool App.did_open_list_picker(str name, str arg) {
         }
         open_picker("grep", word);
         return false;
+    } else if (name == "registers") {
+        title = "Registers";
+        List<str> shown_registers = MED_listing.registers(editor, "");
+        for (int index in 1 .. shown_registers.size()) {
+            // "  c  "a   text": the register name is the character after the quote
+            str one_register = shown_registers[index];
+            str register_name = one_register.substr(5, 6);
+            entries.push(MED_picker.Entry(one_register.substr(2, one_register.size()), action: "ex:normal! \"" + register_name + "p"));
+        }
     } else if (name == "options") {
         title = "Options";
         for (str option in MED_option.names()) {
