@@ -1,0 +1,32 @@
+// The `bracketed` plugin: `[b ]b [B ]B` (buffers), `[q ]q [Q ]Q` (quickfix), `[t ]t` (TODO comments), `[h ]h` and
+// `[c ]c` (git hunks), `[d ]d` (diagnostics). It was `App.did_bracketed` and two special cases in `App.handle`; now it
+// is data: Normal-mode maps that run the ex command of the same job (`:bnext`, `:cnext`, `:Todo next`, `:Hunk next`,
+// `:Lsp next_diag`). Nothing runs at activation. `wants: todo` only so that `:Todo` exists when `[t` is typed.
+
+import ext.MED_ext;
+
+type Bracketed {
+}
+
+Result<bool, str> Bracketed.activate(MED_ext.Registry api) {
+    return Result<bool, str>.Ok(true);
+}
+
+void pair(MED_ext.Spec spec, str previous_keys, str next_keys, str previous, str next, str previous_desc, str next_desc) {
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, previous_keys, previous, previous_desc));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, next_keys, next, next_desc));
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("bracketed", summary: "[b ]b [q ]q [d ]d [h ]h [t ]t [c ]c");
+    spec.wants.push("todo");
+    pair(spec, "[b", "]b", "bprevious", "bnext", "previous buffer", "next buffer");
+    pair(spec, "[B", "]B", "bfirst", "blast", "first buffer", "last buffer");
+    pair(spec, "[q", "]q", "cprevious", "cnext", "previous quickfix entry", "next quickfix entry");
+    pair(spec, "[Q", "]Q", "cfirst", "clast", "first quickfix entry", "last quickfix entry");
+    pair(spec, "[t", "]t", "Todo prev", "Todo next", "previous TODO comment", "next TODO comment");
+    pair(spec, "[h", "]h", "Hunk prev", "Hunk next", "previous git hunk", "next git hunk");
+    pair(spec, "[c", "]c", "Hunk prev", "Hunk next", "previous git change", "next git change");
+    pair(spec, "[d", "]d", "Lsp prev_diag", "Lsp next_diag", "previous diagnostic", "next diagnostic");
+    api.did_plugin(spec, Bracketed());
+}
