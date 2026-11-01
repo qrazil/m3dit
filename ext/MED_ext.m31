@@ -1537,9 +1537,21 @@ pub void Registry.put_segment(str name, str text) {
 }
 
 /// All non-empty segments, separated by two spaces.
+// Whether the plugin that owns segment `name` ("owner.segment") is switched off.
+bool Registry.is_segment_off(str name) {
+    int dot = name.index_of(".").or(name.size());
+    int owner = find_plugin(name.substr(0, dot));
+    return owner >= 0 && extensions[owner].is_off;
+}
+
+/// The text of the segments that are on, joined; "" when none.
 pub str Registry.segments() {
     str joined = "";
-    for (str text in segment_texts) {
+    for (int index in 0 .. segment_texts.size()) {
+        str text = segment_texts[index];
+        if (is_segment_off(segment_names[index])) {
+            continue;
+        }
         if (text.size() > 0) {
             if (joined.size() > 0) {
                 joined = joined + "  ";
