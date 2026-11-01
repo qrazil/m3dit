@@ -11,3 +11,4 @@ todo
 whichkey
 notify
 statusline
+session

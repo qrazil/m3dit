@@ -6,7 +6,7 @@
 // `register` once at start-up, in dependency order. With nothing selected `register` is never called, nothing
 // here runs and the editor behaves exactly as it did before this module existed.
 //
-// API (version 0.3.0, see `version()`, `is_compatible_with()`). Method names follow the m31 naming lint: a
+// API (version 0.4.0, see `version()`, `is_compatible_with()`). Method names follow the m31 naming lint: a
 // function that answers yes or no starts with is_, has_, can_ or did_, so registration calls return bool.
 //
 // A first-party plugin registers one `Spec` (plain data: name, summary, API version, `requires`, `wants`,
@@ -63,9 +63,9 @@ import ui.MED_state;
 /// The API version: major.minor.patch. While the major is 0 a plugin built for 0.M.p runs on a host 0.M.q with
 /// p <= q (a patch only adds) and another minor is refused; from 1.0 only the major breaks and a minor adds.
 pub const int API_MAJOR = 0;
-pub const int API_MINOR = 3;
+pub const int API_MINOR = 4;
 pub const int API_PATCH = 0;
-pub const str API_VERSION = "0.3.0";
+pub const str API_VERSION = "0.4.0";
 /// The longest `context.run` may block the editor.
 pub const int MAX_BLOCKING_MS = 1000;
 /// Consecutive failures after which an extension is switched off.
@@ -439,7 +439,7 @@ pub type Spec {
     pub str name;
     pub str summary = "";
     pub int api_major = 0;
-    pub int api_minor = 3;
+    pub int api_minor = 4;
     pub int api_patch = 0;
     /// Not registered unless every one of these is built in and on.
     pub List<str> requires = [];
@@ -1799,6 +1799,8 @@ pub type Ctx {
     pub List<MED_picker.Entry> pick_entries = [];
     /// `open_picker` was called: the App opens the core finder source of that name.
     /// What `notify` collected: the App sends each as a `Message` (or shows it in the message line when no plugin takes it).
+    /// What `note_visit` collected: the App counts each file as visited for the finder.
+    pub List<str> visits = [];
     pub List<str> note_texts = [];
     pub List<int> note_levels = [];
     /// `show_key_help` was called: the App shows the which-key popup for the pending keys.
@@ -1917,6 +1919,7 @@ pub bool Ctx.did_set_line(int row, str text) {
 pub void Ctx.set_cursor(MED_buffer.Pos position) {
     editor.set_cursor(position);
     editor.clamp();
+    editor.want_from_cursor();
 }
 
 /// Remember the cursor as the place `<C-o>` and `''` return to before a jump (the previous-context mark).
@@ -2092,6 +2095,26 @@ pub str Ctx.openable(str absolute) {
         target = MED_files.path_of(registry.root, target);
     }
     return target;
+}
+
+/// The lines of the user's state file `name` in m3's state directory (not per project: `recent`, `positions`);
+/// empty when there is none. 0.4.0.
+pub List<str> Ctx.global_state_lines(str name) {
+    return MED_state.read_lines(registry.state_directory, name);
+}
+
+/// Write the user's state file `name`. False when there is no state directory.
+pub bool Ctx.did_set_global_state_lines(str name, List<str> lines) {
+    if (registry.state_directory.size() == 0) {
+        return false;
+    }
+    MED_state.write_lines(registry.state_directory, name, lines);
+    return true;
+}
+
+/// Count `absolute` as visited for the finder's frecency ordering (`<Space>ff` lists often and recently used files first).
+pub void Ctx.note_visit(str absolute) {
+    visits.push(absolute);
 }
 
 /// Whether there is a state directory to keep `state_lines` in.

@@ -1,0 +1,2 @@
+name: session
+summary: remember the cursor position of each file

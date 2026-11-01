@@ -1,0 +1,101 @@
+// The `session` plugin through the App: the file in front becomes recent and its cursor row is written within a Tick, a
+// new session puts the cursor back, closing the editor writes the cursor down, a cursor that was already moved is kept,
+// and :PluginDisable stops it. The state directory is a scratch directory (M3_TEST_TMP).
+
+import fs;
+import io;
+import os;
+import tests.MED_check;
+import ui.MED_app;
+import ui.MED_state;
+import term;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+void write_file(str path, str text) {
+    match (io.write(path, text)) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+str base = os.env("M3_TEST_TMP").or("/tmp") + "/session-plugin";
+match (fs.makedirs(base + "/state")) {
+    case Ok(bool did_make): {
+    }
+    case Err(io.Error error): {
+    }
+}
+write_file(base + "/state/recent", "");
+write_file(base + "/state/positions", "");
+write_file(base + "/a.txt", "one\ntwo\nthree\nfour\nfive\n");
+write_file(base + "/b.txt", "bee\n");
+match (MED_app.open(base + "/a.txt")) {
+    case Ok(MED_app.App app): {
+        app.state_directory = base + "/state";
+        app.ext_install();
+        app.ext_started();
+        type_text(app, "jjj");
+        app.tick(300);
+        check.ok("the file is recent", MED_state.read_lines(base + "/state", "recent").contains(base + "/a.txt"));
+        check.ok("its row is written", MED_state.read_lines(base + "/state", "positions")[0].starts_with(base + "/a.txt\t3\t"));
+        type_text(app, "k");
+        app.tick(300);
+        check.ok("a new row is written on the next Tick", MED_state.read_lines(base + "/state", "positions")[0].starts_with(base + "/a.txt\t2\t"));
+        type_text(app, ":e " + base + "/b.txt\r");
+        app.tick(300);
+        check.eq_str("the new file is the most recent", MED_state.read_lines(base + "/state", "recent")[0], base + "/b.txt");
+        check.eq_str("and the older one is kept", MED_state.read_lines(base + "/state", "recent")[1], base + "/a.txt");
+        app.ext_stop();
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+match (MED_app.open(base + "/a.txt")) {
+    case Ok(MED_app.App again): {
+        again.state_directory = base + "/state";
+        again.ext_install();
+        again.ext_started();
+        check.eq_int("a new session puts the cursor back", again.editor.row, 2);
+        type_text(again, "j");
+        check.eq_int("and j goes on from there", again.editor.row, 3);
+        again.ext_stop();
+        check.ok("closing writes the cursor down", MED_state.read_lines(base + "/state", "positions")[0].starts_with(base + "/a.txt\t3\t"));
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+write_file(base + "/state/positions", "");
+match (MED_app.open(base + "/a.txt")) {
+    case Ok(MED_app.App off): {
+        off.state_directory = base + "/state";
+        off.ext_install();
+        off.ext_started();
+        type_text(off, ":PluginDisable session\r");
+        type_text(off, "jj");
+        off.tick(300);
+        off.ext_stop();
+        check.eq_int("disabled: nothing is written", MED_state.read_lines(base + "/state", "positions").size(), 0);
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_session_plugin");

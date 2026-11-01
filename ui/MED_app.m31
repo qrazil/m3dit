@@ -83,8 +83,6 @@ const int GREP_DEBOUNCE_MS = 120;
 const int MAP_TIMEOUT_MS = 1000;
 /// How often (ms) the active buffer's file is checked for an outside change.
 const int WATCH_MS = 1000;
-/// How often (ms) the recent-files and cursor-position state is brought up to date.
-const int STATE_MS = 1000;
 const int PREVIEW_LINES = 3000;
 /// A preview line is kept this many columns long (the pane is never wider).
 const int PREVIEW_COLUMNS = 400;
@@ -275,10 +273,6 @@ pub type App {
     pub bool is_frecency_loaded = false;
     /// Buffers read `.editorconfig` and `.m3.toml` (off for `-u NONE`, so test runs stay hermetic).
     pub bool is_project_conf = false;
-    pub List<str> positions = [];
-    str noted_path = "";
-    int noted_row = -1;
-    int state_ms = 0;
     /// Time since the last disk check ('autoread') and since the last key ('autosave').
     int watch_ms = 0;
     int quiet_ms = 0;
@@ -502,7 +496,6 @@ void App.activate(int id) {
     if (position < 0 || id == current_id) {
         return;
     }
-    remember_position();
     Slot target = slots[position];
     share_state(editor, target.editor);
     run_local(target);
@@ -568,7 +561,6 @@ void App.adopt(Slot slot) {
     next_id = slot.id + 1;
     activate(slot.id);
     apply_fold_start(slot);
-    restore_position();
     restore_undo();
     if (!slot.is_listing) {
         ext_fire_slot(MED_ext.Event.BufferOpen, slot, slot.path);
@@ -1294,6 +1286,8 @@ void App.run_request(str request) {
         open_picker("quickfix", "");
     } else if (name == "cclose") {
         has_picker = false;
+    } else if (name == "cdo" || name == "cfdo" || name == "bufdo") {
+        run_do(name, arg);
     } else if (name == "cnext") {
         go_quickfix(1);
     } else if (name == "cprevious" || name == "cNext") {
@@ -1607,7 +1601,6 @@ bool App.did_finish() {
     if (!editor.is_quit) {
         return false;
     }
-    remember_position();
     editor.is_quit = false;
     bool is_forced = editor.is_force_quit;
     editor.is_force_quit = false;
@@ -3964,11 +3957,6 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
             return TUI_app.Action.Redraw;
         }
     }
-    state_ms = state_ms + elapsed_ms;
-    if (state_ms >= STATE_MS) {
-        state_ms = 0;
-        note_state();
-    }
     if (editor.ta_keys.size() > 0 && !has_picker) {
         map_ms = map_ms + elapsed_ms;
         if (map_ms >= MAP_TIMEOUT_MS) {
@@ -6187,9 +6175,7 @@ void App.go_quickfix(int how) {
 /// Recent files below the project root, newest first.
 List<MED_picker.Entry> App.recent_entries() {
     List<MED_picker.Entry> out = [];
-    if (recent.size() == 0) {
-        recent = MED_state.read_lines(state_directory, "recent");
-    }
+    recent = MED_state.read_lines(state_directory, "recent");
     str base = absolute_root();
     for (str file in recent) {
         if (!file.starts_with(base + "/") || !fs.is_file(file)) {
@@ -6199,31 +6185,6 @@ List<MED_picker.Entry> App.recent_entries() {
         out.push(MED_picker.Entry(relative, path: MED_files.path_of(root, relative)));
     }
     return out;
-}
-
-/// Bring the recent list and the cursor positions up to date (every STATE_MS).
-pub void App.note_state() {
-    if (state_directory.size() == 0 || !is_plugin_on("session") || path.size() == 0 || is_in_listing()) {
-        return;
-    }
-    str file = absolute_of(path);
-    if (file.size() == 0 || !fs.is_file(file)) {
-        return;
-    }
-    if (file != noted_path) {
-        noted_path = file;
-        if (recent.size() == 0) {
-            recent = MED_state.read_lines(state_directory, "recent");
-        }
-        recent = MED_state.mru_add(recent, file, 200);
-        MED_state.write_lines(state_directory, "recent", recent);
-        note_visit(file);
-        noted_row = -1;
-    }
-    if (editor.row != noted_row) {
-        noted_row = editor.row;
-        remember_position();
-    }
 }
 
 /// Load the saved undo history of the active buffer ('undofile'), when its text is the one it was saved for.
@@ -6242,44 +6203,6 @@ void App.save_undo(Slot slot) {
         return;
     }
     MED_persist.save_undo(state_directory, absolute_of(slot.path), slot.editor);
-}
-
-/// Write down where the cursor of the active buffer is.
-pub void App.remember_position() {
-    if (state_directory.size() == 0 || !is_plugin_on("session") || path.size() == 0 || is_in_listing()) {
-        return;
-    }
-    str file = absolute_of(path);
-    if (file.size() == 0 || !fs.is_file(file)) {
-        return;
-    }
-    if (positions.size() == 0) {
-        positions = MED_state.read_lines(state_directory, "positions");
-    }
-    positions = MED_state.position_set(positions, file, editor.row, editor.col);
-    MED_state.write_lines(state_directory, "positions", positions);
-}
-
-/// Put the cursor where the file was left (the first file of the session, or
-/// one that was just opened with `:e`).
-pub void App.restore_position() {
-    if (state_directory.size() == 0 || !is_plugin_on("session") || path.size() == 0 || is_in_listing()) {
-        return;
-    }
-    str file = absolute_of(path);
-    if (file.size() == 0) {
-        return;
-    }
-    if (positions.size() == 0) {
-        positions = MED_state.read_lines(state_directory, "positions");
-    }
-    List<int> spot = MED_state.position_of(positions, file);
-    if (spot[0] >= 0 && spot[0] < editor.buffer.line_count()) {
-        editor.row = spot[0];
-        editor.col = spot[1];
-        editor.clamp();
-        editor.want_from_cursor();
-    }
 }
 
 /// The directory of the current file for git commands.
@@ -6521,6 +6444,54 @@ void App.open_scratch(str title, List<str> lines) {
     saved_current = editor.current;
     editor.message = title;
     notice = title;
+}
+
+/// `:cdo CMD` runs the ex line at each entry of the quickfix list, `:cfdo CMD` once for each file in it (at its first
+/// entry), `:bufdo CMD` in each listed buffer, as `:cfirst | CMD | cnext | CMD ...` would; the first line that fails ends
+/// it. Nothing is written: add `| update` to the command (or `:wall` afterwards), as in Vim.
+void App.run_do(str name, str line) {
+    str command = line.trim();
+    if (command.size() == 0) {
+        notice = "E471: Argument required";
+        return;
+    }
+    List<int> ids = [];
+    List<MED_picker.Entry> places = [];
+    if (name == "bufdo") {
+        for (Slot one in slots) {
+            if (!one.is_listing) {
+                ids.push(one.id);
+            }
+        }
+    } else {
+        if (quickfix_list.size() == 0) {
+            notice = "E42: No Errors";
+            return;
+        }
+        List<str> seen = [];
+        for (MED_picker.Entry one in quickfix_list) {
+            if (name == "cfdo" && seen.contains(one.path)) {
+                continue;
+            }
+            seen.push(one.path);
+            places.push(one);
+        }
+    }
+    int total = ids.size() + places.size();
+    for (int index in 0 .. total) {
+        if (name == "bufdo") {
+            activate(ids[index]);
+        } else {
+            jump_to(places[index].path, places[index].line, places[index].column);
+        }
+        notice = "";
+        editor.message = "";
+        bool did_run = MED_ex.did_run_line(editor, command);
+        run_requests();
+        if (!did_run || is_error_text(editor.message) || is_error_text(notice)) {
+            return;
+        }
+    }
 }
 
 /// Where the terminal of buffer `id` is in `terms`, or -1.
@@ -8547,6 +8518,13 @@ void App.ext_finish(MED_ext.Ctx context) {
     str problem = ext_problem_text();
     if (problem.size() > 0) {
         notice = problem;
+    }
+    if (context.visits.size() > 0) {
+        List<str> visited = context.visits;
+        context.visits = [];
+        for (str one in visited) {
+            note_visit(one);
+        }
     }
     if (context.note_texts.size() > 0) {
         List<str> texts = context.note_texts;

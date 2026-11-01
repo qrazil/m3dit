@@ -12,6 +12,7 @@ import plugins.todo.MEDX_todo;
 import plugins.whichkey.MEDX_whichkey;
 import plugins.notify.MEDX_notify;
 import plugins.statusline.MEDX_statusline;
+import plugins.session.MEDX_session;
 import plugins.bracketed.MEDX_bracketed;
 
 pub void install(MED_ext.Registry api) {
@@ -21,5 +22,6 @@ pub void install(MED_ext.Registry api) {
     MEDX_whichkey.register(api);
     MEDX_notify.register(api);
     MEDX_statusline.register(api);
+    MEDX_session.register(api);
     MEDX_bracketed.register(api);
 }
