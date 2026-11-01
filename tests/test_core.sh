@@ -9,3 +9,11 @@ if [ -x "$WORK/m3" ]; then
         bad "core_pty" "$(printf '%s\n' "$out" | tail -15)"
     fi
 fi
+
+if command -v python3 >/dev/null 2>&1; then
+    if out=$(python3 scripts/options_doc.py --check 2>&1); then
+        note "docs/OPTIONS.md is generated from the option table"
+    else
+        bad "docs/OPTIONS.md" "$out"
+    fi
+fi
