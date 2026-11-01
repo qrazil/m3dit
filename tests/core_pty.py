@@ -293,6 +293,52 @@ def quickfix_commands(binary, root):
         s.close()
 
 
+@scenario
+def autocmds_user_commands_and_if_in_keymap(binary, root):
+    keymap = os.path.join(root, "k.vim")
+    with open(keymap, "w") as handle:
+        handle.write("\n".join([
+            "augroup core",
+            "  autocmd!",
+            "  autocmd BufWritePre *.txt s/one/ONE/e",
+            "  autocmd InsertLeave *.txt s/$/!/e",
+            "  autocmd VimEnter * normal! G",
+            "augroup END",
+            "if has('nvim')",
+            "  command! -nargs=1 Greet s/two/<args>/",
+            "else",
+            "  command! -nargs=1 Greet s/two/WRONG/",
+            "endif",
+            "if has('win32')",
+            "  command! Never s/three/NEVER/",
+            "elseif exists('$HOME')",
+            "  command! Never s/three/THREE/",
+            "endif",
+            "if executable('sh')",
+            "  command! HaveSh s/three/sh/",
+            "endif",
+            ""]))
+    s = Session(binary, root, ["a.txt"], keymap=keymap)
+    try:
+        assert s.wait_for("three"), s.text()
+        assert "3:1" in s.text(), "VimEnter should have run G:\n" + s.text()
+        s.send("ix\x1b", settle=0.4)
+        assert "xthree!" in s.text(), "InsertLeave autocmd did not run:\n" + s.text()
+        s.send(":2\r:Greet hello\r", settle=0.4)
+        assert "hello" in s.text(), s.text()
+        s.send(":3\r:Never\r", settle=0.4)
+        assert "THREE" in s.text() or "xTHREE" in s.text(), "if/elseif in the keymap file:\n" + s.text()
+        s.send(":Greet\r", settle=0.4)
+        assert "E471" in s.text(), s.text()
+        s.send("gg:w\r", settle=0.6)
+        assert "written" in s.text(), s.text()
+    finally:
+        s.close()
+    with open(os.path.join(root, "a.txt")) as handle:
+        body = handle.read()
+    assert body.startswith("ONE"), "BufWritePre autocmd should have changed the text: %r" % body
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

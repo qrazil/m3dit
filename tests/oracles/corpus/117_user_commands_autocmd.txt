@@ -1,0 +1,44 @@
+# :command (user commands, ROADMAP 25) and :autocmd / :doautocmd (ROADMAP 24); the events themselves are fired by the front end (tests/core_pty.py)
+one\ntwo		:command! Foo s/o/0/<CR>:Foo<CR>
+one\ntwo		:command! Foo s/o/0/<CR>:Foo<CR>:Foo<CR>
+one\ntwo		:command! Foo s/o/0/<CR>j:Foo<CR>
+one\ntwo		:command! Foo s/o/0/|s/n/N/<CR>:Foo<CR>
+one\ntwo		:command! -nargs=1 Sub s/<args>/X/<CR>:Sub o<CR>
+one\ntwo		:command! -nargs=+ Sub s/<args>/X/<CR>:Sub o<CR>
+one\ntwo		:command! -nargs=* Sub s/<args>/X/<CR>:Sub o<CR>
+one\ntwo		:command! -nargs=? Sub s/o/<args>/<CR>:Sub 0<CR>
+one\ntwo		:command! -nargs=1 Sub s/<args>/X/<CR>:Sub<CR>
+one\ntwo		:command! Foo s/o/0/<CR>:Foo x<CR>
+one\ntwo		:command! -bang Foo s/o/0<bang>/<CR>:Foo!<CR>
+one\ntwo		:command! -bang Foo s/o/0/<CR>:Foo!<CR>
+one\ntwo		:command! Foo s/o/0/<CR>:Foo!<CR>
+one\ntwo		:command! -range Foo <line1>,<line2>d<CR>:Foo<CR>
+one\ntwo\nthree		:command! -range Foo <line1>,<line2>d<CR>:2,3Foo<CR>
+one\ntwo\nthree		:command! -range Foo <line1>,<line2>d<CR>:%Foo<CR>
+one\ntwo		:command! Foo s/o/0/<CR>:command! Foo s/o/1/<CR>:Foo<CR>
+one\ntwo		:command! Foo s/o/0/<CR>:command Foo s/o/1/<CR>:Foo<CR>
+one\ntwo		:command! Foo s/o/0/<CR>:delcommand Foo<CR>:Foo<CR>
+one\ntwo		:command! foo s/o/0/<CR>:foo<CR>
+one\ntwo		:command! Foo s/o/0/<CR>:Fo<CR>
+one\ntwo		:command! -nargs=1 Q normal <args><CR>:Q x<CR>
+one\ntwo		:command! A s/o/0/<CR>:command! B A<CR>:B<CR>
+one\ntwo		:command! Foo exe "normal Ax"<CR>:Foo<CR>
+one\ntwo		:command! -nargs=* -bar Foo echo <q-args><CR>:Foo a b<CR>
+one\ntwo		:command! -nargs=1 Sub s/<q-args>/X/<CR>:Sub o<CR>
+one\ntwo		:autocmd InsertEnter * s/o/0/<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:autocmd InsertEnter * s/o/0/<CR>:doautocmd InsertLeave<CR>
+one\ntwo		:autocmd InsertEnter * s/o/0/<CR>:doautocmd InsertEnter<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:autocmd InsertEnter * ++once s/o/0/<CR>:doautocmd InsertEnter<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:autocmd InsertEnter * s/o/0/<CR>:autocmd! InsertEnter<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:autocmd InsertEnter * s/o/0/<CR>:autocmd! InsertLeave<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:augroup G<CR>:autocmd InsertEnter * s/o/0/<CR>:augroup END<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:augroup G<CR>:autocmd InsertEnter * s/o/0/<CR>:augroup END<CR>:augroup! G<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:augroup G<CR>:autocmd!<CR>:autocmd InsertEnter * s/o/0/<CR>:autocmd!<CR>:augroup END<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:autocmd InsertEnter,InsertLeave * s/o/0/<CR>:doautocmd InsertLeave<CR>
+one\ntwo		:autocmd InsertEnter * s/o/0/|s/t/T/<CR>:doautocmd InsertEnter<CR>
+one\ntwo		:autocmd BufNewFile,BufRead * s/o/0/<CR>:doautocmd BufRead<CR>
+one\ntwo		:autocmd VimEnter * s/o/0/<CR>:doautocmd VimEnter<CR>
+one\ntwo		:autocmd TextYankPost * s/o/0/<CR>:doautocmd TextYankPost<CR>
+one\ntwo		:autocmd NoSuchEvent * s/o/0/<CR>
+one\ntwo		:doautocmd NoSuchEvent<CR>
+one\ntwo		:autocmd InsertEnter * s/o/0/<CR>:autocmd InsertEnter * s/t/T/<CR>:doautocmd InsertEnter<CR>

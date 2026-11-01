@@ -290,6 +290,8 @@ pub type App {
     int watch_ms = 0;
     int quiet_ms = 0;
     int recover_ms = 0;
+    /// The mode the last key left, to tell InsertEnter and InsertLeave autocommands.
+    int autocmd_mode = 0;
     str lsp_failed_for = "";
     bool is_lsp_gr = false;
     /// Label jump: 0 off, 1 waiting for the character to look for, 2 for a label.
@@ -523,6 +525,7 @@ void App.activate(int id) {
     editor.view_left = left_column;
     editor.view_height = current_text_rows();
     check_disk();
+    fire_autocmd("BufEnter", editor.buffer.path);
 }
 
 /// Run the project settings of `slot` on its editor.
@@ -579,6 +582,7 @@ void App.adopt(Slot slot) {
     restore_position();
     restore_undo();
     if (!slot.is_listing) {
+        fire_autocmd_opened(slot);
         ext_fire_slot(MED_ext.Event.BufferOpen, slot, slot.path);
     }
 }
@@ -954,16 +958,6 @@ void App.autosave_idle(int elapsed_ms) {
             notice = "autosaved " + written.to_str() + " buffers";
         }
     }
-}
-
-/// The text of `slot` as `:w` would write it.
-str slot_text(Slot slot) {
-    return slot.editor.buffer.dump();
-}
-
-/// Whether a buffer has a file whose unsaved text is worth a recovery file.
-bool is_recoverable(Slot slot) {
-    return slot.path.size() > 0 && !slot.is_listing && slot.title.size() == 0;
 }
 
 /// Keep a recovery file of every modified buffer once the user has been quiet for RECOVER_MS (the 'recover'
@@ -1731,6 +1725,7 @@ bool App.did_finish() {
     run_requests();
     editor.log_message();
     editor.log_notice(notice);
+    fire_mode_autocmds();
     if (editor.message.contains("\n") && editor.mode != MED_editor.CMDLINE) {
         overlay = editor.message.split("\n");
     }
@@ -5788,6 +5783,8 @@ TUI_app.Action App.handle_picker_wheel(TUI_mouse.Gesture gesture) {
 /// run; the result is its message, or "" when every line ran.
 pub str App.run_script(str text, str label) {
     int number = 0;
+    // `:if` blocks: per open block, is it running (1), waiting for an `:else` (0) or finished/skipped for good (2)
+    List<int> blocks = [];
     for (str raw in text.split("\n")) {
         number = number + 1;
         str line = raw.trim();
@@ -5800,11 +5797,112 @@ pub str App.run_script(str text, str label) {
         if (line.size() == 0) {
             continue;
         }
+        str word = line.split(" ")[0].split("|")[0];
+        str condition = line.substr(word.size(), line.size()).trim();
+        bool is_skipping = false;
+        for (int state in blocks) {
+            if (state != 1) {
+                is_skipping = true;
+            }
+        }
+        if (word == "if" || word == "if(") {
+            if (is_skipping) {
+                blocks.push(2);
+            } else if (MED_ex.is_expression_true(editor, condition)) {
+                blocks.push(1);
+            } else {
+                blocks.push(0);
+            }
+            continue;
+        }
+        if (word == "elseif" || word == "elsei" || word == "else" || word == "el" || word == "endif" || word == "en") {
+            if (blocks.size() == 0) {
+                return label + " line " + number.to_str() + ": E580: :endif without :if";
+            }
+            int top = blocks.pop();
+            if (word == "endif" || word == "en") {
+                continue;
+            }
+            bool is_outer_skipping = false;
+            for (int state in blocks) {
+                if (state != 1) {
+                    is_outer_skipping = true;
+                }
+            }
+            if (top == 1 || top == 2 || is_outer_skipping) {
+                blocks.push(2);
+            } else if (word == "else" || word == "el" || MED_ex.is_expression_true(editor, condition)) {
+                blocks.push(1);
+            } else {
+                blocks.push(0);
+            }
+            continue;
+        }
+        if (is_skipping) {
+            continue;
+        }
         if (!MED_ex.did_run_line(editor, line)) {
             return label + " line " + number.to_str() + ": " + editor.message;
         }
     }
+    if (blocks.size() > 0) {
+        return label + ": E171: Missing :endif";
+    }
     return "";
+}
+
+/// Run the autocommands of `event` for the active buffer.
+void App.fire_autocmd(str event, str subject) {
+    if (editor.autocmds.size() == 0) {
+        return;
+    }
+    MED_ex.fire_event(editor, event, subject);
+}
+
+/// A buffer was loaded: BufNewFile (the file does not exist yet) or BufReadPost, then FileType.
+void App.fire_autocmd_opened(Slot slot) {
+    if (slot.editor.autocmds.size() == 0 || slot.path.size() == 0) {
+        return;
+    }
+    if (slot.stamp.size() == 0) {
+        MED_ex.fire_event(slot.editor, "BufNewFile", slot.path);
+    } else {
+        MED_ex.fire_event(slot.editor, "BufReadPost", slot.path);
+    }
+    str kind = SYN_detect.language_of(slot.path, MED_text.head(slot.editor.buffer.line(0)));
+    if (kind.size() > 0) {
+        MED_ex.fire_event(slot.editor, "FileType", kind);
+    }
+}
+
+/// After start-up: the files named on the command line count as opened, the editor as entered.
+void App.autocmd_started() {
+    if (editor.autocmds.size() == 0) {
+        return;
+    }
+    for (Slot slot in slots) {
+        if (!slot.is_listing) {
+            fire_autocmd_opened(slot);
+        }
+    }
+    fire_autocmd("BufEnter", editor.buffer.path);
+    fire_autocmd("VimEnter", editor.buffer.path);
+}
+
+/// InsertEnter and InsertLeave: told by the mode the last key left.
+void App.fire_mode_autocmds() {
+    if (editor.autocmds.size() == 0) {
+        autocmd_mode = editor.mode;
+        return;
+    }
+    bool is_insert = editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE;
+    bool was_insert = autocmd_mode == MED_editor.INSERT || autocmd_mode == MED_editor.REPLACE;
+    autocmd_mode = editor.mode;
+    if (is_insert && !was_insert) {
+        fire_autocmd("InsertEnter", editor.buffer.path);
+    } else if (!is_insert && was_insert) {
+        fire_autocmd("InsertLeave", editor.buffer.path);
+    }
 }
 
 /// `:source FILE`: run the file's ex lines.
@@ -6576,8 +6674,6 @@ void App.run_git_action(str action) {
     }
 }
 
-// ---- :Git read commands and :Hunk over the m31git library (begin) ----
-
 /// `:Git log|show|diff|blame ...`: a list in the finder or a scratch buffer (ui/MED_gitcmd.m31).
 void App.run_git_read(str arg) {
     MED_gitcmd.Out out = MED_gitcmd.run(arg, path, editor.buffer.lines, editor.row);
@@ -6618,8 +6714,6 @@ void App.run_hunk_command(str arg) {
         notice = "Hunk: stage, reset, undo or preview";
     }
 }
-
-// ---- :Git read commands and :Hunk (end) ----
 
 /// `git:checkout BRANCH`, `git:checkout_remote REMOTE/BRANCH`, `git:show HASH`.
 void App.run_git_command(str spec) {
@@ -7737,12 +7831,6 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
     }
 }
 
-// >>> completion popup (ui/MED_pum.m31) ------------------------------------------------------------------
-// `:set lspcomplete=auto` shows the popup while typing (trigger characters and identifier characters); CTRL-Space
-// asks for it at once. With the default `manual`, CTRL-Space opens the picker as before. Keys while it is open:
-// <Tab> <C-n> <Down> next, <S-Tab> <C-p> <Up> previous, <C-y> accept, <CR> accept the selected row, <C-e> close,
-// <Esc> close and leave Insert mode.
-
 /// `:set lspcomplete=auto`: the popup follows the typing.
 bool App.is_pum_auto() {
     return editor.opts.get("lspcomplete").or("manual") == "auto";
@@ -8097,10 +8185,6 @@ void App.draw_pum(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows) {
     MED_pum.draw(buffer, pum, spot, doc, styles);
 }
 
-// <<< completion popup -----------------------------------------------------------------------------------
-
-// >>> semantic tokens (engine/MED_semtok.m31): `:set nosemantictokens` turns them off, `:Lsp tokens` says what is under the cursor
-
 /// Ask the server of the active buffer for its semantic tokens once the text has settled (not in Insert mode, and
 /// not more often than every 400 ms).
 void App.lsp_semantic_tick(int position, str lang_here, int elapsed_ms) {
@@ -8152,10 +8236,6 @@ void App.lsp_tokens_info() {
     }
     notice = "LSP: " + editor.sem.count.to_str() + " semantic tokens; under the cursor: " + here;
 }
-
-// <<< semantic tokens
-
-// >>> workspace edits and format on save (ui/MED_lsp.m31: FileOp, Server.await)
 
 /// Say why a WorkspaceEdit stopped, when it did.
 void App.notice_edit_failure(str failure) {
@@ -8318,10 +8398,6 @@ void App.lsp_format_before_write(Slot slot) {
         }
     }
 }
-
-// <<< workspace edits and format on save
-
-// ---------------------------------------------------------------- snippets (engine/MED_snippet.m31, MED_snipops.m31)
 
 /// Read the user's snippets: `snippets.json` and `snippets/LANGUAGE.json` (entries that apply to that language) next to
 /// the keymap file `file`, in VS Code's snippet format.
@@ -8810,6 +8886,22 @@ void App.ext_fire_slot(MED_ext.Event event, Slot slot, str file) {
 
 /// `write_slot` with the BufWritePre / BufWritePost events around it.
 str App.write_hooked(Slot slot, str target) {
+    str file = target.trim();
+    if (file.size() == 0) {
+        file = slot.path;
+    }
+    if (slot.is_listing || slot.editor.autocmds.size() == 0) {
+        return write_hooked_inner(slot, target);
+    }
+    MED_ex.fire_event(slot.editor, "BufWritePre", file);
+    str result = write_hooked_inner(slot, target);
+    if (!result.starts_with("E")) {
+        MED_ex.fire_event(slot.editor, "BufWritePost", file);
+    }
+    return result;
+}
+
+str App.write_hooked_inner(Slot slot, str target) {
     lsp_format_before_write(slot);
     if (!ext.has_handler(MED_ext.Event.BufferWritePre) && !ext.has_handler(MED_ext.Event.BufferWritePost)) {
         return write_slot(slot, target);
@@ -8860,6 +8952,7 @@ pub void App.ext_install() {
 
 /// After start-up is complete (keymap file, session, theme): Startup, and BufOpen for the files given on the command line.
 pub void App.ext_started() {
+    autocmd_started();
     if (ext.is_empty()) {
         return;
     }
@@ -8889,6 +8982,7 @@ pub void App.ext_started() {
 
 /// When the loop has ended: Shutdown, and stop background jobs.
 pub void App.ext_stop() {
+    fire_autocmd("VimLeavePre", editor.buffer.path);
     if (ext.is_empty()) {
         return;
     }
@@ -8961,6 +9055,40 @@ bool App.did_tick_ext(int elapsed_ms) {
     ext_watch();
     return is_changed;
 }
+
+/// The text of `slot` as `:w` would write it.
+str slot_text(Slot slot) {
+    return slot.editor.buffer.dump();
+}
+
+/// Whether a buffer has a file whose unsaved text is worth a recovery file.
+bool is_recoverable(Slot slot) {
+    return slot.path.size() > 0 && !slot.is_listing && slot.title.size() == 0;
+}
+
+// ---------------------------------------------------------------- autocommands (MED_autocmd, `:autocmd`)
+
+// ---- :Git read commands and :Hunk over the m31git library (begin) ----
+
+// ---- :Git read commands and :Hunk (end) ----
+
+// >>> completion popup (ui/MED_pum.m31) ------------------------------------------------------------------
+// `:set lspcomplete=auto` shows the popup while typing (trigger characters and identifier characters); CTRL-Space
+// asks for it at once. With the default `manual`, CTRL-Space opens the picker as before. Keys while it is open:
+// <Tab> <C-n> <Down> next, <S-Tab> <C-p> <Up> previous, <C-y> accept, <CR> accept the selected row, <C-e> close,
+// <Esc> close and leave Insert mode.
+
+// <<< completion popup -----------------------------------------------------------------------------------
+
+// >>> semantic tokens (engine/MED_semtok.m31): `:set nosemantictokens` turns them off, `:Lsp tokens` says what is under the cursor
+
+// <<< semantic tokens
+
+// >>> workspace edits and format on save (ui/MED_lsp.m31: FileOp, Server.await)
+
+// <<< workspace edits and format on save
+
+// ---------------------------------------------------------------- snippets (engine/MED_snippet.m31, MED_snipops.m31)
 
 // ----------------------------------------------------------------- sessions
 
@@ -9330,6 +9458,9 @@ Slot listing_slot(int id, str directory, str focus, bool is_hidden_shown) {
 void share_state(MED_editor.Editor from, MED_editor.Editor into) {
     into.regs = from.regs;
     into.message_log = from.message_log;
+    into.autocmds = from.autocmds;
+    into.autocmd_group = from.autocmd_group;
+    into.user_defs = from.user_defs;
     into.message_logged = from.message_logged;
     into.notice_logged = from.notice_logged;
     into.search_pattern = from.search_pattern;
