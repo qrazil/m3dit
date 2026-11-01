@@ -254,9 +254,10 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 | bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` | buffers, quickfix, diagnostics, hunks, TODO comments |
 | harpoon | `<Space>ha he hn hp hd`, `<Space>1`..`9` | pinned files per project (`~/.local/state/m3`) |
 | move | `<A-j> <A-k> <A-h> <A-l>` | move or shift the line or the Visual selection |
+| notify | `:Notify`, `:Notifications` | toast notifications (language server messages, plugins), history in the finder |
 | jump | `<Space>j` | type a character, then a label |
 | guides | | indent guides (`:set noindentguides`) |
-| todo | `<Space>ft`, `]t` | highlight and list TODO FIXME HACK XXX NOTE WARN PERF BUG |
+| todo | `<Space>ft`, `]t` `[t`, `:Todo` | highlight, list and jump between TODO FIXME HACK XXX NOTE WARN PERF BUG |
 | terminal | `<Space>t`, `:terminal [cmd]` | a shell on a pty; `<C-\><C-n>` leaves to Normal mode, `i` goes back |
 | session | | last cursor position of each file, recent files |
 | lsp | `K gd grr grn gra`, `<Space>cr ca cf ll xx`, `:Lsp ...` | diagnostics, hover, definition, references, rename, code action, format |
@@ -265,7 +266,7 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 These are the features of the core that have a switch; as each one moves into a compiled-in plugin
 (`plugins/NAME/`, docs/CORE-AND-PLUGINS.md) it keeps its name and the same two commands, and `:Plugins` shows the
 compiled plugins under "Compiled plugins" with their state (`active`, `lazy`, `off`, `refused: requires x`)
-and the extension API they were written for. Only `move` is a compiled plugin so far (it keeps its row in the table above); everything else is in the core.
+and the extension API they were written for. Compiled plugins since 0.18.0, each in `plugins/NAME/` with its own README and tests: `move`, `bracketed`, `harpoon`, `todo`, `whichkey`, `notify` (new: toast notifications, `:Notify`, `:Notifications`) and `statusline`; each keeps its row in the table above, and `--without NAME` builds without it. Everything else in the table is still in the core ([docs/DAILY-DRIVER.md](docs/DAILY-DRIVER.md) says what is missing for daily use, [docs/CORE-AND-PLUGINS.md](docs/CORE-AND-PLUGINS.md) what moves next).
 `:Keys` or `<Space>?` browses every key. `:set nojk_escape` turns the Insert-mode `jk` off.
 
 Shell: `:!cmd` shows the output, `:{range}!cmd` filters lines, `:r !cmd` and `:r file` read, `!{motion}` and

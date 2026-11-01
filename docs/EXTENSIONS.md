@@ -1,6 +1,6 @@
 # Extending m3
 
-Status: API 0.2.0, experimental (the 0.2 plugin layer is section 0; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.3.0, experimental (the plugin layer is section 0, what 0.3.0 added is section 0.1; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
@@ -32,7 +32,7 @@ by the build; nothing is loaded at run time. What 0.2.0 adds to the extension fo
   `Ctx.did_map` sets buffer-local maps for the buffer a handler runs for.
 * **Run time.** `:PluginDisable NAME` and `:PluginEnable NAME` switch a compiled plugin off and on (its hooks, commands
   and keys go inactive; owner decision Q3); `:Plugins` lists compiled plugins with their state (`active`, `lazy`,
-  `pending`, `off`, `refused: requires x`). `m3 --version` prints `m3 0.16.0 (api 0.2.0; plugins: ...)` and
+  `pending`, `off`, `refused: requires x`). `m3 --version` prints `m3 0.18.0 (api 0.3.0; plugins: ...)` and
   `m3 --list-plugins` prints them, tab separated.
 * **Version rule.** While the major is 0, a plugin built for `0.M.p` runs on host `0.M.q` when `p <= q`; another minor
   is refused. From 1.0 a minor only adds. Signature changes of plugin-visible functions are compile errors, not run-time
@@ -57,8 +57,37 @@ M3_PROFILE=full M3_WITHOUT=terminal bash scripts/build.sh   # the same through t
 `plugins/NAME/plugin.txt` has four keys (`name`, `summary`, `requires`, `wants`); `tests/test_plugins.sh` checks it
 against the `Spec` through `m3 --list-plugins`. The checked-in `ext/MED_ext_enabled.m31` is the generated registry of
 the default profile (a bare `m31c m3.m31` equals the release; a test checks it). The default profile holds `move`, the
-reference plugin (`plugins/move/`: eight `Action.Keys` maps, no handler; its README is the smallest example); `--ext`
+reference plugin (`plugins/move/`: eight `Action.Keys` maps, no handler; its README is the smallest example), and since 0.18.0
+`bracketed`, `harpoon`, `todo`, `whichkey`, `notify` and `statusline` (each directory has a README); `--ext`
 extensions still work as before and come after the plugins.
+
+### 0.1 API 0.3.0 (m3 0.18.0): what six plugins needed
+
+Every addition is additive, and every one is used by a first-party plugin (the plugin in brackets). The version rule is
+unchanged: a plugin built for `0.3.p` runs on host `0.3.q` for `p <= q`; `0.2` plugins are refused (rebuild, nothing else
+changes: `Spec` defaults to `0.3`).
+
+| addition | what it is | used by |
+|---|---|---|
+| `Spec.groups` (`GroupSpec(prefix, label)`) | key-prefix labels as data, so which-key shows `+harpoon` before the plugin has activated | harpoon |
+| `Registry.desc_of_keys` and the which-key rows | a plugin map's `desc` is its which-key label (before: the raw right-hand side); plugin rows go after the core's, in registration order; `:Keys`, the command palette and `docs/KEYMAP.md` list them (`MED_keymap.plugin_rows`) | all |
+| `Ctx.project_root() absolute_path() relative_path(p) openable(p)` | paths of the project and of the context's file | harpoon |
+| `Ctx.state_lines(name)`, `Ctx.did_set_state_lines(name, lines)`, `Ctx.has_state()` | per-user, per-project state file `NAME-PROJECT` in m3's state directory; nothing when there is none | harpoon |
+| `Ctx.open_file(abs)`, `Ctx.say_later(text)` | queue `:edit`, and a message that is shown after the file's own | harpoon |
+| `Ctx.pick_files(title, labels, files)`, `Ctx.pick_lines(title, lines)`, `Ctx.open_picker(name, arg)` | the finder list on files or text, or one of the core's own sources (`todos`) | harpoon, notify, todo |
+| `Registry.did_decorate(option, Decorator)`, `Span`, `Decorator` | a decorator returns, for each drawn line, stretches to draw in a theme scope (`is_in_comment`: only cells the syntax highlighter classed as comment); `option` is a boolean option (default on) that switches it | todo |
+| `Ctx.set_jump_mark()` | the position `<C-o>` returns to | todo |
+| `Ctx.is_flag_on(name, default)` | a boolean option with the default the core uses | whichkey |
+| `Event.PendingKeys` (`Info.keys`, `is_leader`, `is_help_shown`, `elapsed_ms`), `Ctx.show_key_help()` | the host reports pending keys on every tick and once more when they end; the plugin decides when the popup shows | whichkey |
+| `Event.Message` (`Info.text`, `Info.level`), `Ctx.notify(level, text)` | a notification: to the plugins that take `Message`, else the message line; the core sends language server `window/showMessage` | notify |
+| `Toast`, `Ctx.set_toasts(list)` | boxes drawn in the top right corner in the popup style with `info` / `warning` / `error` accents | notify |
+| `Status`, `Ctx.status()` | branch, hunk counts, diagnostic counts and server activity of the active buffer | statusline |
+| `BufferInfo`, `BarCell`, `BarFn`, `Registry.did_bar(min, option, BarFn)` | the labels of the buffer line, drawn by the host; absent without a plugin that gives it | statusline |
+
+Two behaviours changed for every plugin. A `Tick` handler no longer forces a redraw every 250 ms: the screen is redrawn when
+a segment or the toasts changed, the buffer changed, or the handler said something (before: always). `Registry.fire` still
+runs handlers in registration order; `fire` of an event nobody takes returns 0, which is how `notify` falls back to the
+message line.
 
 ## 1. What an extension is
 

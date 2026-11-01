@@ -47,17 +47,17 @@ switched off at run time with `:PluginDisable`; migrate later, when wanted; none
 
 | plugin | why it is a must | status |
 |---|---|---|
-| which-key | every key is discoverable after 400 ms; the leader menu is how the owner finds his own maps | later (needs API slice C) |
-| statusline extras (+ bufferline) | branch, diagnostics counts, file type and LSP state at a glance | later (needs slices B and C) |
+| which-key | every key is discoverable after 400 ms; the leader menu is how the owner finds his own maps | **done, 0.18.0** (`plugins/whichkey`) |
+| statusline extras (+ bufferline) | branch, diagnostics counts, file type and LSP state at a glance | **done, 0.18.0** (`plugins/statusline`) |
 | finder | files, grep, recent, symbols: the most used feature after editing | later (needs `pick_stream`) |
 | explorer (file tree) | the sidebar the owner opens with `<Space>e` | later (needs the widget API, slice D) |
 | git (gutter, hunks, `:Git` commands) | gutter signs, `]c [c`, stage and reset a hunk, blame; also the one that carries m31git | later (after finder) |
-| bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` pairs, muscle memory | later |
-| harpoon | pinned files per project, `<Space>1..9` | later |
-| todo | TODO/FIXME highlight and list | later (needs the decorations slice B) |
+| bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` pairs, muscle memory | **done, 0.18.0** (`plugins/bracketed`) |
+| harpoon | pinned files per project, `<Space>1..9` | **done, 0.18.0** (`plugins/harpoon`) |
+| todo | TODO/FIXME highlight and list | **done, 0.18.0** (`plugins/todo`) |
 | session | cursor position, layout and buffers restored | later |
 | terminal | `:terminal` and `<Space>t` | later (needs slice D) |
-| notify (new) | toasts over the message ring | later (after slice C; the ring is core first) |
+| notify (new) | toasts over the message ring | **done, 0.18.0** (`plugins/notify`; the ring stays core) |
 | surround | `ys ds cs`, Visual `S` | later, last: it is entangled with the engine and goes only with the oracle green |
 | autopairs | insert-mode pairing | later, last: same |
 
@@ -66,7 +66,7 @@ switched off at run time with `:PluginDisable`; migrate later, when wanted; none
 
 **NOT PLANNED**: the lazygit-style git dashboard of nox (`mgit` and `gitui` do that) and the miller-columns file explorer.
 
-Implemented so far: steps S0, S1 and S2 (0.16.0). The migration steps S3 to S18 below are a plan, not a commitment.
+Implemented so far: steps S0, S1 and S2 (0.16.0), and since 0.18.0 the default plugins `bracketed`, `harpoon`, `todo`, `whichkey`, `notify` and `statusline` (the owner asked on 2026-11-01 for m3 to become his daily driver: "make sane defaults, do not wait for approval"). The migration steps S3 to S18 below are a plan, not a commitment.
 
 ---
 
@@ -139,6 +139,28 @@ later steps are not scheduled (see the decision record). What was built and wher
 * **What a next plugin needs.** `plugins/NAME/` with `plugin.txt`, `MEDX_NAME.m31` and tests; a line in
   `plugins/profiles/default.txt`; `bash scripts/plugins.sh gen $(bash scripts/plugins.sh resolve) > ext/MED_ext_enabled.m31`;
   the feature's `MED_plugin` row gets `is_compiled_only`; keymap rows stay in `MED_keymap` until which-key moves.
+
+* **0.18.0 (milestone A: plugins 1 to 6 of the daily-driver order).** `plugins/{bracketed,harpoon,todo,whichkey,notify,statusline}/`,
+  API 0.3.0 (`docs/EXTENSIONS.md` section 0.1: every addition names the plugin that uses it), `docs/DAILY-DRIVER.md`. The
+  recipe held: `MED_plugin` row `is_compiled_only`, delete the core code and the keymap rows, a Spec with maps and commands,
+  the generated registry, a unit test per plugin, goldens re-recorded only where the screen changed on purpose.
+
+### Decision log (sane defaults chosen without asking, 2026-11-01)
+
+| # | choice | why |
+|---|---|---|
+| D1 | Toolchain: the m31 v0.9.0 SDK named in the task was not on disk; everything was built and tested with the m31 0.12.0 SDK in `~/blender/viewer/m31sdk` (it compiles m3 0.17.0 unchanged, `fmt --check` and `lint` are clean). `deps` still pins `tui`, `syntax` and `m31git` as before. | the only SDK present; the pins did not need to move |
+| D2 | A feature moves with its keys: the core's keymap rows for it are deleted and the plugin's `MapSpec`s are the only definition. which-key, `:Keys`, the palette and `docs/KEYMAP.md` read them through `MED_keymap.plugin_rows` and `Registry.desc_of_keys`. | one source of truth; the move plugin's duplicated note rows were the cautionary example |
+| D3 | Plugin rows in which-key come after the core's rows, in registration order, so the leader menu lists `+harpoon` and `1..9` at the end. `which_key_leader` was re-recorded. | keeping the old position would need ordering hints in every Spec |
+| D4 | `whichkey` is the policy (when), the core keeps the key tree and the popup widget. The leader popup ignores `:set nowhichkey` as before. The delay is a constant (400 ms), not a new option. | the tree is shared by `:Keys` and the palette and is core by the decision record; no invented options |
+| D5 | `statusline` takes the middle of the status line (branch, hunks, E/W, server activity) and the buffer line. The filetype and position stay in the core's minimal line, so `:PluginDisable statusline` now keeps the filetype (`plugin_disable` re-recorded). The line of tab pages stays core. | `--no-plugins` must still be a working editor with the same screens |
+| D6 | `statusline` refreshes on `Tick` and `BufferOpen`, not on `CursorMoved`: a change shows within 250 ms and a keystroke costs nothing extra. | per-keystroke cost must not grow |
+| D7 | `notify` does not turn the editor's own `E...` errors into toasts; it takes language server messages and what plugins `notify`. | nvim-notify replaces `vim.notify`, not `:echo`; avoids doubling every error and keeps `error_message` unchanged |
+| D8 | `todo` keeps the finder's `todos` source in the core (a grep source like the others) and opens it with `Ctx.open_picker`. Its word list exists in the plugin, the finder pattern and the fallback. | sources are core by decision; a plugin cannot reach the grep machinery |
+| D9 | `bracketed` owns `[t ]t` (as `:Todo next|prev`, `wants: todo`) and `[c ]c` is the same as `[h ]h`, both `:Hunk next|prev`; the core gained `:Hunk next|prev` and `:Lsp next_diag|prev_diag`. | ordinary ex commands the user can map; the old `[c` was a copy of `[h` |
+| D10 | A `Tick` handler redraws only when something visible changed (`Registry.is_screen_dirty`, buffer tick, notice, pick). | the always-redraw rule made any Tick plugin cost 4 frames a second |
+| D11 | `Ctx.open_file` queues `:edit` and `say_later` queues the message after it (request `extsay`), so a harpoon jump ends with `Harpoon 2/3: ...` as before. | the file's own message used to replace it |
+| D12 | `comment` was not built as a plugin: `gc` is in the engine and checked against nvim 0.11 (an engine feature, Q5 order applies). | not missing |
 
 ---
 
