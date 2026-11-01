@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.18.0
+
+Six features leave the core and become plugins on extension API 0.3.0, so that m3 is a daily editor whose parts can be
+switched off, and one of them (`notify`) is new. The default build looks and behaves as 0.17.0 except where this list
+says otherwise. `docs/DAILY-DRIVER.md` is the audit of what a daily user still misses.
+
+- **Plugins** (each in `plugins/NAME/` with `plugin.txt`, `MEDX_NAME.m31`, a README and tests; all in the default profile;
+  `bash scripts/build.sh --without NAME` and `--no-plugins` leave them out; `:PluginDisable NAME` at run time):
+  - `bracketed`: `[b ]b [B ]B [q ]q [Q ]Q [t ]t [h ]h [c ]c [d ]d` as sixteen maps over ex commands. The core gained
+    `:Hunk next|prev` and `:Lsp next_diag|prev_diag` for them; `App.did_bracketed` is gone.
+  - `harpoon`: `:HarpoonAdd` `:HarpoonRemove` `:HarpoonMenu` `:HarpoonNext` `:HarpoonPrev` `:Harpoon N` and the same
+    `<Space>h...` / `<Space>1..9` keys, over the same per-project state file (existing lists carry over).
+  - `todo`: the TODO badge (a decorator), `:Todo`, `:Todo next|prev`, `<Space>ft`. `:Todo` is now the plugin's command.
+  - `whichkey`: the leader and prefix popup is a plugin that decides when to show it (400 ms after the last key, as before);
+    the key tree and the popup widget stay in the core.
+  - `notify` (new): toast boxes in the top right corner for language server `window/showMessage` and for plugins, `:Notify`,
+    `:Notifications` (history in the finder), `:NotifyClear`. The editor's own errors stay in the message line.
+  - `statusline`: the branch, hunk counts, error and warning counts and server activity on the status line, and the buffer
+    line. The core keeps mode, file, filetype and position, and the line of tab pages.
+- **Extension API 0.3.0** (additive; `docs/EXTENSIONS.md` section 0.1 lists every addition and the plugin that uses it):
+  `Spec.groups`, project and state-file helpers (`state_lines`, `did_set_state_lines`, `absolute_path`, `relative_path`,
+  `open_file`, `say_later`), `pick_files`, `pick_lines`, `open_picker`, line decorations (`did_decorate`, `Span`),
+  `set_jump_mark`, `is_flag_on`, the events `PendingKeys` and `Message` with `show_key_help`, `notify` and `set_toasts`,
+  `Ctx.status()`, and the buffer line (`did_bar`). A plugin's map `desc` is its which-key label; plugin keys appear in `:Keys`, the
+  command palette and `docs/KEYMAP.md`. `m3 --version` prints `(api 0.3.0; plugins: ...)`.
+- **A `Tick` handler no longer redraws the screen every 250 ms**: only when a segment or the toasts changed, the buffer
+  changed or the handler showed something. (Before, any `Tick` handler cost a frame every quarter second.)
+- Differences you can see, all intended: the leader menu lists `+harpoon` and `1..9` after the core's groups (they come from
+  the plugin, in registration order); `:Plugins` has a `notify` row; `:PluginDisable statusline` keeps the filetype on the
+  status line (the filetype is the core's now); a TODO or FIXME is a plain comment, and `[b` an engine motion, in a
+  `--no-plugins` build. `tests/golden/screens.json` was re-recorded for `which_key_leader`, `which_key_bracket`, `plugins_list`,
+  `plugin_disable` and the new `notify_toast`; the other 45 scenarios are the 0.15.0 screens.
+- Tests: `t_bracketed`, `t_harpoon`, `t_todo`, `t_whichkey`, `t_notify`, `t_statusline`; `tests/core_only.sh` checks the
+  absence of each plugin's feature in the `--no-plugins` build; `tests/transparent_pty.py` has a notification-box surface;
+  `tests/screen_pty.py --only ... --record` now updates only those scenarios.
+- Start-up (median of 30 runs, interleaved, 1k-line file, `bench/bench.py`): 13.5 ms (0.17.0) and 14.4 to 15.0 ms (0.18.0);
+  `m3 --version` 3.8 ms and 4.1 ms. About 1 ms is the seven plugins registering and the eager ones activating (their maps are
+  parsed as ex lines); the lazy ones (`harpoon`, `notify`) cost a stub until used. Scrolling (`<C-d>` x200 on 20k lines):
+  0.143 s and 0.147 s.
+
 ## 0.17.0
 
 - **Transparent terminals.** `:set transparent` (also `m3 --transparent`, `M3_TRANSPARENT=1`, a theme's own
