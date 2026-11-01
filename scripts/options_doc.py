@@ -13,7 +13,7 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SKIP = {"MED_option.m31", "MED_complete_data.m31"}
+SKIP = {"MED_option.m31", "MED_complete_data.m31", "MED_expr.m31", "MED_autocmd.m31"}
 
 
 def specs():
