@@ -6,7 +6,7 @@
 // `register` once at start-up, in dependency order. With nothing selected `register` is never called, nothing
 // here runs and the editor behaves exactly as it did before this module existed.
 //
-// API (version 0.2.0, see `version()`, `is_compatible_with()`). Method names follow the m31 naming lint: a
+// API (version 0.3.0, see `version()`, `is_compatible_with()`). Method names follow the m31 naming lint: a
 // function that answers yes or no starts with is_, has_, can_ or did_, so registration calls return bool.
 //
 // A first-party plugin registers one `Spec` (plain data: name, summary, API version, `requires`, `wants`,
@@ -54,14 +54,18 @@ import engine.MED_editor;
 import engine.MED_ex;
 import engine.MED_register;
 import engine.MED_shell;
+import fs;
+import io;
+import ui.MED_files;
 import ui.MED_picker;
+import ui.MED_state;
 
 /// The API version: major.minor.patch. While the major is 0 a plugin built for 0.M.p runs on a host 0.M.q with
 /// p <= q (a patch only adds) and another minor is refused; from 1.0 only the major breaks and a minor adds.
 pub const int API_MAJOR = 0;
-pub const int API_MINOR = 2;
+pub const int API_MINOR = 3;
 pub const int API_PATCH = 0;
-pub const str API_VERSION = "0.2.0";
+pub const str API_VERSION = "0.3.0";
 /// The longest `context.run` may block the editor.
 pub const int MAX_BLOCKING_MS = 1000;
 /// Consecutive failures after which an extension is switched off.
@@ -114,9 +118,15 @@ pub enum Event {
     TextChanged;
     /// About every TICK_MS while the editor runs.
     Tick;
+    /// Keys are pending (a leader or prefix such as `g`, `[`, `<C-w>`, an operator) and the loop ticks: `info.keys`
+    /// is what was typed, `info.elapsed_ms` the time since the last key, `info.is_leader` whether it is `<Space>`.
+    /// Once with empty `keys` when nothing is pending any more (0.3.0).
+    PendingKeys;
+    /// A notification for the user: `info.text` and `info.level` (0.3.0).
+    Message;
 }
 
-pub const int EVENT_COUNT = 10;
+pub const int EVENT_COUNT = 12;
 /// Where a handler list begins for the events that matter to the hot paths.
 const int INDEX_BUFFER_OPEN = 2;
 const int INDEX_TICK = 9;
@@ -154,6 +164,12 @@ pub int event_index(Event event) {
         case Tick: {
             return 9;
         }
+        case PendingKeys: {
+            return 10;
+        }
+        case Message: {
+            return 11;
+        }
     }
 }
 
@@ -186,10 +202,16 @@ pub Event event_at(int index) {
     if (index == 8) {
         return Event.TextChanged;
     }
+    if (index == 10) {
+        return Event.PendingKeys;
+    }
+    if (index == 11) {
+        return Event.Message;
+    }
     return Event.Tick;
 }
 
-const List<str> EVENT_NAMES = ["ready", "shutdown", "buffer_open", "buffer_write_pre", "buffer_write_post", "buffer_close", "mode_changed", "cursor_moved", "text_changed", "tick"];
+const List<str> EVENT_NAMES = ["ready", "shutdown", "buffer_open", "buffer_write_pre", "buffer_write_post", "buffer_close", "mode_changed", "cursor_moved", "text_changed", "tick", "pending_keys", "message"];
 
 /// The stable name of an event: "buffer_write_pre".
 pub str event_name(Event event) {
@@ -218,8 +240,16 @@ pub type Info {
     /// The cursor, for CursorMoved.
     pub int row = 0;
     pub int col = 0;
-    /// Milliseconds since the last Tick.
+    /// Milliseconds since the last Tick (for PendingKeys: since the last key).
     pub int elapsed_ms = 0;
+    /// PendingKeys: the keys typed so far (after `<Space>` for a leader; "" when the pending keys ended).
+    pub str keys = "";
+    /// PendingKeys: the pending keys are a leader sequence; whether the key help is already showing.
+    pub bool is_leader = false;
+    pub bool is_help_shown = false;
+    /// Message: the text and its level (0 info, 1 warning, 2 error).
+    pub str text = "";
+    pub int level = 0;
 }
 
 /// An event handler.
@@ -231,6 +261,92 @@ pub interface Hook {
 pub type HookOpts {
     /// Run once, then remove the handler.
     pub bool is_once = false;
+}
+
+/// A highlighted stretch of a line: bytes `from` up to `stop` (exclusive) drawn in the theme scope `scope`.
+pub type Span {
+    pub int from;
+    pub int stop;
+    pub str scope;
+    /// Only the cells the syntax highlighter classed as a comment take it.
+    pub bool is_in_comment = false;
+}
+
+/// What a decorator gives: the stretches of one buffer line to draw in another scope (0.3.0). Called for each line
+/// as it is drawn, so it must be cheap and return an empty list for the usual line.
+pub interface Decorator {
+    List<Span> spans(str line);
+}
+
+/// A notification box on screen (0.3.0): the title in the box's border, the lines of text, the level (0 info,
+/// 1 warning, 2 error) that colours the title. The host draws the boxes in the top right corner; what to show and for how
+/// long is the plugin's (`Ctx.set_toasts`).
+pub type Toast {
+    pub str title;
+    pub int level = 0;
+    pub List<str> lines = [];
+}
+
+/// What the host knows about the active buffer for a status line (0.3.0): the git branch, the counts of added,
+/// changed and removed hunks against HEAD, the language server's errors and warnings for the file, and what the
+/// server is busy with ("LSP: indexing"). Empty and zero when unknown.
+pub type Status {
+    pub str branch = "";
+    pub bool has_hunks = false;
+    pub int added = 0;
+    pub int changed = 0;
+    pub int removed = 0;
+    pub int errors = 0;
+    pub int warnings = 0;
+    pub str busy = "";
+}
+
+/// Where `Ctx.status` gets its answer; the App provides it.
+pub interface StatusFeed {
+    Status status();
+}
+
+type NoFeed {
+}
+
+Status NoFeed.status() {
+    return Status();
+}
+
+StatusFeed no_feed() {
+    return NoFeed();
+}
+
+/// One buffer for the buffer line (0.3.0): its number (`:ls`), the name to show (the directory left off for a file
+/// buffer), whether it has unsaved changes and whether it is the one in the active window. Listing buffers
+/// (directory views) are not included.
+pub type BufferInfo {
+    pub int id;
+    pub str name;
+    pub bool is_modified = false;
+    pub bool is_current = false;
+}
+
+/// One label of the buffer line: the text drawn as it is, in the active style when `is_current`.
+pub type BarCell {
+    pub str text;
+    pub bool is_current = false;
+}
+
+/// What a plugin gives the buffer line: the labels for `buffers`, called when the line is drawn.
+pub interface BarFn {
+    List<BarCell> cells(List<BufferInfo> buffers);
+}
+
+type NoBar {
+}
+
+List<BarCell> NoBar.cells(List<BufferInfo> buffers) {
+    return [];
+}
+
+BarFn no_bar() {
+    return NoBar();
 }
 
 /// An ex command: `arguments` is the text after the name, `is_bang` whether `!` followed it.
@@ -323,7 +439,7 @@ pub type Spec {
     pub str name;
     pub str summary = "";
     pub int api_major = 0;
-    pub int api_minor = 2;
+    pub int api_minor = 3;
     pub int api_patch = 0;
     /// Not registered unless every one of these is built in and on.
     pub List<str> requires = [];
@@ -333,6 +449,15 @@ pub type Spec {
     pub List<Trigger> triggers = [];
     pub List<MapSpec> maps = [];
     pub List<CommandSpec> commands = [];
+    /// Labels of key prefixes ("<Space>h" = "harpoon"), data so that which-key can show them before the plugin
+    /// has activated (0.3.0).
+    pub List<GroupSpec> groups = [];
+}
+
+/// A label for the keys that begin with `prefix`.
+pub type GroupSpec {
+    pub str prefix;
+    pub str label;
 }
 
 /// The code of a plugin: `activate` registers the real handlers, once.
@@ -453,10 +578,17 @@ pub type MapEntry {
     pub str command;
 }
 
-type GroupEntry {
+pub type GroupEntry {
+    pub int owner;
+    pub str prefix;
+    pub str label;
+}
+
+type DecorEntry {
     int owner;
-    str prefix;
-    str label;
+    /// The boolean option (default on) that switches the decoration: "todohl".
+    str option;
+    Decorator run;
 }
 
 type JobEntry {
@@ -496,14 +628,26 @@ pub type Registry {
     List<HookEntry> hooks = [];
     List<CommandEntry> commands = [];
     pub List<MapEntry> maps = [];
-    List<GroupEntry> groups = [];
+    pub List<GroupEntry> groups = [];
     List<JobEntry> job_handlers = [];
+    List<DecorEntry> decorators = [];
+    pub StatusFeed feed = no_feed();
+    /// The buffer line a plugin gave (`did_bar`): shown with `bar_min` listed buffers or more.
+    pub BarFn bar = no_bar();
+    pub bool has_bar = false;
+    pub int bar_min = 2;
+    pub str bar_option = "";
+    int bar_owner = -1;
     List<Running> running = [];
     List<PluginEntry> plugins = [];
     /// Per event: how many handlers (so that an event nobody listens to costs one list read).
-    List<int> counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    List<int> counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     /// Per event: how many lazy plugins wait for it.
-    List<int> waiting = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    List<int> waiting = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    /// The notification boxes on screen (`Ctx.set_toasts`).
+    pub List<Toast> toasts = [];
+    /// Something a handler changed that the screen shows (a segment, the toasts): the next Tick redraws.
+    pub bool is_screen_dirty = false;
     pub List<str> segment_names = [];
     pub List<str> segment_texts = [];
     /// Registration problems and handler errors not yet shown.
@@ -514,6 +658,11 @@ pub type Registry {
     int next_key = 1;
     bool is_finished = false;
     pub int tick_ms = 0;
+    /// Where per-project state files are kept ("" when there is no state directory), and the project root as
+    /// opened (`root`) and in its absolute form; set by the App (0.3.0).
+    pub str state_directory = "";
+    pub str root = ".";
+    pub str abs_root = "";
 }
 
 /// Whether the registry holds anything at all (the App skips every hook when not).
@@ -760,6 +909,34 @@ void Registry.install_data(PluginEntry entry) {
     for (MapSpec one in spec.maps) {
         did_install_map(owner, one);
     }
+    for (GroupSpec one in spec.groups) {
+        if (find_group(one.prefix) < 0) {
+            groups.push(GroupEntry(owner, one.prefix, one.label));
+        }
+    }
+}
+
+int Registry.find_group(str prefix) {
+    for (int index in 0 .. groups.size()) {
+        if (groups[index].prefix == prefix) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+/// The label of the plugin mapping in `mode` (`n`, `x` ...) whose keys are `lhs` (typed characters: a space for
+/// `<Space>`); "" when no plugin has that mapping. which-key shows it instead of the raw right-hand side.
+pub str Registry.desc_of_keys(str mode, str lhs) {
+    for (MapEntry entry in maps) {
+        if (mode_letter(entry.spec.mode) != mode || extensions[entry.owner].is_off) {
+            continue;
+        }
+        if (entry.spec.keys.split("<Space>").join(" ").split("<lt>").join("<") == lhs) {
+            return entry.spec.desc;
+        }
+    }
+    return "";
 }
 
 void Registry.add_stub(int owner, CommandSpec one) {
@@ -1092,6 +1269,61 @@ pub str Registry.group_label(str prefix) {
     return "";
 }
 
+/// Draw the stretches `run` returns for each line in their own scope. `option` names a boolean option (default
+/// on) that switches the decoration, "" for none. `:PluginDisable` stops it.
+pub bool Registry.did_decorate(str option, Decorator run) {
+    if (current < 0) {
+        problem("api.did_decorate called before a successful api.did_declare or outside activate");
+        return false;
+    }
+    decorators.push(DecorEntry(current, option, run));
+    return true;
+}
+
+/// Give the buffer line (the row of ` 1 name + ` labels above the windows) its content: shown when at least `min_buffers`
+/// buffers are open and the boolean option `option` (default on; "" for none) is on. Without a plugin that registers it
+/// there is no buffer line (the tab line of tab pages is the core's). `:PluginDisable` hides it.
+pub bool Registry.did_bar(int min_buffers, str option, BarFn run) {
+    if (current < 0) {
+        problem("api.did_bar called before a successful api.did_declare or outside activate");
+        return false;
+    }
+    if (has_bar) {
+        problem(extensions[current].name + ": the buffer line is already given by " + owner_name(bar_owner));
+        return false;
+    }
+    bar = run;
+    has_bar = true;
+    bar_min = min_buffers;
+    bar_option = option;
+    bar_owner = current;
+    return true;
+}
+
+/// Whether a live plugin gives the buffer line.
+pub bool Registry.is_bar_live() {
+    return has_bar && !extensions[bar_owner].is_off;
+}
+
+/// Whether any decorator is registered (the renderer skips `decorate` otherwise).
+pub bool Registry.has_decorators() {
+    return decorators.size() > 0;
+}
+
+/// The stretches of `line` the live decorators ask for (`editor` holds the options).
+pub List<Span> Registry.decorate(str line, MED_editor.Editor editor) {
+    List<Span> marks = [];
+    for (DecorEntry one in decorators) {
+        if (extensions[one.owner].is_off || (one.option.size() > 0 && !editor.is_option_on(one.option, true))) {
+            continue;
+        }
+        for (Span mark in one.run.spans(line)) {
+            marks.push(mark);
+        }
+    }
+    return marks;
+}
+
 /// Run `run` when a job started with `context.background(job, ...)` ends.
 pub bool Registry.did_job(str job, JobFn run) {
     if (current < 0) {
@@ -1292,10 +1524,14 @@ pub List<str> Registry.unmap_lines_of(int owner) {
 pub void Registry.put_segment(str name, str text) {
     for (int index in 0 .. segment_names.size()) {
         if (segment_names[index] == name) {
+            if (segment_texts[index] != text) {
+                is_screen_dirty = true;
+            }
             segment_texts[index] = text;
             return;
         }
     }
+    is_screen_dirty = true;
     segment_names.push(name);
     segment_texts.push(text);
 }
@@ -1549,6 +1785,14 @@ pub type Ctx {
     pub bool has_pick = false;
     pub str pick_title = "";
     pub List<MED_picker.Entry> pick_entries = [];
+    /// `open_picker` was called: the App opens the core finder source of that name.
+    /// What `notify` collected: the App sends each as a `Message` (or shows it in the message line when no plugin takes it).
+    pub List<str> note_texts = [];
+    pub List<int> note_levels = [];
+    /// `show_key_help` was called: the App shows the which-key popup for the pending keys.
+    pub bool has_key_help = false;
+    pub str picker_name = "";
+    pub str picker_argument = "";
     /// How many edits the handlers made (the dispatcher closes the undo block when there were any).
     pub int edits = 0;
     /// The extension whose handler is running (jobs started now belong to it).
@@ -1598,6 +1842,11 @@ pub str Ctx.directory() {
         return "/";
     }
     return file.substr(0, slash);
+}
+
+/// A boolean option as `:set` holds it, `is_default` when it was never set (the way the core reads `whichkey`).
+pub bool Ctx.is_flag_on(str name, bool is_default) {
+    return editor.is_option_on(name, is_default);
 }
 
 /// An option as `:set` holds it ("" when unset). Read only.
@@ -1656,6 +1905,11 @@ pub bool Ctx.did_set_line(int row, str text) {
 pub void Ctx.set_cursor(MED_buffer.Pos position) {
     editor.set_cursor(position);
     editor.clamp();
+}
+
+/// Remember the cursor as the place `<C-o>` and `''` return to before a jump (the previous-context mark).
+pub void Ctx.set_jump_mark() {
+    editor.set_pcmark(editor.cursor());
 }
 
 /// Put `text` (lines joined with "\n") in register `name`, characterwise.
@@ -1739,6 +1993,100 @@ pub bool Ctx.did_unmap(MapMode mode, str keys, int buffer) {
     return MED_ex.did_run_line(editor, mode_letter(mode) + "unmap " + flag + keys);
 }
 
+/// The absolute path of the project root.
+pub str Ctx.project_root() {
+    return registry.abs_root;
+}
+
+/// The absolute path of this context's file ("" for a buffer without one).
+pub str Ctx.absolute_path() {
+    if (file.size() == 0 || file.starts_with("/")) {
+        return file;
+    }
+    match (fs.realpath(file)) {
+        case Ok(str real): {
+            return real;
+        }
+        case Err(io.Error error): {
+            return "";
+        }
+    }
+}
+
+/// `absolute` relative to the project root when it is below it, else unchanged: the form to show and to open.
+pub str Ctx.relative_path(str absolute) {
+    str base = registry.abs_root;
+    if (base.size() > 0 && absolute.starts_with(base + "/")) {
+        return absolute.substr(base.size() + 1, absolute.size());
+    }
+    return absolute;
+}
+
+/// The lines of this project's state file `name` (m3's state directory, `NAME-PROJECT`); empty when there is none.
+/// Per-user state a plugin keeps between sessions (harpoon's pinned files); nothing when there is no state directory.
+pub List<str> Ctx.state_lines(str name) {
+    return MED_state.read_lines(registry.state_directory, name + "-" + MED_state.project_key(registry.abs_root));
+}
+
+/// Write this project's state file `name`. False when there is no state directory (HOME unset, a test).
+pub bool Ctx.did_set_state_lines(str name, List<str> lines) {
+    if (registry.state_directory.size() == 0) {
+        return false;
+    }
+    MED_state.write_lines(registry.state_directory, name + "-" + MED_state.project_key(registry.abs_root), lines);
+    return true;
+}
+
+/// Ask the editor to open `absolute` (a path from `absolute_path` or `state_lines`), as `:edit` of the form the finder
+/// would use. The file opens when the current command returns.
+pub void Ctx.open_file(str absolute) {
+    editor.requests.push("edit " + openable(absolute));
+}
+
+/// Tell the user something: a `Message` event to the notification plugin, else the message line. `level` is 0 (info),
+/// 1 (warning) or 2 (error).
+pub void Ctx.notify(int level, str text) {
+    note_texts.push(text);
+    note_levels.push(level);
+}
+
+/// Replace the notification boxes on screen by `toasts` (an empty list clears them). The host draws them; the plugin
+/// decides what is shown and when it goes (a `Tick` handler ages them).
+pub void Ctx.set_toasts(List<Toast> toasts) {
+    registry.toasts = toasts;
+    registry.is_screen_dirty = true;
+}
+
+/// Open the finder list on plain text lines (nothing happens when an entry is accepted).
+pub void Ctx.pick_lines(str title, List<str> lines) {
+    List<MED_picker.Entry> entries = [];
+    for (str line in lines) {
+        entries.push(MED_picker.Entry(line));
+    }
+    pick(title, entries);
+}
+
+/// Show `text` in the message line once the queued requests (an `open_file`) have run, so that it is not replaced by
+/// the message of the file that opened.
+pub void Ctx.say_later(str text) {
+    editor.requests.push("extsay " + text);
+}
+
+/// The path to open for `absolute`: relative to the project root when it is below it, so that the buffer is the
+/// one the finder would open (`pick` entries with a path take this form too).
+pub str Ctx.openable(str absolute) {
+    str target = relative_path(absolute);
+    if (target != absolute) {
+        target = MED_files.path_of(registry.root, target);
+    }
+    return target;
+}
+
+/// Whether there is a state directory to keep `state_lines` in.
+pub bool Ctx.has_state() {
+    return registry.state_directory.size() > 0;
+}
+
 /// Show `text` in the message line.
 pub void Ctx.say(str text) {
     notice = text;
@@ -1749,6 +2097,37 @@ pub void Ctx.pick(str title, List<MED_picker.Entry> entries) {
     has_pick = true;
     pick_title = title;
     pick_entries = entries;
+}
+
+/// The branch, hunk counts, diagnostics and language server activity of the active buffer.
+pub Status Ctx.status() {
+    return registry.feed.status();
+}
+
+/// Show the which-key popup for the keys now pending (the leader menu, or the prefix help of `g` `z` `[` `]` `<C-w>`
+/// and the operators). The popup closes by itself when the keys are done. Meant for a `PendingKeys` handler.
+pub void Ctx.show_key_help() {
+    has_key_help = true;
+}
+
+/// Open one of the core finder's own sources by name (`todos`, `files`, `grep`, `recent` ...), as `:Files` and its
+/// kin do; `argument` is the text typed after the command. The finder opens when the current command returns.
+pub void Ctx.open_picker(str name, str argument) {
+    picker_name = name;
+    picker_argument = argument;
+}
+
+/// Open the finder list on files: entry `i` shows `labels[i]` and opens `files[i]` (absolute paths) where it was last
+/// left. The lists must have the same length (else nothing happens).
+pub void Ctx.pick_files(str title, List<str> labels, List<str> files) {
+    if (labels.size() != files.size()) {
+        return;
+    }
+    List<MED_picker.Entry> entries = [];
+    for (int index in 0 .. files.size()) {
+        entries.push(MED_picker.Entry(labels[index], path: openable(files[index])));
+    }
+    pick(title, entries);
 }
 
 /// Set (text) or remove ("") this extension's statusline segment `name`. Cheap: the statusline reads the stored text.
