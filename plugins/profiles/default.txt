@@ -5,3 +5,9 @@
 # A plugin is added here when its directory (plugins/NAME/plugin.txt) is; the order below is the order of registration
 # once `requires` and `wants` are applied (docs/CORE-AND-PLUGINS.md 7.2).
 move
+bracketed
+harpoon
+todo
+whichkey
+notify
+statusline
