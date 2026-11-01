@@ -284,6 +284,9 @@ match (MED_app.open_all([win_a, win_b])) {
         check.ok("open for the window tests: " + message, false);
     }
     case Ok(MED_app.App app): {
+        // the buffer line is the statusline plugin's
+        app.ext_install();
+        app.ext_started();
         check.eq_int("one window to begin with", app.wins.size(), 1);
         type_text(app, ":q\n");
         type_text(app, "jj");
@@ -423,6 +426,8 @@ match (MED_app.open_all([lead_path])) {
         check.ok("open for the leader tests: " + message, false);
     }
     case Ok(MED_app.App app): {
+        app.ext_install();
+        app.ext_started();
         type_text(app, " ");
         check.ok("space starts a leader", app.is_leader);
         check.ok("which-key waits", !app.is_which_key);

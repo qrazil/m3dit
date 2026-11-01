@@ -20,6 +20,7 @@
 // leaf. `lookup` says whether what was typed is a leaf, a prefix of more keys,
 // or nothing.
 
+import ext.MED_ext;
 import tui.widgets.TUI_menu;
 import ui.MED_plugin;
 
@@ -98,7 +99,6 @@ pub List<Binding> defaults() {
     rows.push(leaf_row("m3", "finder", "fm", "Marks", "picker:marks"));
     rows.push(leaf_row("m3", "finder", "fx", "Diagnostics", "picker:diagnostics"));
     rows.push(leaf_row("m3", "finder", "fs", "Symbols in this file", "picker:symbols"));
-    rows.push(leaf_row("m3", "finder", "ft", "TODO comments", "picker:todos"));
     rows.push(leaf_row("m3", "finder", "fl", "Plugins", "picker:plugins"));
     rows.push(leaf_row("m3", "finder", "fC", "Colour schemes (themes)", "picker:themes"));
     rows.push(leaf_row("m3", "finder", " ", "Find files", "picker:files"));
@@ -123,16 +123,6 @@ pub List<Binding> defaults() {
     rows.push(leaf_row("m3", "git", "gm", "Git blame list", "ex:Git blame"));
     rows.push(leaf_row("m3", "git", "gB", "Blame line", "app:blame"));
     rows.push(leaf_row("m3", "git", "gt", "Toggle git signs", "app:signs"));
-    // harpoon
-    rows.push(leaf_row("config", "harpoon", "h", "+harpoon", ""));
-    rows.push(leaf_row("config", "harpoon", "ha", "Harpoon: add this file", "app:harpoon_add"));
-    rows.push(leaf_row("config", "harpoon", "he", "Harpoon: menu", "picker:harpoon"));
-    rows.push(leaf_row("config", "harpoon", "hn", "Harpoon: next", "app:harpoon_next"));
-    rows.push(leaf_row("config", "harpoon", "hp", "Harpoon: previous", "app:harpoon_prev"));
-    rows.push(leaf_row("m3", "harpoon", "hd", "Harpoon: remove this file", "app:harpoon_remove"));
-    for (int slot in 1 .. 10) {
-        rows.push(leaf_row("config", "harpoon", slot.to_str(), "Harpoon: file " + slot.to_str(), "app:harpoon " + slot.to_str()));
-    }
     // diagnostics (the owner's ll ]] [[ and trouble)
     rows.push(leaf_row("config", "lsp", "l", "+diagnostics", ""));
     rows.push(leaf_row("config", "lsp", "ll", "Show diagnostics at the cursor", "app:diag_float"));
@@ -188,9 +178,6 @@ pub List<Binding> prefixes() {
         rows.push(row);
     }
     for (Binding row in prefix_data("core", "vim", ["[ :: +previous", "] :: +next", "[[ :: previous section start", "]] :: next section start", "[] :: previous section end", "][ :: next section end", "[{ :: previous unmatched {", "]} :: next unmatched }", "[( :: previous unmatched (", "]) :: next unmatched )", "[' :: previous mark line", "]' :: next mark line", "[` :: previous mark", "]` :: next mark", "[<Space> :: add blank line above", "]<Space> :: add blank line below"])) {
-        rows.push(row);
-    }
-    for (Binding row in prefix_data("bracketed", "m3", ["[b :: previous buffer", "]b :: next buffer", "[B :: first buffer", "]B :: last buffer", "[q :: previous quickfix entry", "]q :: next quickfix entry", "[Q :: first quickfix entry", "]Q :: last quickfix entry", "[t :: previous TODO comment", "]t :: next TODO comment", "[h :: previous git hunk", "]h :: next git hunk", "[c :: previous git change", "]c :: next git change", "[d :: previous diagnostic", "]d :: next diagnostic"])) {
         rows.push(row);
     }
     for (Binding row in prefix_data("core", "vim", ["^W :: +windows", "^Ws :: split below", "^Wv :: split right", "^Wn :: new window", "^Wc :: close window", "^Wq :: quit window", "^Wo :: only this window", "^Ww :: next window", "^WW :: previous window", "^Wp :: last window", "^Wt :: top-left window", "^Wb :: bottom-right window", "^Wh :: window left", "^Wj :: window below", "^Wk :: window above", "^Wl :: window right", "^WH :: move window far left", "^WJ :: move window to the bottom", "^WK :: move window to the top", "^WL :: move window far right", "^Wr :: rotate windows", "^WR :: rotate windows up", "^Wx :: exchange window", "^W= :: equalize sizes", "^W+ :: taller", "^W- :: shorter", "^W< :: narrower", "^W> :: wider", "^W_ :: maximize height", "^W| :: maximize width"])) {
@@ -343,6 +330,43 @@ pub str full_keys(Binding row) {
     return "<Space>" + shown_keys(row.keys);
 }
 
+/// The keys of the compiled plugins as rows, from their `MapSpec`s and group labels (so `:Keys`, the command palette
+/// and docs/KEYMAP.md list them like the core's own). A leader key (`<Space>ha`) is relative to `<Space>` as the core's
+/// rows are; the others are whole sequences. A plugin that is off leaves its rows out.
+pub List<Binding> plugin_rows(MED_ext.Registry registry) {
+    List<Binding> rows = [];
+    for (MED_ext.GroupEntry group in registry.groups) {
+        if (group.prefix.starts_with("<Space>") && !registry.extensions[group.owner].is_off) {
+            rows.push(Binding(group.prefix.substr(7, group.prefix.size()), "+" + group.label, "", plugin: registry.owner_name(group.owner), source: "m3"));
+        }
+    }
+    for (MED_ext.MapEntry entry in registry.maps) {
+        if (registry.extensions[entry.owner].is_off) {
+            continue;
+        }
+        str action = "";
+        match (entry.spec.action) {
+            case Keys(str typed): {
+            }
+            case Command(str text): {
+                action = "ex:" + entry.command;
+            }
+            case Call(MED_ext.KeyFn run): {
+                action = "ex:" + entry.command;
+            }
+        }
+        str keys = entry.spec.keys;
+        str mode = MED_ext.mode_letter(entry.spec.mode);
+        str name = registry.owner_name(entry.owner);
+        if (keys.starts_with("<Space>")) {
+            rows.push(Binding(keys.substr(7, keys.size()), entry.spec.desc, action, plugin: name, mode: mode, source: "m3"));
+        } else {
+            rows.push(Binding(keys, entry.spec.desc, action, plugin: name, mode: mode, source: "m3", is_full: true));
+        }
+    }
+    return rows;
+}
+
 /// Every key of a mode, one text line each, for `:Keys` and the help picker.
 pub List<Binding> all_rows(List<str> disabled) {
     List<Binding> rows = [];
@@ -359,7 +383,7 @@ pub List<Binding> all_rows(List<str> disabled) {
 }
 
 /// docs/KEYMAP.md, generated from the tables above.
-pub str markdown() {
+pub str markdown(List<Binding> plugin_keys) {
     List<str> lines = [];
     lines.push("# Keymap");
     lines.push("");
@@ -386,6 +410,14 @@ pub str markdown() {
     lines.push("| keys | mode | action | plugin | source |");
     lines.push("|---|---|---|---|---|");
     for (Binding row in prefixes()) {
+        lines.push(table_line(row));
+    }
+    lines.push("");
+    lines.push("## Keys of the default plugins (from their `MapSpec`s)");
+    lines.push("");
+    lines.push("| keys | mode | action | plugin | source |");
+    lines.push("|---|---|---|---|---|");
+    for (Binding row in plugin_keys) {
         lines.push(table_line(row));
     }
     lines.push("");

@@ -57,7 +57,6 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `<Space>fm` | Normal | Marks | finder | m3 |
 | `<Space>fx` | Normal | Diagnostics | finder | m3 |
 | `<Space>fs` | Normal | Symbols in this file | finder | m3 |
-| `<Space>ft` | Normal | TODO comments | finder | m3 |
 | `<Space>fl` | Normal | Plugins | finder | m3 |
 | `<Space>fC` | Normal | Colour schemes (themes) | finder | m3 |
 | `<Space><Space>` | Normal | Find files | finder | m3 |
@@ -81,21 +80,6 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `<Space>gm` | Normal | Git blame list | git | m3 |
 | `<Space>gB` | Normal | Blame line | git | m3 |
 | `<Space>gt` | Normal | Toggle git signs | git | m3 |
-| `<Space>h` | Normal | +harpoon | harpoon | config |
-| `<Space>ha` | Normal | Harpoon: add this file | harpoon | config |
-| `<Space>he` | Normal | Harpoon: menu | harpoon | config |
-| `<Space>hn` | Normal | Harpoon: next | harpoon | config |
-| `<Space>hp` | Normal | Harpoon: previous | harpoon | config |
-| `<Space>hd` | Normal | Harpoon: remove this file | harpoon | m3 |
-| `<Space>1` | Normal | Harpoon: file 1 | harpoon | config |
-| `<Space>2` | Normal | Harpoon: file 2 | harpoon | config |
-| `<Space>3` | Normal | Harpoon: file 3 | harpoon | config |
-| `<Space>4` | Normal | Harpoon: file 4 | harpoon | config |
-| `<Space>5` | Normal | Harpoon: file 5 | harpoon | config |
-| `<Space>6` | Normal | Harpoon: file 6 | harpoon | config |
-| `<Space>7` | Normal | Harpoon: file 7 | harpoon | config |
-| `<Space>8` | Normal | Harpoon: file 8 | harpoon | config |
-| `<Space>9` | Normal | Harpoon: file 9 | harpoon | config |
 | `<Space>l` | Normal | +diagnostics | lsp | config |
 | `<Space>ll` | Normal | Show diagnostics at the cursor | lsp | config |
 | `<Space>]]` | Normal | Next diagnostic | lsp | config |
@@ -207,22 +191,6 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `]`` | Normal | next mark | core | vim |
 | `[<Space>` | Normal | add blank line above | core | vim |
 | `]<Space>` | Normal | add blank line below | core | vim |
-| `[b` | Normal | previous buffer | bracketed | m3 |
-| `]b` | Normal | next buffer | bracketed | m3 |
-| `[B` | Normal | first buffer | bracketed | m3 |
-| `]B` | Normal | last buffer | bracketed | m3 |
-| `[q` | Normal | previous quickfix entry | bracketed | m3 |
-| `]q` | Normal | next quickfix entry | bracketed | m3 |
-| `[Q` | Normal | first quickfix entry | bracketed | m3 |
-| `]Q` | Normal | last quickfix entry | bracketed | m3 |
-| `[t` | Normal | previous TODO comment | bracketed | m3 |
-| `]t` | Normal | next TODO comment | bracketed | m3 |
-| `[h` | Normal | previous git hunk | bracketed | m3 |
-| `]h` | Normal | next git hunk | bracketed | m3 |
-| `[c` | Normal | previous git change | bracketed | m3 |
-| `]c` | Normal | next git change | bracketed | m3 |
-| `[d` | Normal | previous diagnostic | bracketed | m3 |
-| `]d` | Normal | next diagnostic | bracketed | m3 |
 | `<C-w>` | Normal | +windows | core | vim |
 | `<C-w>s` | Normal | split below | core | vim |
 | `<C-w>v` | Normal | split right | core | vim |
@@ -302,6 +270,51 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `ds` | Normal | surround delete (ds{char}) | surround | vim |
 | `cs` | Normal | surround change (cs{old}{new}) | surround | vim |
 | `yS` | Normal | surround add, on own lines | surround | vim |
+
+## Keys of the default plugins (from their `MapSpec`s)
+
+| keys | mode | action | plugin | source |
+|---|---|---|---|---|
+| `<Space>h` | Normal | +harpoon | harpoon | m3 |
+| `<M-j>` | Normal | move the line down | move | m3 |
+| `<M-j>` | Visual | move the selection down | move | m3 |
+| `<M-k>` | Normal | move the line up | move | m3 |
+| `<M-k>` | Visual | move the selection up | move | m3 |
+| `<M-h>` | Normal | shift the line left | move | m3 |
+| `<M-h>` | Visual | shift the selection left | move | m3 |
+| `<M-l>` | Normal | shift the line right | move | m3 |
+| `<M-l>` | Visual | shift the selection right | move | m3 |
+| `<Space>ha` | Normal | Harpoon: add this file | harpoon | m3 |
+| `<Space>he` | Normal | Harpoon: menu | harpoon | m3 |
+| `<Space>hn` | Normal | Harpoon: next | harpoon | m3 |
+| `<Space>hp` | Normal | Harpoon: previous | harpoon | m3 |
+| `<Space>hd` | Normal | Harpoon: remove this file | harpoon | m3 |
+| `<Space>1` | Normal | Harpoon: file 1 | harpoon | m3 |
+| `<Space>2` | Normal | Harpoon: file 2 | harpoon | m3 |
+| `<Space>3` | Normal | Harpoon: file 3 | harpoon | m3 |
+| `<Space>4` | Normal | Harpoon: file 4 | harpoon | m3 |
+| `<Space>5` | Normal | Harpoon: file 5 | harpoon | m3 |
+| `<Space>6` | Normal | Harpoon: file 6 | harpoon | m3 |
+| `<Space>7` | Normal | Harpoon: file 7 | harpoon | m3 |
+| `<Space>8` | Normal | Harpoon: file 8 | harpoon | m3 |
+| `<Space>9` | Normal | Harpoon: file 9 | harpoon | m3 |
+| `<Space>ft` | Normal | TODO comments | todo | m3 |
+| `[b` | Normal | previous buffer | bracketed | m3 |
+| `]b` | Normal | next buffer | bracketed | m3 |
+| `[B` | Normal | first buffer | bracketed | m3 |
+| `]B` | Normal | last buffer | bracketed | m3 |
+| `[q` | Normal | previous quickfix entry | bracketed | m3 |
+| `]q` | Normal | next quickfix entry | bracketed | m3 |
+| `[Q` | Normal | first quickfix entry | bracketed | m3 |
+| `]Q` | Normal | last quickfix entry | bracketed | m3 |
+| `[t` | Normal | previous TODO comment | bracketed | m3 |
+| `]t` | Normal | next TODO comment | bracketed | m3 |
+| `[h` | Normal | previous git hunk | bracketed | m3 |
+| `]h` | Normal | next git hunk | bracketed | m3 |
+| `[c` | Normal | previous git change | bracketed | m3 |
+| `]c` | Normal | next git change | bracketed | m3 |
+| `[d` | Normal | previous diagnostic | bracketed | m3 |
+| `]d` | Normal | next diagnostic | bracketed | m3 |
 
 ## Other
 

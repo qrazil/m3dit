@@ -276,8 +276,6 @@ pub type App {
     /// Buffers read `.editorconfig` and `.m3.toml` (off for `-u NONE`, so test runs stay hermetic).
     pub bool is_project_conf = false;
     pub List<str> positions = [];
-    pub List<str> harpoon = [];
-    pub int harpoon_index = -1;
     str noted_path = "";
     int noted_row = -1;
     int state_ms = 0;
@@ -1185,6 +1183,10 @@ void App.run_request(str request) {
     if (is_forced) {
         name = name.substr(0, name.size() - 1);
     }
+    if (name == "extsay") {
+        notice = arg;
+        return;
+    }
     if (!ext.is_empty() && ext.has_command(name)) {
         MED_ext.Ctx context = MED_ext.context(ext, editor, path);
         context.buffer_id = current_id;
@@ -1264,8 +1266,6 @@ void App.run_request(str request) {
         open_picker("recent", arg);
     } else if (name == "Symbols") {
         open_picker("symbols", arg);
-    } else if (name == "Todo") {
-        open_picker("todos", arg);
     } else if (name == "Branches") {
         open_picker("branches", arg);
     } else if (name == "Commits") {
@@ -1565,8 +1565,6 @@ void App.run_app_action(str spec) {
     }
     if (action.starts_with("lsp_")) {
         run_lsp_command(action.substr(4, action.size()), arg);
-    } else if (action.starts_with("harpoon")) {
-        run_harpoon(action, arg);
     } else if (action == "hunk_stage" || action == "hunk_undo" || action == "hunk_reset" || action == "hunk_preview" || action == "blame" || action == "signs") {
         run_git_action(action);
     } else if (action == "jump") {
@@ -1651,12 +1649,13 @@ TUI_geometry.Rect App.screen_rect() {
     return TUI_geometry.Rect(0, top, size.columns, size.rows - top);
 }
 
-/// 1 when the tabline (buffer list) is shown: two or more buffers, plugin on.
+/// 1 when the tabline (buffer list) is shown: tab pages, or the buffers when a plugin gives the buffer line (`did_bar`)
+/// and enough are open.
 int App.tabline_rows() {
     if (pages.size() >= 2) {
         return 1;
     }
-    if (!is_plugin_on("statusline") || !editor.is_option_on("bufferline", true)) {
+    if (!ext.is_bar_live() || (ext.bar_option.size() > 0 && !editor.is_option_on(ext.bar_option, true))) {
         return 0;
     }
     int count = 0;
@@ -1665,7 +1664,7 @@ int App.tabline_rows() {
             count = count + 1;
         }
     }
-    if (count >= 2) {
+    if (count >= ext.bar_min) {
         return 1;
     }
     return 0;
@@ -1694,6 +1693,7 @@ void App.draw_tabline(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
         }
         return;
     }
+    List<MED_ext.BufferInfo> infos = [];
     for (Slot one in slots) {
         if (one.is_listing) {
             continue;
@@ -1703,20 +1703,18 @@ void App.draw_tabline(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
         if (slash >= 0 && one.title.size() == 0) {
             name = name.substr(slash + 1, name.size());
         }
-        str label = " " + one.id.to_str() + " " + name;
-        if (is_slot_modified(one)) {
-            label = label + " +";
-        }
-        label = label + " ";
+        infos.push(MED_ext.BufferInfo(one.id, name, is_modified: is_slot_modified(one), is_current: one.id == current_id));
+    }
+    for (MED_ext.BarCell cell in ext.bar.cells(infos)) {
         TUI_style.Style style = bar;
-        if (one.id == current_id) {
+        if (cell.is_current) {
             style = current;
         }
-        if (x + label.size() > area.x + area.width) {
+        if (x + cell.text.size() > area.x + area.width) {
             break;
         }
-        buffer.set_str(x, area.y, label, style);
-        x = x + label.size();
+        buffer.set_str(x, area.y, cell.text, style);
+        x = x + cell.text.size();
     }
 }
 
@@ -3238,6 +3236,12 @@ void App.load_commands(bool is_help) {
             rows.push(row);
         }
     }
+    for (MED_keymap.Binding row in MED_keymap.plugin_rows(ext)) {
+        // the palette lists the leader commands; `[b` and its kin are keys of the help listing only
+        if (row.action.size() > 0 && (is_help || !row.is_full)) {
+            rows.push(row);
+        }
+    }
     for (MED_keymap.Binding row in MED_keymap.commands()) {
         rows.push(row);
     }
@@ -3542,6 +3546,7 @@ void App.cancel_leader() {
 /// maps under <Space> added (their right-hand side is the label).
 List<MED_keymap.Binding> App.leader_table() {
     List<MED_keymap.Binding> table = MED_keymap.enabled(MED_keymap.defaults(), disabled_plugins);
+    List<MED_keymap.Binding> from_plugins = [];
     for (MED_map.Mapping one in editor.maps.table_with(editor.local_maps, leader_mode)) {
         if (one.lhs.size() > 1 && one.lhs[0] == MED_key.SPACE) {
             bool is_plain = true;
@@ -3552,11 +3557,35 @@ List<MED_keymap.Binding> App.leader_table() {
             }
             if (is_plain) {
                 List<int> rest = one.lhs.slice(1, one.lhs.size());
-                table.insert(0, MED_keymap.Binding(str.from_chars(rest), one.rhs_text, "usermap", mode: leader_mode));
+                MED_keymap.Binding row_shown = MED_keymap.Binding(str.from_chars(rest), map_label(leader_mode, one), "usermap", mode: leader_mode);
+                if (row_shown.label != one.rhs_text) {
+                    from_plugins.insert(0, row_shown);
+                } else {
+                    table.insert(0, row_shown);
+                }
             }
         }
     }
+    for (MED_keymap.Binding row in from_plugins) {
+        table.push(row);
+    }
+    for (MED_ext.GroupEntry group in ext.groups) {
+        if (group.prefix.starts_with("<Space>") && !ext.extensions[group.owner].is_off) {
+            table.push(MED_keymap.Binding(group.prefix.substr(7, group.prefix.size()), "+" + group.label, "", mode: leader_mode));
+        }
+    }
     return table;
+}
+
+/// What which-key shows for a mapping: the label of the plugin that made it, else its right-hand side.
+str App.map_label(str mode, MED_map.Mapping one) {
+    if (!ext.is_empty()) {
+        str desc = ext.desc_of_keys(mode, str.from_chars(one.lhs));
+        if (desc.size() > 0) {
+            return desc;
+        }
+    }
+    return one.rhs_text;
 }
 
 /// One key after <Space>. True when the editor should quit.
@@ -3704,6 +3733,7 @@ str App.prefix_typed() {
 List<MED_keymap.Binding> App.prefix_table(str typed) {
     List<MED_keymap.Binding> table = MED_keymap.enabled(MED_keymap.prefixes(), disabled_plugins);
     // the user's own maps that continue the typed prefix
+    List<MED_keymap.Binding> from_plugins = [];
     for (MED_map.Mapping one in editor.maps.table_with(editor.local_maps, "n")) {
         if (one.lhs.size() > typed.size() && typed.size() > 0 && one.lhs[0] != MED_key.SPACE) {
             bool is_plain = true;
@@ -3715,9 +3745,17 @@ List<MED_keymap.Binding> App.prefix_table(str typed) {
                 }
             }
             if (is_plain) {
-                table.insert(0, MED_keymap.Binding(str.from_chars(one.lhs), one.rhs_text, "usermap", is_full: true));
+                MED_keymap.Binding row_shown = MED_keymap.Binding(str.from_chars(one.lhs), map_label("n", one), "usermap", is_full: true);
+                if (row_shown.label != one.rhs_text) {
+                    from_plugins.insert(0, row_shown);
+                } else {
+                    table.insert(0, row_shown);
+                }
             }
         }
+    }
+    for (MED_keymap.Binding row in from_plugins) {
+        table.push(row);
     }
     if (typed.size() > 0) {
         List<str> operators = ["d", "c", "y", "<", ">", "=", "!", "gu", "gU", "g~", "gq", "gw", "g?", "zf"];
@@ -3746,29 +3784,142 @@ pub TUI_app.Action App.tick(int elapsed_ms) {
     return work;
 }
 
-/// The timer: which-key after a pending leader waits, and the grep debounce.
-TUI_app.Action App.tick_work(int elapsed_ms) {
-    if (!ext.is_empty() && did_tick_ext(elapsed_ms)) {
-        return TUI_app.Action.Redraw;
-    }
-    if (is_leader && !is_which_key) {
-        leader_ms = leader_ms + elapsed_ms;
-        if (leader_ms >= MED_keymap.WHICH_KEY_MS) {
-            is_which_key = true;
-            return TUI_app.Action.Redraw;
-        }
-    }
-    if (!has_picker && !is_leader && editor.is_option_on("whichkey", true) && MED_plugin.is_on(disabled_plugins, "whichkey") && prefix_typed().size() > 0) {
-        if (!is_prefix_help) {
-            prefix_ms = prefix_ms + elapsed_ms;
-            if (prefix_ms >= MED_keymap.WHICH_KEY_MS && MED_keymap.next_items(prefix_table(prefix_typed()), prefix_typed()).size() > 0) {
-                is_prefix_help = true;
-                return TUI_app.Action.Redraw;
+/// What `Ctx.status` answers: the branch, the hunk counts against HEAD, the errors and warnings of the file, and what
+/// the language server is busy with.
+MED_ext.Status App.status_now() {
+    MED_ext.Status out = MED_ext.Status();
+    out.branch = branch;
+    if (branch.size() > 0) {
+        match (git.get(path)) {
+            case Some(GitInfo known): {
+                if (known.has_base) {
+                    out.has_hunks = true;
+                    for (int kind in known.hunks.kinds) {
+                        if (kind == MED_git.ADDED) {
+                            out.added = out.added + 1;
+                        } else if (kind == MED_git.CHANGED) {
+                            out.changed = out.changed + 1;
+                        } else if (kind == MED_git.REMOVED) {
+                            out.removed = out.removed + 1;
+                        }
+                    }
+                }
+            }
+            case None: {
             }
         }
-    } else if (is_prefix_help || prefix_ms > 0) {
-        is_prefix_help = false;
-        prefix_ms = 0;
+    }
+    if (diagnostics.size() > 0) {
+        List<int> counts = diagnostic_counts();
+        out.errors = counts[0];
+        out.warnings = counts[1];
+    }
+    if (servers.size() > 0) {
+        out.busy = lsp_status_text();
+    }
+    return out;
+}
+
+/// Tell the user something. A plugin that takes `Message` (the notification boxes) gets it; otherwise it goes to the message
+/// line (when `is_fallback`). `level` is 0 (info), 1 (warning) or 2 (error).
+pub void App.notify_user(int level, str text, bool is_fallback) {
+    if (ext.has_handler(MED_ext.Event.Message)) {
+        MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+        context.buffer_id = current_id;
+        int ran = ext.fire(MED_ext.Event.Message, context, MED_ext.Info(file: path, buffer_id: current_id, text: text, level: level));
+        if (ran > 0) {
+            ext_finish(context);
+            return;
+        }
+        ext_finish(context);
+    }
+    if (is_fallback) {
+        notice = text;
+    }
+}
+
+/// The keys that are pending now ("" when none): the leader sequence after `<Space>`, or the prefix typed in Normal
+/// or Visual mode (`g`, `[`, `<C-w>`, an operator).
+str App.pending_keys() {
+    if (is_leader) {
+        return leader;
+    }
+    if (has_picker) {
+        return "";
+    }
+    return prefix_typed();
+}
+
+/// While keys are pending, tell the plugins (`PendingKeys`, with the time since the last key); the which-key plugin
+/// answers with `show_key_help` once they have waited long enough. Nothing is pending: the help goes away. True when
+/// the screen changed.
+bool App.did_tick_pending(int elapsed_ms) {
+    str typed = pending_keys();
+    if (typed.size() == 0 && !is_leader) {
+        bool was_shown = is_prefix_help || prefix_ms > 0;
+        if (was_shown) {
+            is_prefix_help = false;
+            prefix_ms = 0;
+            if (ext.has_handler(MED_ext.Event.PendingKeys)) {
+                ext_fire_pending("", false, 0, false);
+            }
+        }
+        return was_shown;
+    }
+    if (!ext.has_handler(MED_ext.Event.PendingKeys)) {
+        return false;
+    }
+    bool was_leader_help = is_which_key;
+    bool was_prefix_help = is_prefix_help;
+    int waited = 0;
+    bool is_shown = false;
+    if (is_leader) {
+        if (!is_which_key) {
+            leader_ms = leader_ms + elapsed_ms;
+        }
+        waited = leader_ms;
+        is_shown = is_which_key;
+    } else {
+        if (!is_prefix_help) {
+            prefix_ms = prefix_ms + elapsed_ms;
+        }
+        waited = prefix_ms;
+        is_shown = is_prefix_help;
+    }
+    ext_fire_pending(typed, is_leader, waited, is_shown);
+    return is_which_key != was_leader_help || is_prefix_help != was_prefix_help;
+}
+
+/// Deliver `PendingKeys`; a handler's `show_key_help` turns the popup on.
+void App.ext_fire_pending(str typed, bool is_pending_leader, int waited, bool is_shown) {
+    MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+    context.buffer_id = current_id;
+    MED_ext.Info info = MED_ext.Info(file: path, buffer_id: current_id, elapsed_ms: waited, keys: typed, is_leader: is_pending_leader, is_help_shown: is_shown);
+    ext.fire(MED_ext.Event.PendingKeys, context, info);
+    if (context.has_key_help) {
+        context.has_key_help = false;
+        if (is_leader) {
+            is_which_key = true;
+        } else if (MED_keymap.next_items(prefix_table(prefix_typed()), prefix_typed()).size() > 0) {
+            is_prefix_help = true;
+        }
+    }
+    ext_finish(context);
+}
+
+/// The timer: which-key after a pending leader waits, and the grep debounce.
+TUI_app.Action App.tick_work(int elapsed_ms) {
+    bool is_ext_changed = !ext.is_empty() && did_tick_ext(elapsed_ms);
+    TUI_app.Action action = tick_rest(elapsed_ms);
+    if (is_ext_changed) {
+        return TUI_app.Action.Redraw;
+    }
+    return action;
+}
+
+/// What `tick_work` does besides the plugins' Tick.
+TUI_app.Action App.tick_rest(int elapsed_ms) {
+    if (did_tick_pending(elapsed_ms)) {
         return TUI_app.Action.Redraw;
     }
     if (terms.size() > 0 && did_poll_terminals()) {
@@ -3964,33 +4115,6 @@ bool App.should_quit_after(int key) {
         editor.pending = [];
         is_lsp_gr = true;
         return false;
-    }
-    if (editor.mode == MED_editor.NORMAL && editor.pending.size() == 1 && (editor.pending[0] == 93 || editor.pending[0] == 91) && editor.ta_keys.size() == 0 && (key == 98 || key == 66 || key == 113 || key == 81 || key == 100 || key == 104 || key == 116)) {
-        bool is_forward = editor.pending[0] == 93;
-        if (did_bracketed(key, is_forward)) {
-            editor.pending = [];
-            return did_finish();
-        }
-    }
-    if (editor.mode == MED_editor.NORMAL && key == 99 && editor.pending.size() == 1 && (editor.pending[0] == 93 || editor.pending[0] == 91) && editor.ta_keys.size() == 0) {
-        // ]c and [c: the next and previous change against HEAD
-        bool is_forward = editor.pending[0] == 93;
-        editor.pending = [];
-        GitInfo state = git_info(path, editor, true);
-        int target = -1;
-        if (state.has_base) {
-            target = MED_git.next_start(state.hunks, editor.row, is_forward);
-        }
-        if (target >= 0) {
-            editor.set_pcmark(MED_buffer.Pos(editor.row, editor.col));
-            editor.row = target;
-            editor.col = MED_text.first_nonblank(editor.buffer.line(target));
-            editor.clamp();
-            editor.want_from_cursor();
-        } else {
-            editor.is_failed = true;
-        }
-        return did_finish();
     }
     if ((editor.mode == MED_editor.NORMAL || editor.mode == MED_editor.VISUAL) && key == MED_key.SPACE && editor.pending.size() == 0 && editor.ta_keys.size() == 0) {
         is_leader = true;
@@ -4213,7 +4337,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -4837,14 +4961,9 @@ void App.draw_line(TUI_buffer.Buffer buffer, MED_editor.Editor subject, int left
     if (guide_step <= 0) {
         guide_step = 4;
     }
-    int todo_from = -1;
-    int todo_to = -1;
-    if (is_plugin_on("todo") && subject.is_option_on("todohl", true) && line.size() > 3) {
-        MED_picker.Entry todo = MED_sources.todo_in(line);
-        if (todo.text.size() > 0) {
-            todo_from = todo.column;
-            todo_to = todo.column + todo.text.size();
-        }
+    List<MED_ext.Span> marks = [];
+    if (ext.has_decorators() && line.size() > 3) {
+        marks = ext.decorate(line, subject);
     }
     int trail_from = line.size();
     while (trail_from > 0 && (line.byte_at(trail_from - 1) == 32 || line.byte_at(trail_from - 1) == 9)) {
@@ -4886,8 +5005,10 @@ void App.draw_line(TUI_buffer.Buffer buffer, MED_editor.Editor subject, int left
             if (offset < syntax_classes.size()) {
                 style = theme.class_look(syntax_classes[offset], variant);
             }
-            if (offset >= todo_from && offset < todo_to && (offset >= syntax_classes.size() || syntax_classes[offset] == SYN_class.COMMENT)) {
-                style = theme.look("ui.todo");
+            for (MED_ext.Span mark in marks) {
+                if (offset >= mark.from && offset < mark.stop && (!mark.is_in_comment || offset >= syntax_classes.size() || syntax_classes[offset] == SYN_class.COMMENT)) {
+                    style = theme.look(mark.scope);
+                }
             }
             if (is_in_spans(spans, offset)) {
                 style = found;
@@ -5022,59 +5143,61 @@ void App.draw_status(TUI_buffer.Buffer buffer, MED_window.Placed frame, MED_edit
     int count = subject.buffer.line_count();
     int percent = (subject.row + 1) * 100 / count;
     str where = (subject.row + 1).to_str() + ":" + (vcol + 1).to_str() + "  " + percent.to_str() + "% ";
-    if (is_plugin_on("statusline")) {
-        str lang = SYN_detect.language_of(file, subject.buffer.line(0));
-        if (lang.size() > 0) {
-            where = lang + "  " + where;
-        }
-        str middle = "";
-        if (is_active && branch.size() > 0) {
-            middle = "  " + branch;
-            match (git.get(file)) {
-                case Some(GitInfo known): {
-                    int added = 0;
-                    int changed = 0;
-                    int removed = 0;
-                    for (int kind in known.hunks.kinds) {
-                        if (kind == MED_git.ADDED) {
-                            added = added + 1;
-                        } else if (kind == MED_git.CHANGED) {
-                            changed = changed + 1;
-                        } else if (kind == MED_git.REMOVED) {
-                            removed = removed + 1;
-                        }
-                    }
-                    if (known.has_base && added + changed + removed > 0) {
-                        middle = middle + " +" + added.to_str() + " ~" + changed.to_str() + " -" + removed.to_str();
-                    }
-                }
-                case None: {
-                }
-            }
-        }
-        if (is_active && diagnostics.size() > 0) {
-            List<int> counts = diagnostic_counts();
-            if (counts[0] + counts[1] > 0) {
-                middle = middle + "  E:" + counts[0].to_str() + " W:" + counts[1].to_str();
-            }
-        }
-        if (is_active && servers.size() > 0) {
-            str busy = lsp_status_text();
-            if (busy.size() > 0) {
-                middle = middle + "  " + busy;
-            }
-        }
-        if (is_active && ext.segment_texts.size() > 0 && ext.segments().size() > 0) {
-            middle = middle + "  " + ext.segments();
-        }
-        int middle_x = frame.x + used + name.size() + 2;
-        if (middle.size() > 0 && middle_x + middle.size() + where.size() < frame.x + frame.width) {
-            buffer.set_str(middle_x, y, middle, bar);
-        }
+    str lang = SYN_detect.language_of(file, subject.buffer.line(0));
+    if (lang.size() > 0) {
+        where = lang + "  " + where;
+    }
+    // what the statusline plugin (and other plugins) put between the name and the position
+    str middle = "";
+    if (is_active && ext.segment_texts.size() > 0 && ext.segments().size() > 0) {
+        middle = middle + "  " + ext.segments();
+    }
+    int middle_x = frame.x + used + name.size() + 2;
+    if (middle.size() > 0 && middle_x + middle.size() + where.size() < frame.x + frame.width) {
+        buffer.set_str(middle_x, y, middle, bar);
     }
     int where_x = frame.x + frame.width - where.size();
     if (where_x > frame.x + used + name.size() + 2) {
         buffer.set_str(where_x, y, where, bar);
+    }
+}
+
+/// The notification boxes a plugin asked for (`Ctx.set_toasts`), stacked from the top right corner of the text area.
+void App.draw_toasts(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows) {
+    TUI_style.Style box = theme.look("ui.popup");
+    int y = area.y;
+    for (MED_ext.Toast toast in ext.toasts) {
+        int width = MED_text.line_width(" " + toast.title + " ", 4) + 4;
+        for (str line in toast.lines) {
+            int need = MED_text.line_width(line, 4) + 4;
+            if (need > width) {
+                width = need;
+            }
+        }
+        if (width > area.width - 2) {
+            width = area.width - 2;
+        }
+        int height = toast.lines.size() + 2;
+        if (width < 8 || y + height > area.y + rows) {
+            break;
+        }
+        int x = area.x + area.width - width - 1;
+        TUI_style.Style accent = theme.over("ui.popup", "info");
+        if (toast.level == 1) {
+            accent = theme.over("ui.popup", "warning");
+        } else if (toast.level >= 2) {
+            accent = theme.over("ui.popup", "error");
+        }
+        buffer.fill(TUI_geometry.Rect(x, y, width, height), " ", box);
+        buffer.set_str(x, y, "╭" + "─".repeat(width - 2) + "╮", accent);
+        buffer.set_str(x + 2, y, " " + toast.title + " ", accent, max: width - 4);
+        for (int index in 0 .. toast.lines.size()) {
+            buffer.set_str(x, y + 1 + index, "│", accent);
+            buffer.set_str(x + 2, y + 1 + index, toast.lines[index], box, max: width - 4);
+            buffer.set_str(x + width - 1, y + 1 + index, "│", accent);
+        }
+        buffer.set_str(x, y + height - 1, "╰" + "─".repeat(width - 2) + "╯", accent);
+        y = y + height;
     }
 }
 
@@ -5581,6 +5704,9 @@ pub void App.render(TUI_buffer.Buffer buffer, TUI_geometry.Rect full) {
         MED_picker_view.render(buffer, area, picker, preview, theme);
     }
     motion.after_popup(buffer, editor);
+    if (ext.toasts.size() > 0) {
+        draw_toasts(buffer, area, rows);
+    }
     int message_y = area.y + area.height - 1;
     draw_message(buffer, area, message_y);
     TUI_style.Style cursor_style = motion.cursor_style(theme.cursor(cursor_mode()));
@@ -5933,12 +6059,6 @@ bool App.did_open_list_picker(str name, str arg) {
             }
             entries.push(MED_picker.Entry(state + "  " + one.name + "  " + one.summary, action: action));
         }
-    } else if (name == "harpoon") {
-        title = "Harpoon";
-        load_harpoon();
-        for (int index in 0 .. harpoon.size()) {
-            entries.push(MED_picker.Entry((index + 1).to_str() + "  " + harpoon_label(harpoon[index]), path: openable(harpoon[index])));
-        }
     } else if (name == "branches" || name == "remotes") {
         title = "Branches";
         bool is_remote = name == "remotes";
@@ -6162,89 +6282,6 @@ pub void App.restore_position() {
     }
 }
 
-str App.harpoon_file() {
-    return "harpoon-" + MED_state.project_key(absolute_root());
-}
-
-void App.load_harpoon() {
-    harpoon = MED_state.read_lines(state_directory, harpoon_file());
-}
-
-str App.harpoon_label(str file) {
-    str base = absolute_root();
-    if (file.starts_with(base + "/")) {
-        return file.substr(base.size() + 1, file.size());
-    }
-    return file;
-}
-
-/// A harpoon action: add, remove, next, prev, or `harpoon N`.
-void App.run_harpoon(str action, str arg) {
-    if (state_directory.size() == 0) {
-        notice = "Harpoon needs a state directory (HOME is not set)";
-        return;
-    }
-    load_harpoon();
-    str file = absolute_of(path);
-    if (action == "harpoon_add") {
-        if (file.size() == 0 || !fs.is_file(file)) {
-            notice = "Harpoon: this buffer has no file";
-            return;
-        }
-        if (harpoon.contains(file)) {
-            notice = "Harpoon: already pinned (" + (harpoon.index_of(file).or(0) + 1).to_str() + ")";
-            return;
-        }
-        harpoon.push(file);
-        MED_state.write_lines(state_directory, harpoon_file(), harpoon);
-        notice = "Harpoon: pinned as " + harpoon.size().to_str();
-        return;
-    }
-    if (action == "harpoon_remove") {
-        List<str> kept = [];
-        for (str one in harpoon) {
-            if (one != file) {
-                kept.push(one);
-            }
-        }
-        harpoon = kept;
-        MED_state.write_lines(state_directory, harpoon_file(), harpoon);
-        notice = "Harpoon: removed";
-        return;
-    }
-    if (harpoon.size() == 0) {
-        notice = "Harpoon: nothing pinned (<Space>ha)";
-        return;
-    }
-    int target = 0;
-    if (action == "harpoon_next" || action == "harpoon_prev") {
-        int here = harpoon.index_of(file).or(-1);
-        if (here < 0) {
-            here = harpoon_index;
-        }
-        if (action == "harpoon_next") {
-            target = here + 1;
-        } else {
-            target = here - 1;
-        }
-        if (target >= harpoon.size()) {
-            target = 0;
-        }
-        if (target < 0) {
-            target = harpoon.size() - 1;
-        }
-    } else {
-        target = arg.parse_int().or(1) - 1;
-        if (target < 0 || target >= harpoon.size()) {
-            notice = "Harpoon: no file " + arg;
-            return;
-        }
-    }
-    harpoon_index = target;
-    edit(openable(harpoon[target]), false);
-    notice = "Harpoon " + (target + 1).to_str() + "/" + harpoon.size().to_str() + ": " + harpoon_label(harpoon[target]);
-}
-
 /// The directory of the current file for git commands.
 str App.file_directory() {
     return MED_git.directory_of(path);
@@ -6379,8 +6416,6 @@ void App.run_git_action(str action) {
     }
 }
 
-// ---- :Git read commands and :Hunk over the m31git library (begin) ----
-
 /// `:Git log|show|diff|blame ...`: a list in the finder or a scratch buffer (ui/MED_gitcmd.m31).
 void App.run_git_read(str arg) {
     MED_gitcmd.Out out = MED_gitcmd.run(arg, path, editor.buffer.lines, editor.row);
@@ -6417,12 +6452,30 @@ void App.run_hunk_command(str arg) {
         run_git_action("hunk_preview");
     } else if (word == "undo" || word == "unstage") {
         run_git_action("hunk_undo");
+    } else if (word == "next" || word == "prev") {
+        go_hunk(word == "next");
     } else {
-        notice = "Hunk: stage, reset, undo or preview";
+        notice = "Hunk: stage, reset, undo, preview, next or prev";
     }
 }
 
-// ---- :Git read commands and :Hunk (end) ----
+/// `:Hunk next` and `:Hunk prev`: the start of the next or previous change against HEAD (wrapping).
+void App.go_hunk(bool is_forward) {
+    GitInfo state = git_info(path, editor, true);
+    int target = -1;
+    if (state.has_base) {
+        target = MED_git.next_start(state.hunks, editor.row, is_forward);
+    }
+    if (target < 0) {
+        editor.is_failed = true;
+        return;
+    }
+    editor.set_pcmark(MED_buffer.Pos(editor.row, editor.col));
+    editor.row = target;
+    editor.col = MED_text.first_nonblank(editor.buffer.line(target));
+    editor.clamp();
+    editor.want_from_cursor();
+}
 
 /// `git:checkout BRANCH`, `git:checkout_remote REMOTE/BRANCH`, `git:show HASH`.
 void App.run_git_command(str spec) {
@@ -6468,83 +6521,6 @@ void App.open_scratch(str title, List<str> lines) {
     saved_current = editor.current;
     editor.message = title;
     notice = title;
-}
-
-/// `[b ]b [B ]B [q ]q [Q ]Q [t ]t [h ]h [d ]d` (the second key `key`). False
-/// when it is not one of them.
-bool App.did_bracketed(int key, bool is_forward) {
-    if (!is_plugin_on("bracketed")) {
-        return false;
-    }
-    int step = -1;
-    if (is_forward) {
-        step = 1;
-    }
-    if (key == 98) {
-        go_relative(step, false);
-        return true;
-    }
-    if (key == 66) {
-        go_relative(step, true);
-        return true;
-    }
-    if (key == 113) {
-        go_quickfix(step);
-        return true;
-    }
-    if (key == 81) {
-        if (is_forward) {
-            go_quickfix(2);
-        } else {
-            go_quickfix(0);
-        }
-        return true;
-    }
-    if (key == 100) {
-        go_diagnostic(is_forward);
-        return true;
-    }
-    if (key == 104) {
-        GitInfo state = git_info(path, editor, true);
-        int target = -1;
-        if (state.has_base) {
-            target = MED_git.next_start(state.hunks, editor.row, is_forward);
-        }
-        if (target >= 0) {
-            editor.set_pcmark(MED_buffer.Pos(editor.row, editor.col));
-            editor.row = target;
-            editor.col = MED_text.first_nonblank(editor.buffer.line(target));
-            editor.clamp();
-            editor.want_from_cursor();
-        } else {
-            editor.is_failed = true;
-        }
-        return true;
-    }
-    if (key == 116) {
-        int total = editor.buffer.line_count();
-        int row = editor.row;
-        for (int steps in 0 .. total) {
-            row = row + step;
-            if (row >= total) {
-                row = 0;
-            }
-            if (row < 0) {
-                row = total - 1;
-            }
-            if (MED_sources.todo_in(editor.buffer.line(row)).text.size() > 0) {
-                editor.set_pcmark(MED_buffer.Pos(editor.row, editor.col));
-                editor.row = row;
-                editor.col = MED_sources.todo_in(editor.buffer.line(row)).column;
-                editor.clamp();
-                editor.want_from_cursor();
-                return true;
-            }
-        }
-        notice = "No TODO comments";
-        return true;
-    }
-    return false;
 }
 
 /// Where the terminal of buffer `id` is in `terms`, or -1.
@@ -7078,7 +7054,14 @@ bool App.did_handle_server_message(int position, MED_lsp.Message message) {
             return true;
         }
         if (message.method == "window/showMessage") {
-            notice = MED_lsp.text_of(MED_lsp.member(message.body, "message"));
+            int kind = MED_lsp.int_of(MED_lsp.member(message.body, "type"), 3);
+            int level = 0;
+            if (kind == 1) {
+                level = 2;
+            } else if (kind == 2) {
+                level = 1;
+            }
+            notify_user(level, MED_lsp.text_of(MED_lsp.member(message.body, "message")), true);
             return true;
         }
         if (message.method == "$/progress") {
@@ -7210,6 +7193,10 @@ json.Value App.lsp_position_parameters() {
 
 /// `:Lsp SUBCOMMAND ...` and the `app:lsp_*` actions.
 void App.run_lsp_command(str sub, str arg) {
+    if (sub == "next_diag" || sub == "prev_diag") {
+        go_diagnostic(sub == "next_diag");
+        return;
+    }
     if (!is_plugin_on("lsp")) {
         notice = "The lsp plugin is off (:PluginEnable lsp)";
         return;
@@ -7539,12 +7526,6 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
         has_picker = true;
     }
 }
-
-// >>> completion popup (ui/MED_pum.m31) ------------------------------------------------------------------
-// `:set lspcomplete=auto` shows the popup while typing (trigger characters and identifier characters); CTRL-Space
-// asks for it at once. With the default `manual`, CTRL-Space opens the picker as before. Keys while it is open:
-// <Tab> <C-n> <Down> next, <S-Tab> <C-p> <Up> previous, <C-y> accept, <CR> accept the selected row, <C-e> close,
-// <Esc> close and leave Insert mode.
 
 /// `:set lspcomplete=auto`: the popup follows the typing.
 bool App.is_pum_auto() {
@@ -7900,10 +7881,6 @@ void App.draw_pum(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows) {
     MED_pum.draw(buffer, pum, spot, doc, styles);
 }
 
-// <<< completion popup -----------------------------------------------------------------------------------
-
-// >>> semantic tokens (engine/MED_semtok.m31): `:set nosemantictokens` turns them off, `:Lsp tokens` says what is under the cursor
-
 /// Ask the server of the active buffer for its semantic tokens once the text has settled (not in Insert mode, and
 /// not more often than every 400 ms).
 void App.lsp_semantic_tick(int position, str lang_here, int elapsed_ms) {
@@ -7955,10 +7932,6 @@ void App.lsp_tokens_info() {
     }
     notice = "LSP: " + editor.sem.count.to_str() + " semantic tokens; under the cursor: " + here;
 }
-
-// <<< semantic tokens
-
-// >>> workspace edits and format on save (ui/MED_lsp.m31: FileOp, Server.await)
 
 /// Say why a WorkspaceEdit stopped, when it did.
 void App.notice_edit_failure(str failure) {
@@ -8121,10 +8094,6 @@ void App.lsp_format_before_write(Slot slot) {
         }
     }
 }
-
-// <<< workspace edits and format on save
-
-// ---------------------------------------------------------------- snippets (engine/MED_snippet.m31, MED_snipops.m31)
 
 /// Read the user's snippets: `snippets.json` and `snippets/LANGUAGE.json` (entries that apply to that language) next to
 /// the keymap file `file`, in VS Code's snippet format.
@@ -8579,6 +8548,20 @@ void App.ext_finish(MED_ext.Ctx context) {
     if (problem.size() > 0) {
         notice = problem;
     }
+    if (context.note_texts.size() > 0) {
+        List<str> texts = context.note_texts;
+        List<int> levels = context.note_levels;
+        context.note_texts = [];
+        context.note_levels = [];
+        for (int index in 0 .. texts.size()) {
+            notify_user(levels[index], texts[index], true);
+        }
+    }
+    if (context.picker_name.size() > 0) {
+        str wanted = context.picker_name;
+        context.picker_name = "";
+        open_picker(wanted, context.picker_argument);
+    }
     if (context.has_pick) {
         context.has_pick = false;
         overlay = [];
@@ -8639,6 +8622,9 @@ str App.write_hooked(Slot slot, str target) {
 /// Before the keymap file: let the built-in extensions register, then install their commands and key mappings
 /// (so the user's keymap file, read next, overrides them).
 pub void App.ext_install() {
+    ext.feed = StatusReader(this);
+    ext.root = root;
+    ext.abs_root = absolute_root();
     MED_ext_enabled.install(ext);
     ext.finish_install();
     for (MED_plugin.Plugin one in MED_plugin.all()) {
@@ -8663,6 +8649,7 @@ pub void App.ext_install() {
 
 /// After start-up is complete (keymap file, session, theme): Startup, and BufOpen for the files given on the command line.
 pub void App.ext_started() {
+    ext.state_directory = state_directory;
     if (ext.is_empty()) {
         return;
     }
@@ -8756,14 +8743,49 @@ bool App.did_tick_ext(int elapsed_ms) {
             is_changed = true;
         }
         if (ext.has_handler(MED_ext.Event.Tick)) {
+            int text_tick = editor.buffer.tick;
             ext.fire(MED_ext.Event.Tick, context, MED_ext.Info(file: path, buffer_id: current_id, elapsed_ms: waited));
-            is_changed = true;
+            if (ext.is_screen_dirty || text_tick != editor.buffer.tick || context.notice.size() > 0 || context.has_pick || context.note_texts.size() > 0 || context.picker_name.size() > 0) {
+                is_changed = true;
+            }
+            ext.is_screen_dirty = false;
         }
     }
     ext_finish(context);
     ext_watch();
     return is_changed;
 }
+
+/// The host side of `Ctx.status`.
+type StatusReader {
+    App app;
+}
+
+MED_ext.Status StatusReader.status() {
+    return app.status_now();
+}
+
+// ---- :Git read commands and :Hunk over the m31git library (begin) ----
+
+// ---- :Git read commands and :Hunk (end) ----
+
+// >>> completion popup (ui/MED_pum.m31) ------------------------------------------------------------------
+// `:set lspcomplete=auto` shows the popup while typing (trigger characters and identifier characters); CTRL-Space
+// asks for it at once. With the default `manual`, CTRL-Space opens the picker as before. Keys while it is open:
+// <Tab> <C-n> <Down> next, <S-Tab> <C-p> <Up> previous, <C-y> accept, <CR> accept the selected row, <C-e> close,
+// <Esc> close and leave Insert mode.
+
+// <<< completion popup -----------------------------------------------------------------------------------
+
+// >>> semantic tokens (engine/MED_semtok.m31): `:set nosemantictokens` turns them off, `:Lsp tokens` says what is under the cursor
+
+// <<< semantic tokens
+
+// >>> workspace edits and format on save (ui/MED_lsp.m31: FileOp, Server.await)
+
+// <<< workspace edits and format on save
+
+// ---------------------------------------------------------------- snippets (engine/MED_snippet.m31, MED_snipops.m31)
 
 // ----------------------------------------------------------------- sessions
 
@@ -9326,11 +9348,9 @@ pub Result<App, str> open_all(List<str> paths) {
 
 // ---------------------------------------------------------------- finder sources
 
-// ---------------------------------------------------------------- state: recent, positions, harpoon
+// ---------------------------------------------------------------- state: recent, positions (harpoon is a plugin)
 
 // ---------------------------------------------------------------- git: hunks, blame, checkout
-
-// ---------------------------------------------------------------- bracketed pairs, move
 
 // ---------------------------------------------------------------- terminal pane
 

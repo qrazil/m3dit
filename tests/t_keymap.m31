@@ -1,6 +1,8 @@
 // Unit checks for MED_keymap and MED_plugin: the leader tree, prefix help,
 // plugin filtering, and that docs/KEYMAP.md is the generated table.
 
+import ext.MED_ext;
+import ext.MED_ext_enabled;
 import io;
 import tests.MED_check;
 import tui.widgets.TUI_menu;
@@ -23,7 +25,6 @@ check.eq_str("gb", MED_keymap.leaf(table, "gb").action, "picker:branches");
 check.eq_str("gC", MED_keymap.leaf(table, "gC").action, "picker:commits");
 check.eq_str("ff", MED_keymap.leaf(table, "ff").action, "picker:files");
 check.eq_str("fr", MED_keymap.leaf(table, "fr").action, "picker:recent");
-check.eq_str("harpoon 3", MED_keymap.leaf(table, "3").action, "app:harpoon 3");
 // the surround aliases do not collide with the split keys
 check.eq_str("sa is surround", MED_keymap.leaf(table, "sa").plugin, "surround");
 check.eq_str("sa visual", MED_keymap.leaf(table, "sa", mode: "x").action, "keys:S");
@@ -74,10 +75,22 @@ List<TUI_menu.Item> w_items = MED_keymap.next_items(prefixes, str.from_chars([23
 check.ok("ctrl-w has items", w_items.size() > 10);
 check.eq_str("shown ctrl-w", MED_keymap.shown_key(str.from_chars([23])), "<C-w>");
 check.eq_str("full keys", MED_keymap.full_keys(MED_keymap.leaf(table, "ff")), "<Space>ff");
+// the keys of the plugins come from their specs
+MED_ext.Registry registry = MED_ext.Registry();
+MED_ext_enabled.install(registry);
+registry.finish_install();
+List<MED_keymap.Binding> plugin_keys = MED_keymap.plugin_rows(registry);
+bool is_harpoon_three = false;
+for (MED_keymap.Binding row in plugin_keys) {
+    if (row.plugin == "harpoon" && row.keys == "3" && row.action == "ex:Harpoon 3") {
+        is_harpoon_three = true;
+    }
+}
+check.ok("harpoon 3 is a plugin row", is_harpoon_three);
 // the document is the generated table
 match (io.read("docs/KEYMAP.md")) {
     case Ok(str text): {
-        check.ok("docs/KEYMAP.md is current (run scripts/gen_keymap.sh)", text == MED_keymap.markdown() + "\n");
+        check.ok("docs/KEYMAP.md is current (run scripts/gen_keymap.sh)", text == MED_keymap.markdown(MED_keymap.plugin_rows(registry)) + "\n");
     }
     case Err(io.Error error): {
         check.ok("docs/KEYMAP.md exists", false);

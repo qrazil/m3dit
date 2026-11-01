@@ -1,4 +1,9 @@
-// Prints docs/KEYMAP.md from the keymap table (see scripts/gen_keymap.sh).
+// Prints docs/KEYMAP.md from the keymap table and the keys of the default plugins (see scripts/gen_keymap.sh).
+import ext.MED_ext;
+import ext.MED_ext_enabled;
 import ui.MED_keymap;
 
-print(MED_keymap.markdown());
+MED_ext.Registry registry = MED_ext.Registry();
+MED_ext_enabled.install(registry);
+registry.finish_install();
+print(MED_keymap.markdown(MED_keymap.plugin_rows(registry)));
