@@ -59,6 +59,10 @@ pub type Buffer {
     pub List<str> lines = [""];
     /// Whether the loaded file ended with a newline (kept on save).
     pub bool is_eol = true;
+    /// What the file was read as and is written as (MED_fileio): 'fileformat', 'fileencoding', 'bomb'.
+    pub str format = "unix";
+    pub str encoding = "utf-8";
+    pub bool is_bomb = false;
     pub str path = "";
     /// Bumped by every splice.
     pub int tick = 0;

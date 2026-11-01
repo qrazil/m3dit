@@ -22,6 +22,7 @@ import tui.widgets.TUI_menu;
 import tui.core.TUI_mouse;
 import tui.core.TUI_style;
 import engine.MED_buffer;
+import engine.MED_fileio;
 import engine.MED_editor;
 import engine.MED_ex;
 import engine.MED_vim;
@@ -9131,7 +9132,7 @@ str write_slot(Slot slot, str target) {
         MED_projconf.trim_trailing(slot.editor);
     }
     str text = slot.editor.buffer.dump();
-    match (io.write(name, text)) {
+    match (write_text(slot.editor.buffer, name, text)) {
         case Ok(int count): {
             if (slot.path.size() == 0) {
                 slot.path = name;
@@ -9145,8 +9146,38 @@ str write_slot(Slot slot, str target) {
             }
             return "\"" + name + "\" " + slot.editor.buffer.line_count().to_str() + "L, " + count.to_str() + "B written";
         }
-        case Err(io.Error error): {
-            return "E212: Can't open file for writing: " + error.to_str();
+        case Err(str problem): {
+            return problem;
+        }
+    }
+}
+
+/// The bytes of `text` for the file `name`: as they are in the common case, else with the buffer's line ending,
+/// encoding and byte order mark (MED_fileio). Err holds the message to show.
+Result<int, str> write_text(MED_buffer.Buffer buffer, str name, str text) {
+    if (MED_fileio.is_plain(buffer)) {
+        match (io.write(name, text)) {
+            case Ok(int count): {
+                return Result<int, str>.Ok(count);
+            }
+            case Err(io.Error error): {
+                return Result<int, str>.Err("E212: Can't open file for writing: " + error.to_str());
+            }
+        }
+    }
+    match (MED_fileio.encode(text, buffer.format, buffer.encoding, buffer.is_bomb)) {
+        case Ok(bytes raw): {
+            match (io.write_bytes(name, raw)) {
+                case Ok(int count): {
+                    return Result<int, str>.Ok(count);
+                }
+                case Err(io.Error error): {
+                    return Result<int, str>.Err("E212: Can't open file for writing: " + error.to_str());
+                }
+            }
+        }
+        case Err(str problem): {
+            return Result<int, str>.Err(problem);
         }
     }
 }
@@ -9294,14 +9325,21 @@ str file_note(str name, MED_editor.Editor loaded) {
 /// or `name` is empty); an error for a directory or an unreadable file.
 Result<Slot, str> read_slot(int id, str name) {
     str text = "";
+    str format = "unix";
+    str encoding = "utf-8";
+    bool is_bomb = false;
     if (name.size() > 0) {
         if (fs.is_directory(name)) {
             return Result<Slot, str>.Err("\"" + name + "\" is a directory");
         }
         if (fs.is_present(name)) {
-            match (io.read(name)) {
-                case Ok(str content): {
-                    text = content;
+            match (io.read_bytes(name)) {
+                case Ok(bytes raw): {
+                    MED_fileio.Decoded decoded = MED_fileio.decode(raw);
+                    text = decoded.text;
+                    format = decoded.format;
+                    encoding = decoded.encoding;
+                    is_bomb = decoded.is_bomb;
                 }
                 case Err(io.Error error): {
                     return Result<Slot, str>.Err("\"" + name + "\": " + error.to_str());
@@ -9310,6 +9348,9 @@ Result<Slot, str> read_slot(int id, str name) {
         }
     }
     MED_editor.Editor loaded = MED_editor.new(text);
+    loaded.buffer.format = format;
+    loaded.buffer.encoding = encoding;
+    loaded.buffer.is_bomb = is_bomb;
     loaded.buffer.path = name;
     loaded.commentstring = comment_for(name);
     Slot made = Slot(id, loaded, name);

@@ -2248,6 +2248,15 @@ pub str option_text(MED_editor.Editor editor, MED_option.Spec spec) {
     if (name == "shiftround") {
         return bool_text(editor.is_shiftround);
     }
+    if (name == "fileformat") {
+        return editor.buffer.format;
+    }
+    if (name == "fileencoding") {
+        return editor.buffer.encoding;
+    }
+    if (name == "bomb") {
+        return bool_text(editor.buffer.is_bomb);
+    }
     return editor.opts.get(name).or(spec.default);
 }
 
@@ -2287,6 +2296,18 @@ void option_store(MED_editor.Editor editor, MED_option.Spec spec, str text) {
     } else if (name == "iskeyword") {
         editor.opts.set(name, text);
         editor.buffer.keywords = MED_text.keyword_table(text);
+    } else if (name == "fileformat") {
+        if (text == "unix" || text == "dos") {
+            editor.buffer.format = text;
+        }
+    } else if (name == "fileencoding") {
+        if (text == "utf-8" || text == "utf8") {
+            editor.buffer.encoding = "utf-8";
+        } else if (text == "latin1" || text == "iso-8859-1") {
+            editor.buffer.encoding = "latin1";
+        }
+    } else if (name == "bomb") {
+        editor.buffer.is_bomb = is_on;
     } else {
         editor.opts.set(name, text);
         if (name == "clipboard") {

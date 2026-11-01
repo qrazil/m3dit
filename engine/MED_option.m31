@@ -65,6 +65,7 @@ const List<str> SPECS = [
     "tildeop:top:bool:false",
     "gdefault:gd:bool:false",
     "fileformat:ff:str:unix",
+    "fileencoding:fenc:str:utf-8",
     "encoding:enc:str:utf-8",
     "clipboard:cb:str:",
     "backspace:bs:str:indent,eol,start",

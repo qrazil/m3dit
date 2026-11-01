@@ -103,6 +103,60 @@ def recovery_after_kill9(binary, root):
         second.close()
 
 
+def put_bytes(root, name, data):
+    with open(os.path.join(root, name), "wb") as handle:
+        handle.write(data)
+
+
+def get_bytes(root, name):
+    with open(os.path.join(root, name), "rb") as handle:
+        return handle.read()
+
+
+@scenario
+def encoding_and_line_endings(binary, root):
+    put_bytes(root, "crlf.txt", b"one\r\ntwo\r\nthree\r\n")
+    put_bytes(root, "bom.txt", b"\xef\xbb\xbfhello\nworld\n")
+    put_bytes(root, "lat.txt", b"caf\xe9\nx\n")
+    put_bytes(root, "mixed.txt", b"one\r\ntwo\nthree\r\n")
+    for name, edit, shown, expect in (
+        ("crlf.txt", "Ax", "fileformat=dos", b"onex\r\ntwo\r\nthree\r\n"),
+        ("bom.txt", "Ax", "bomb", b"\xef\xbb\xbfhellox\nworld\n"),
+        ("lat.txt", "Ax", "fileencoding=latin1", b"caf\xe9x\nx\n"),
+        ("mixed.txt", "Ax", "fileformat=unix", b"one\rx\ntwo\nthree\r\n"),
+    ):
+        s = Session(binary, root, [name])
+        try:
+            s.pump(0.5)
+            key = {"crlf.txt": ":set ff?\r", "bom.txt": ":set bomb?\r", "lat.txt": ":set fenc?\r", "mixed.txt": ":set ff?\r"}[name]
+            s.send(key, settle=0.4)
+            assert shown in s.text(), "%s: %r not on screen:\n%s" % (name, shown, s.text())
+            s.send("\x1b", settle=0.2)
+            if name == "lat.txt":
+                s.send("gg", settle=0.2)
+                assert "caf\u00e9" in s.text(), s.text()
+            else:
+                s.send("gg", settle=0.2)
+            s.send(edit + "\x1b", settle=0.3)
+            s.send(":w\r", settle=0.5)
+            assert "written" in s.text(), s.text()
+            got = get_bytes(root, name)
+            assert got == expect, "%s: wrote %r, wanted %r" % (name, got, expect)
+        finally:
+            s.close()
+    # a character Latin-1 cannot hold is refused, the file stays as it was
+    s = Session(binary, root, ["lat.txt"])
+    try:
+        s.pump(0.6)
+        s.send("A\u65e5\x1b:w\r".encode("utf-8"), settle=0.5)
+        assert "E513" in s.text(), s.text()
+        assert get_bytes(root, "lat.txt") == b"caf\xe9x\nx\n"
+        s.send(":set fenc=utf-8\r:w\r", settle=0.5)
+        assert b"\xc3\xa9" in get_bytes(root, "lat.txt"), "fenc=utf-8 should write UTF-8"
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
