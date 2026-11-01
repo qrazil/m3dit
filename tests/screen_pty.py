@@ -138,6 +138,7 @@ SCENARIOS = [
     ("theme_light", ["main.py"], ROWS, COLS, False, [":theme default-light\r"]),
     ("theme_tokyonight", ["main.py"], ROWS, COLS, False, [":theme tokyonight\r"]),
     ("error_message", [], ROWS, COLS, False, [":nosuchcommand\r"]),
+    ("notify_toast", ["main.py"], ROWS, COLS, False, [":Notify error disk almost full: free some space and try again\r", (WAIT, 0.5)]),
     ("cmdline_substitute", ["notes.md"], ROWS, COLS, False, [":%s/item/ITEM/g\r"]),
     ("surround_and_pairs", ["notes.md"], ROWS, COLS, False, ["ysiw)", "o(a[b", ESC]),
     ("comment_toggle", ["main.py"], ROWS, COLS, False, ["jjjgcc"]),
@@ -389,8 +390,16 @@ def main():
             shutil.rmtree(scratch, ignore_errors=True)
     if record:
         os.makedirs(os.path.dirname(golden), exist_ok=True)
+        recorded_from = os.path.basename(binary)
+        if only is not None and os.path.exists(golden):
+            # --only --record updates those scenarios and keeps the rest of the file
+            with open(golden) as handle:
+                kept = json.load(handle)
+            recorded_from = kept.get("recorded_from", recorded_from)
+            kept["scenarios"].update(results)
+            results = kept["scenarios"]
         with open(golden, "w") as handle:
-            json.dump({"recorded_from": os.path.basename(binary), "rows": ROWS, "cols": COLS, "scenarios": results},
+            json.dump({"recorded_from": recorded_from, "rows": ROWS, "cols": COLS, "scenarios": results},
                       handle, indent=1, sort_keys=True, ensure_ascii=False)
             handle.write("\n")
         print("recorded %d scenarios in %s" % (len(results), golden))

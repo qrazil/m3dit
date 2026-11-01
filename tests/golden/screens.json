@@ -1041,6 +1041,48 @@
     ""
    ]
   },
+  "notify_toast": {
+   "bytes": 2811,
+   "cursor": [
+    29,
+    0,
+    true
+   ],
+   "raw": "201f712ab0f844cd463d4764a737e045ca6da867",
+   "style": "5010d1e4a265fd21b3e4d1711636cfdfba27f6e1",
+   "text": [
+    "  1 import os                                         ╭─ Error ───────────────────────────────────╮",
+    "  2                                                   │ disk almost full: free some space and try │",
+    "  3 # TODO: handle errors                             │ again                                     │",
+    "  4 def main(argv):                                   ╰───────────────────────────────────────────╯",
+    "  5 │   names = [a.upper() for a in argv]",
+    "  6 │   for name in names:",
+    "  7 │       print(name, 'ok')  # FIXME later",
+    "  8 │   return 0",
+    "  9",
+    " 10",
+    " 11 if __name__ == '__main__':",
+    " 12 │   main(os.sys.argv)",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    "~",
+    " NORMAL  main.py                                                                    python  1:1  8%",
+    ""
+   ]
+  },
   "number_options": {
    "bytes": 3186,
    "cursor": [
@@ -1210,13 +1252,13 @@
    ]
   },
   "plugin_disable": {
-   "bytes": 2244,
+   "bytes": 2189,
    "cursor": [
     29,
     0,
     true
    ],
-   "raw": "0bb5d8af8e4eeb70beaa3b27359c92c7caf91017",
+   "raw": "0635a6da34baa95601b504782a88ec1e2d751543",
    "style": "ea944f01672d3c6bdf331675ef2251b086e6f447",
    "text": [
     "  1 import os",
@@ -1247,23 +1289,21 @@
     "~",
     "~",
     "~",
-    " NORMAL  main.py                                                                            1:1  8%",
+    " NORMAL  main.py                                                                    python  1:1  8%",
     ""
    ]
   },
   "plugins_list": {
-   "bytes": 4236,
+   "bytes": 4530,
    "cursor": [
     27,
     100,
     true
    ],
-   "raw": "e393945ea5c829d664e771afec8fc5cef477b625",
-   "style": "89f82481f572704c0e48a8a21667a12dd30448fe",
+   "raw": "d15f1bbf1f298c1d79b41ae7b530187f26304738",
+   "style": "a22ee6f042b61d94086b085ba3018ea69210b004",
    "text": [
     "  1",
-    "~",
-    "~",
     "~",
     "~",
     "~",
@@ -1288,6 +1328,8 @@
     "  on   terminal  :terminal, <Space>t, :! :r! filters",
     "  on   session  remember the cursor position of each file",
     "  on   lsp  language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13)",
+    "Compiled plugins (api 0.3.0):",
+    "  lazy  notify  toast notifications in the top right corner, and :Notifications history",
     "Press ENTER or type command to continue",
     " NORMAL  [No Name]                                                                        1:1  100%",
     ""
@@ -1788,13 +1830,13 @@
    ]
   },
   "which_key_bracket": {
-   "bytes": 3699,
+   "bytes": 3702,
    "cursor": [
     21,
     63,
     true
    ],
-   "raw": "2f2306e9be5642454b15b20066936b5bfb9cbb6a",
+   "raw": "7ddc39fa028d1ab5a2278ba327679ee98127d828",
    "style": "549c2d35ebd0e582ba5b988bf24bf63ecf03c3bb",
    "text": [
     "  1 import os",
@@ -1920,7 +1962,7 @@
     69,
     true
    ],
-   "raw": "d0009d9ae74b1749eb3946e8b84afe486a8e471e",
+   "raw": "29c1dd7f24964bf2d5fde84efef5a6639196b253",
    "style": "2f6b40b3c3cd53d909bd8008b755e07c94199915",
    "text": [
     "  1                            ╭<Space>─────────────────────────────╮",
@@ -1942,14 +1984,14 @@
     "~                              │ ?        All keys                  │",
     "~                              │ j        Jump to a label           │",
     "~                              │ g        +git                      │",
+    "~                              │ l        +diagnostics              │",
+    "~                              │ ]        +more                     │",
+    "~                              │ [        +more                     │",
+    "~                              │ x        +trouble                  │",
+    "~                              │ c        +code                     │",
+    "~                              │ t        Terminal                  │",
     "~                              │ h        +harpoon                  │",
     "~                              │ 1        Harpoon: file 1           │",
-    "~                              │ 2        Harpoon: file 2           │",
-    "~                              │ 3        Harpoon: file 3           │",
-    "~                              │ 4        Harpoon: file 4           │",
-    "~                              │ 5        Harpoon: file 5           │",
-    "~                              │ 6        Harpoon: file 6           │",
-    "~                              │ 7        Harpoon: file 7           │",
     "~                              ╰────────────────────────────────────╯",
     " NORMAL  [No Name]                                                                        1:1  100%",
     "                                                                                            <Space>"

@@ -357,6 +357,7 @@ def surfaces(quick):
         Surface("hunk preview", "gg:Hunk preview\r", "\r", wait=0.5),
         Surface("which-key", " ", "\x1b", kind="popup", popup_rows=0, wait=0.4),
         Surface("which-key, a sub-prefix", " f", "\x1b\x1b", kind="popup", popup_rows=0, wait=0.4),
+        Surface("notification box (notify plugin)", ":Notify warn disk almost full\r", ":NotifyClear\r", kind="popup", popup_rows=0, wait=0.4),
         Surface("jump labels", " j", "\x1b", kind="popup", popup_rows=2, wait=0.4),
         Surface("finder: files", " ff", "\x1b", kind="popup", popup_rows=1, wait=0.5),
         Surface("finder: files, typed query, second row selected", " ffm\x0e", "\x1b", kind="popup", popup_rows=1,

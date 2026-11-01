@@ -53,10 +53,13 @@ if out=$(bash scripts/plugins.sh resolve --plugin-dir "$fixtures" --plugins gree
 else
     case "$out" in *"requires hello"*) note "--without refuses a plugin that a kept one requires" ;; *) bad "--without refusal text" "$out" ;; esac
 fi
-if [ "$(bash scripts/plugins.sh resolve --without move 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --no-plugins 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --profile minimal 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --plugins move 2>&1)" = "move" ]; then
-    note "--without move, --no-plugins and the minimal profile are empty; --plugins move is move"
+all_plugins=$(bash scripts/plugins.sh resolve 2>/dev/null | tr '\n' ' ')
+without_move=$(bash scripts/plugins.sh resolve --without move 2>/dev/null | tr '\n' ' ')
+want_without_move=$(printf '%s\n' $all_plugins | grep -v '^move$' | tr '\n' ' ')
+if [ "$without_move" = "$want_without_move" ] && [ -n "$all_plugins" ] && [ "$(bash scripts/plugins.sh resolve --no-plugins 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --profile minimal 2>&1)" = "" ] && [ "$(bash scripts/plugins.sh resolve --plugins move 2>&1)" = "move" ]; then
+    note "--without move drops move only; --no-plugins and the minimal profile are empty; --plugins move is move"
 else
-    bad "profile and selection of the move plugin"
+    bad "profile and selection of the move plugin" "without: $without_move" "want:    $want_without_move"
 fi
 if out=$(bash scripts/plugins.sh resolve --plugin-dir "$fixtures" --plugins nosuch 2>&1); then
     bad "an unknown plugin is refused" "$out"
@@ -81,7 +84,7 @@ fi
 # builds with the fixture plugins
 if LANGC="$LANGC" bash scripts/build.sh --plugin-dir "$fixtures" --plugins hello -o "$WORK/m3_hello" >"$WORK/m3_hello.log" 2>&1 \
     && LANGC="$LANGC" bash scripts/build.sh --plugin-dir "$fixtures" --plugins greeter -o "$WORK/m3_greeter" >"$WORK/m3_greeter.log" 2>&1; then
-    if out=$("$WORK/m3_greeter" --version 2>&1) && [ "$out" = "m3 $(grep '^version ' deps | awk '{print $2}') (api 0.2.0; plugins: hello greeter)" ]; then
+    if out=$("$WORK/m3_greeter" --version 2>&1) && [ "$out" = "m3 $(grep '^version ' deps | awk '{print $2}') (api 0.3.0; plugins: hello greeter)" ]; then
         note "m3 --version names the api and the plugins: $out"
     else
         bad "m3 --version with plugins" "$out"
