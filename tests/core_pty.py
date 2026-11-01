@@ -239,6 +239,37 @@ def osc52_without_clipboard_tool(binary, root):
         s.close()
 
 
+def cpu_ticks(pid):
+    """User plus system clock ticks of a process, or None where there is no /proc (macOS)."""
+    try:
+        with open("/proc/%d/stat" % pid) as handle:
+            fields = handle.read().rsplit(")", 1)[1].split()
+        return int(fields[11]) + int(fields[12])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+@scenario
+def long_line_idle_cpu(binary, root):
+    """An idle editor on a one-line 1 MB file must not scan the line on every tick (it once cost 60 percent of a core)."""
+    with open(os.path.join(root, "long.txt"), "w") as handle:
+        handle.write("word " * 200000 + "\n")
+    s = Session(binary, root, ["long.txt"])
+    try:
+        assert s.wait_for("word", timeout=30), s.text()
+        if cpu_ticks(s.proc.pid) is None:
+            print("     (no /proc here: idle CPU not measured)")
+            return
+        s.pump(2.0)
+        before = cpu_ticks(s.proc.pid)
+        s.pump(3.0)
+        used = cpu_ticks(s.proc.pid) - before
+        hz = os.sysconf("SC_CLK_TCK")
+        assert used < 0.15 * 3.0 * hz, "idle for 3 s used %d ticks (%.0f percent of a core)" % (used, 100.0 * used / (3.0 * hz))
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

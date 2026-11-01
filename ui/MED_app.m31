@@ -8945,7 +8945,13 @@ str paste_text(List<int> keys) {
 /// The language a file is served as: what `SYN_detect` says, with TypeScript
 /// folded onto JavaScript (one language server handles both).
 pub str server_language_of(str path, str first_line) {
-    str lang = SYN_detect.language_of(path, first_line);
+    // only the start of the line can be a shebang or a modeline; a minified one-line file must not be scanned
+    // whole by every tick
+    str head = first_line;
+    if (head.size() > 512) {
+        head = head.substr(0, 512);
+    }
+    str lang = SYN_detect.language_of(path, head);
     if (lang == "typescript") {
         return "javascript";
     }
