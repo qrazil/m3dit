@@ -356,7 +356,8 @@ def statusline_tabline_guides(binary, root):
         s.send(":PluginDisable guides\r", settle=0.3)
         assert "\u2502" not in s.text(), s.text()
         s.send(":PluginDisable statusline\r", settle=0.3)
-        assert "python" not in s.text().split("\n")[-2], s.text()
+        # the filetype is the core's minimal status line; the branch and the buffer line were the plugin's
+        assert "trunk" not in s.text().split("\n")[-2] and "hello.txt" not in s.text().split("\n")[0], s.text()
     finally:
         s.close()
 
