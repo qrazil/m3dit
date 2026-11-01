@@ -1603,6 +1603,8 @@ void App.run_requests() {
 /// for another buffer) unless it was forced.
 bool App.did_finish() {
     run_requests();
+    editor.log_message();
+    editor.log_notice(notice);
     if (editor.message.contains("\n") && editor.mode != MED_editor.CMDLINE) {
         overlay = editor.message.split("\n");
     }
@@ -9102,6 +9104,9 @@ Slot listing_slot(int id, str directory, str focus, bool is_hidden_shown) {
 /// state, the dot command, histories and the options.
 void share_state(MED_editor.Editor from, MED_editor.Editor into) {
     into.regs = from.regs;
+    into.message_log = from.message_log;
+    into.message_logged = from.message_logged;
+    into.notice_logged = from.notice_logged;
     into.search_pattern = from.search_pattern;
     into.search_directory = from.search_directory;
     into.sub_pattern = from.sub_pattern;

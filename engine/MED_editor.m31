@@ -210,6 +210,11 @@ pub type Editor {
     /// Set by a command that failed (Vim would beep and flush macro input).
     pub bool is_failed = false;
     pub str message = "";
+    /// The message ring behind `:messages`: every message shown, oldest first (`log_message`).
+    pub List<str> message_log = [];
+    /// The last text `log_message` saw, so a message that stays on the screen is logged once.
+    pub str message_logged = "";
+    pub str notice_logged = "";
     pub bool is_quit = false;
     pub bool is_force_quit = false;
     /// The quit asked for closes one window (:q :wq :x ZZ ZQ), not the editor (:qa).
@@ -572,6 +577,50 @@ pub void Editor.set_cursor(MED_buffer.Pos position) {
 
 /// Start the undo block now, remembering the cursor as it is (what Vim's
 /// u_save() sees when an ex command positions the cursor "for undo").
+/// The most messages the ring keeps; the oldest go first.
+pub const int MESSAGE_LOG_MAX = 200;
+
+/// Put `text` (one message, or a listing of several lines) in the ring unless it is the one logged last. Empty text
+/// re-arms the ring so the same message shown again later counts again.
+pub void Editor.log_text(str text) {
+    if (text == "") {
+        message_logged = "";
+        return;
+    }
+    if (text == message_logged) {
+        return;
+    }
+    message_logged = text;
+    push_log(text);
+}
+
+/// Like `log_text` for the front end's own notice (written, E37 ...), which has its own "logged last" memory.
+pub void Editor.log_notice(str text) {
+    if (text == "") {
+        notice_logged = "";
+        return;
+    }
+    if (text == notice_logged) {
+        return;
+    }
+    notice_logged = text;
+    push_log(text);
+}
+
+void Editor.push_log(str text) {
+    for (str line in text.split("\n")) {
+        message_log.push(line);
+    }
+    while (message_log.size() > MESSAGE_LOG_MAX) {
+        message_log.remove_at(0);
+    }
+}
+
+/// Log the message the engine is showing now (the front end calls this after every key).
+pub void Editor.log_message() {
+    log_text(message);
+}
+
 pub void Editor.open_block() {
     if (!is_block_open) {
         is_block_open = true;

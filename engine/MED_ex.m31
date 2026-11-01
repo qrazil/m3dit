@@ -1810,7 +1810,7 @@ Step exec_cmd(MED_editor.Editor editor, Cmd cmd) {
         }
         return done();
     }
-    if (name == "undojoin" || name == "echo" || name == "echomsg" || name == "redraw" || name == "messages" || name == "highlight" || name == "filetype" || name == "version" || name == "history" || name == "pwd") {
+    if (name == "undojoin" || name == "echo" || name == "echomsg" || name == "redraw" || name == "highlight" || name == "filetype" || name == "version" || name == "history" || name == "pwd") {
         return done();
     }
     if (name == "left" || name == "right" || name == "center") {
@@ -1935,6 +1935,17 @@ Step exec_cmd(MED_editor.Editor editor, Cmd cmd) {
             editor.requests.push("vnew " + tail);
         } else {
             return fail(editor, "E492: Not an editor command: vertical " + rest);
+        }
+        return done();
+    }
+    if (name == "messages") {
+        if (cmd.arg.trim() == "clear") {
+            while (editor.message_log.size() > 0) {
+                editor.message_log.pop();
+            }
+        } else if (editor.message_log.size() > 0) {
+            editor.message = editor.message_log.join("\n");
+            editor.message_logged = editor.message;
         }
         return done();
     }
