@@ -7,6 +7,8 @@
 import engine.MED_buffer;
 import ext.MED_ext;
 
+/// How many bytes of a line the badge looks at.
+const int LIMIT = 2000;
 const List<str> WORDS = ["TODO", "FIXME", "HACK", "XXX", "NOTE", "WARN", "PERF", "BUG"];
 
 bool is_word_byte(int byte) {
@@ -46,7 +48,12 @@ type Badge {
 List<MED_ext.Span> Badge.spans(str line) {
     List<MED_ext.Span> marks = [];
     Hit found = Hit();
-    int position = find_word(line, found);
+    // only the first LIMIT bytes: a one-line megabyte file must not be scanned for every frame
+    str head = line;
+    if (line.size() > LIMIT) {
+        head = line.substr(0, LIMIT);
+    }
+    int position = find_word(head, found);
     if (position >= 0) {
         marks.push(MED_ext.Span(position, position + found.size, "ui.todo", is_in_comment: true));
     }

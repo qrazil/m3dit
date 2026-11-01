@@ -1,0 +1,265 @@
+// `:autocmd`, `:augroup`, `:doautocmd` and `:command` (ROADMAP items 24 and 25): the part of Vim's event and user
+// command machinery that replaces most of what people write a script for. Commands stay ex lines; there is no
+// scripting language. The Editor keeps the records (`autocmds`, `user_defs`); this module parses, matches and
+// expands, and MED_ex stores and runs.
+//
+// API
+// ---
+//   MED_autocmd.is_event(name)                         a known event name (case as Vim writes it)
+//   MED_autocmd.parse(arg, group)                      Parsed: events, patterns, once, command (for `:autocmd EVENT PAT CMD`)
+//   MED_autocmd.matching(editor, event, subject)       the commands to run now; `++once` records are dropped
+//   MED_autocmd.is_glob_match(pattern, name)                    does the file pattern match this path (or its tail)
+//   MED_autocmd.expand(template, arguments, bang, line1, line2, count) the replacement text of a user command
+//
+// Events: BufWritePre BufWritePost BufReadPost (BufRead) BufNewFile BufEnter BufLeave FileType InsertEnter InsertLeave
+// VimEnter VimLeavePre TextYankPost. For FileType the pattern is matched against the file type, for the others
+// against the buffer's path (a pattern without `/` against its last component, `{a,b}` alternatives, `*` and `?`).
+//
+// A record is "EVENT\x01PATTERN\x01GROUP\x01ONCE\x01COMMAND".
+
+import engine.MED_editor;
+
+pub const str SEP = "\x01";
+const List<str> EVENTS = ["BufWritePre", "BufWritePost", "BufReadPost", "BufRead", "BufNewFile", "BufEnter", "BufLeave", "FileType", "InsertEnter", "InsertLeave", "VimEnter", "VimLeavePre", "TextYankPost", "BufWrite"];
+
+pub bool is_event(str name) {
+    return EVENTS.contains(name);
+}
+
+/// The event as the records and `fire` spell it (aliases folded).
+pub str canonical_event(str name) {
+    if (name == "BufRead") {
+        return "BufReadPost";
+    }
+    if (name == "BufWrite") {
+        return "BufWritePre";
+    }
+    return name;
+}
+
+pub type Parsed {
+    pub bool is_ok = true;
+    pub str error = "";
+    pub List<str> events = [];
+    pub List<str> patterns = [];
+    pub bool is_once = false;
+    pub str command = "";
+    pub str group = "";
+}
+
+List<str> words_of(str text) {
+    List<str> out = [];
+    for (str piece in text.split(" ")) {
+        if (piece.size() > 0) {
+            out.push(piece);
+        }
+    }
+    return out;
+}
+
+/// `EVENT[,EVENT] PATTERN[,PATTERN] [++once] [++nested|nested] COMMAND` (the group, when it is named in the line, is
+/// the first word and must not be an event).
+pub Parsed parse(str arg, str current_group) {
+    Parsed out = Parsed();
+    out.group = current_group;
+    str rest = arg.trim();
+    str first = rest.split(" ")[0];
+    bool is_first_event = true;
+    for (str one in first.split(",")) {
+        if (one != "*" && !is_event(one)) {
+            is_first_event = false;
+        }
+    }
+    if (!is_first_event && first.size() > 0) {
+        out.group = first;
+        rest = rest.substr(first.size(), rest.size()).trim();
+    }
+    if (rest.size() == 0) {
+        out.is_ok = false;
+        out.error = "E471: Argument required";
+        return out;
+    }
+    int space = rest.index_of(" ").or(rest.size());
+    str event_text = rest.substr(0, space);
+    rest = rest.substr(space, rest.size()).trim();
+    for (str one in event_text.split(",")) {
+        if (one == "*") {
+            for (str known in EVENTS) {
+                if (known != "BufRead" && known != "BufWrite") {
+                    out.events.push(known);
+                }
+            }
+        } else if (is_event(one)) {
+            out.events.push(canonical_event(one));
+        } else {
+            out.is_ok = false;
+            out.error = "E216: No such group or event: " + one;
+            return out;
+        }
+    }
+    if (rest.size() == 0) {
+        return out;
+    }
+    space = rest.index_of(" ").or(rest.size());
+    str pattern_text = rest.substr(0, space);
+    rest = rest.substr(space, rest.size()).trim();
+    for (str one in split_alternatives(pattern_text)) {
+        out.patterns.push(one);
+    }
+    while (rest.starts_with("++once") || rest.starts_with("++nested") || rest.starts_with("nested ") || rest == "nested" || rest.starts_with("once ")) {
+        if (rest.starts_with("++once")) {
+            out.is_once = true;
+            rest = rest.substr(6, rest.size()).trim();
+        } else if (rest.starts_with("++nested")) {
+            rest = rest.substr(8, rest.size()).trim();
+        } else if (rest.starts_with("nested")) {
+            rest = rest.substr(6, rest.size()).trim();
+        } else {
+            rest = rest.substr(4, rest.size()).trim();
+        }
+    }
+    out.command = rest;
+    return out;
+}
+
+/// A comma list of patterns, where a comma inside `{ }` belongs to the alternatives.
+List<str> split_alternatives(str text) {
+    List<str> out = [];
+    int depth = 0;
+    str current = "";
+    for (int code in text.chars()) {
+        if (code == 123) {
+            depth = depth + 1;
+        } else if (code == 125 && depth > 0) {
+            depth = depth - 1;
+        }
+        if (code == 44 && depth == 0) {
+            out.push(current);
+            current = "";
+        } else {
+            current = current + str.from_chars([code]);
+        }
+    }
+    out.push(current);
+    return out;
+}
+
+/// `{a,b}` groups expanded into plain patterns.
+List<str> expand_braces(str pattern) {
+    int opening = pattern.index_of("{").or(-1);
+    if (opening < 0) {
+        return [pattern];
+    }
+    int closing = pattern.substr(opening, pattern.size()).index_of("}").or(-1);
+    if (closing < 0) {
+        return [pattern];
+    }
+    closing = closing + opening;
+    List<str> out = [];
+    for (str choice in pattern.substr(opening + 1, closing).split(",")) {
+        for (str tail in expand_braces(pattern.substr(closing + 1, pattern.size()))) {
+            out.push(pattern.substr(0, opening) + choice + tail);
+        }
+    }
+    return out;
+}
+
+bool is_glob_match_at(List<int> pattern, int at_pattern, List<int> name, int at_name) {
+    while (at_pattern < pattern.size()) {
+        int code = pattern[at_pattern];
+        if (code == 42) {
+            for (int skip in at_name .. name.size() + 1) {
+                if (is_glob_match_at(pattern, at_pattern + 1, name, skip)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (at_name >= name.size()) {
+            return false;
+        }
+        if (code != 63 && code != name[at_name]) {
+            return false;
+        }
+        at_pattern = at_pattern + 1;
+        at_name = at_name + 1;
+    }
+    return at_name == name.size();
+}
+
+/// Whether `pattern` matches `name` (a path): `*` any run, `?` any character, `{a,b}` alternatives. A pattern
+/// without a `/` is matched against the last component of the path.
+pub bool is_glob_match(str pattern, str name) {
+    str subject = name;
+    if (!pattern.contains("/")) {
+        List<str> parts = name.split("/");
+        subject = parts[parts.size() - 1];
+    }
+    for (str one in expand_braces(pattern)) {
+        if (is_glob_match_at(one.chars(), 0, subject.chars(), 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// The commands of the records for `event` whose pattern matches `subject` (the path; the file type for FileType).
+/// A `++once` record is dropped when it is taken.
+pub List<str> matching(MED_editor.Editor editor, str event, str subject) {
+    List<str> out = [];
+    List<str> keep = [];
+    for (str record in editor.autocmds) {
+        List<str> parts = record.split(SEP);
+        if (parts.size() < 5 || parts[0] != event) {
+            keep.push(record);
+            continue;
+        }
+        bool is_match = false;
+        if (event == "VimEnter" || event == "VimLeavePre" || event == "InsertEnter" || event == "InsertLeave" || event == "TextYankPost") {
+            is_match = true;
+        } else if (parts[1] == "*") {
+            is_match = true;
+        } else {
+            is_match = is_glob_match(parts[1], subject);
+        }
+        if (!is_match) {
+            keep.push(record);
+            continue;
+        }
+        out.push(parts.slice(4, parts.size()).join(SEP));
+        if (parts[3] != "1") {
+            keep.push(record);
+        }
+    }
+    if (keep.size() != editor.autocmds.size()) {
+        while (editor.autocmds.size() > 0) {
+            editor.autocmds.pop();
+        }
+        for (str record in keep) {
+            editor.autocmds.push(record);
+        }
+    }
+    return out;
+}
+
+/// The text a user command runs: `<args>`, `<q-args>`, `<f-args>`, `<bang>`, `<line1>`, `<line2>`, `<range>`, `<count>`.
+pub str expand(str template, str arguments, bool is_bang, int line1, int line2, int count) {
+    str quoted = "\"" + arguments.split("\\").join("\\\\").split("\"").join("\\\"") + "\"";
+    List<str> pieces = [];
+    for (str word in words_of(arguments)) {
+        pieces.push("'" + word.split("'").join("''") + "'");
+    }
+    str bang = "";
+    if (is_bang) {
+        bang = "!";
+    }
+    str out = template;
+    out = out.split("<q-args>").join(quoted);
+    out = out.split("<f-args>").join(pieces.join(", "));
+    out = out.split("<args>").join(arguments);
+    out = out.split("<bang>").join(bang);
+    out = out.split("<line1>").join(line1.to_str());
+    out = out.split("<line2>").join(line2.to_str());
+    out = out.split("<count>").join(count.to_str());
+    return out;
+}

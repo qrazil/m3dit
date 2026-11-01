@@ -314,6 +314,15 @@ pub int first_nonblank(str line) {
     return size;
 }
 
+/// The first 512 bytes of a line: all that file type detection (a shebang, a modeline) may look at, so a minified
+/// one-line file is not scanned whole every time the status line or a tick asks what the language is.
+pub str head(str line) {
+    if (line.size() > 512) {
+        return line.substr(0, 512);
+    }
+    return line;
+}
+
 /// Width of the cluster at `col` if it starts at screen column `spot`.
 pub int cell_width(str line, int col, int spot, int tab) {
     int code_point = cp_at(line, col);

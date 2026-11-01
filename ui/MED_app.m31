@@ -22,6 +22,7 @@ import tui.widgets.TUI_menu;
 import tui.core.TUI_mouse;
 import tui.core.TUI_style;
 import engine.MED_buffer;
+import engine.MED_fileio;
 import engine.MED_editor;
 import engine.MED_ex;
 import engine.MED_vim;
@@ -83,6 +84,8 @@ const int GREP_DEBOUNCE_MS = 120;
 const int MAP_TIMEOUT_MS = 1000;
 /// How often (ms) the active buffer's file is checked for an outside change.
 const int WATCH_MS = 1000;
+/// Quiet time before the recovery files are brought up to date.
+const int RECOVER_MS = 1500;
 const int PREVIEW_LINES = 3000;
 /// A preview line is kept this many columns long (the pane is never wider).
 const int PREVIEW_COLUMNS = 400;
@@ -121,6 +124,8 @@ pub type Slot {
     pub List<str> local_lines = [];
     /// The file on disk as last read or written (MED_persist.disk_stamp), to notice an outside change.
     pub str stamp = "";
+    /// `editor.buffer.tick` when the recovery file was last written (-1: never).
+    pub int recover_tick = -1;
 }
 
 /// A terminal pane: a program on a pty whose output fills a buffer.
@@ -276,6 +281,9 @@ pub type App {
     /// Time since the last disk check ('autoread') and since the last key ('autosave').
     int watch_ms = 0;
     int quiet_ms = 0;
+    int recover_ms = 0;
+    /// The mode the last key left, to tell InsertEnter and InsertLeave autocommands.
+    int autocmd_mode = 0;
     str lsp_failed_for = "";
     bool is_lsp_gr = false;
     /// Label jump: 0 off, 1 waiting for the character to look for, 2 for a label.
@@ -508,6 +516,7 @@ void App.activate(int id) {
     editor.view_left = left_column;
     editor.view_height = current_text_rows();
     check_disk();
+    fire_autocmd("BufEnter", editor.buffer.path);
 }
 
 /// Run the project settings of `slot` on its editor.
@@ -528,7 +537,7 @@ pub void App.apply_project(Slot slot) {
     if (file.size() == 0) {
         return;
     }
-    str language = SYN_detect.language_of(slot.path, slot.editor.buffer.line(0));
+    str language = SYN_detect.language_of(slot.path, MED_text.head(slot.editor.buffer.line(0)));
     MED_projconf.Conf conf = MED_projconf.for_file(file, language);
     slot.local_lines = conf.lines;
     run_local(slot);
@@ -563,6 +572,7 @@ void App.adopt(Slot slot) {
     apply_fold_start(slot);
     restore_undo();
     if (!slot.is_listing) {
+        fire_autocmd_opened(slot);
         ext_fire_slot(MED_ext.Event.BufferOpen, slot, slot.path);
     }
 }
@@ -940,6 +950,104 @@ void App.autosave_idle(int elapsed_ms) {
     }
 }
 
+/// Keep a recovery file of every modified buffer once the user has been quiet for RECOVER_MS (the 'recover'
+/// option, seconds; 0 turns it off, and the state directory must exist: `-u NONE` keeps none). Only buffers whose
+/// text changed since the last write are written, so an idle editor costs a loop over the buffers per tick.
+void App.recover_idle(int elapsed_ms) {
+    if (state_directory.size() == 0) {
+        return;
+    }
+    if (recover_ms < 0) {
+        return;
+    }
+    recover_ms = recover_ms + elapsed_ms;
+    if (recover_ms < RECOVER_MS) {
+        return;
+    }
+    if (editor.option_number("recover", 1) <= 0) {
+        return;
+    }
+    // done until the next key
+    recover_ms = -1000000000;
+    save_active();
+    for (int position in 0 .. slots.size()) {
+        Slot slot = slots[position];
+        if (!is_recoverable(slot) || slot.recover_tick == slot.editor.buffer.tick) {
+            continue;
+        }
+        if (is_slot_modified(slot)) {
+            MED_persist.save_recovery(state_directory, absolute_of(slot.path), slot.stamp, slot_text(slot));
+        } else {
+            drop_recovery(slot);
+        }
+        slot.recover_tick = slot.editor.buffer.tick;
+    }
+}
+
+/// The editor ends on purpose (:q! and :qa!): the unsaved text is given up, so no recovery file stays behind.
+void App.forget_recovery() {
+    save_active();
+    for (Slot slot in slots) {
+        if (is_recoverable(slot)) {
+            MED_persist.remove_recovery(state_directory, absolute_of(slot.path));
+        }
+    }
+}
+
+/// The buffer is saved (or given up): its recovery file is stale.
+void App.drop_recovery(Slot slot) {
+    if (state_directory.size() == 0 || !is_recoverable(slot) || is_slot_modified(slot)) {
+        return;
+    }
+    MED_persist.remove_recovery(state_directory, absolute_of(slot.path));
+    slot.recover_tick = slot.editor.buffer.tick;
+}
+
+/// A buffer was opened: say so when a recovery file of a session that did not end normally holds other text.
+void App.check_recovery() {
+    if (state_directory.size() == 0 || path.size() == 0 || is_in_listing()) {
+        return;
+    }
+    str file = absolute_of(path);
+    if (!MED_persist.has_recovery(state_directory, file)) {
+        return;
+    }
+    str saved = MED_persist.read_recovery(state_directory, file);
+    if (saved == editor.buffer.dump()) {
+        MED_persist.remove_recovery(state_directory, file);
+        return;
+    }
+    active_slot().recover_tick = editor.buffer.tick;
+    notice = "W325: unsaved text of an earlier session is kept for this file: :recover loads it, :recover! forgets it";
+}
+
+/// `:recover` loads the recovery file into the active buffer as one undoable change; `:recover!` removes it.
+void App.recover(bool is_forced) {
+    Slot slot = active_slot();
+    if (!is_recoverable(slot) || !MED_persist.has_recovery(state_directory, absolute_of(slot.path))) {
+        notice = "E305: No swap file found for " + slot.path;
+        return;
+    }
+    str file = absolute_of(slot.path);
+    if (is_forced) {
+        MED_persist.remove_recovery(state_directory, file);
+        notice = "recovery file removed";
+        return;
+    }
+    str saved = MED_persist.read_recovery(state_directory, file);
+    MED_buffer.Buffer fresh = MED_buffer.load(saved);
+    int last = editor.buffer.line_count() - 1;
+    editor.open_block();
+    editor.change(MED_buffer.Pos(0, 0), MED_buffer.Pos(last, editor.buffer.line_size(last)), fresh.lines.join("\n"));
+    editor.end_block();
+    editor.buffer.is_eol = fresh.is_eol;
+    editor.row = 0;
+    editor.col = 0;
+    editor.clamp();
+    editor.want_from_cursor();
+    notice = "recovered the unsaved text; :w to keep it";
+}
+
 /// `:e [file]`, `:e!`, `:e #`, `:enew`.
 void App.edit(str target, bool is_forced) {
     str name = target.trim();
@@ -1198,6 +1306,8 @@ void App.run_request(str request) {
         run_session(arg);
     } else if (name == "checktime") {
         check_disk();
+    } else if (name == "recover") {
+        recover(is_forced);
     } else if (name == "edit") {
         edit(arg, is_forced);
     } else if (name == "enew") {
@@ -1254,6 +1364,8 @@ void App.run_request(str request) {
         run_git_read(arg);
     } else if (name == "Hunk") {
         run_hunk_command(arg);
+    } else if (name == "Registers") {
+        open_picker("registers", arg);
     } else if (name == "Recent") {
         open_picker("recent", arg);
     } else if (name == "Symbols") {
@@ -1288,6 +1400,14 @@ void App.run_request(str request) {
         has_picker = false;
     } else if (name == "cdo" || name == "cfdo" || name == "bufdo") {
         run_do(name, arg);
+    } else if (name == "cc") {
+        go_quickfix_number(arg.trim());
+    } else if (name == "clist") {
+        list_quickfix();
+    } else if (name == "cwindow") {
+        if (quickfix_list.size() > 0) {
+            open_picker("quickfix", "");
+        }
     } else if (name == "cnext") {
         go_quickfix(1);
     } else if (name == "cprevious" || name == "cNext") {
@@ -1595,6 +1715,9 @@ void App.run_requests() {
 /// for another buffer) unless it was forced.
 bool App.did_finish() {
     run_requests();
+    editor.log_message();
+    editor.log_notice(notice);
+    fire_mode_autocmds();
     if (editor.message.contains("\n") && editor.mode != MED_editor.CMDLINE) {
         overlay = editor.message.split("\n");
     }
@@ -1618,6 +1741,7 @@ bool App.did_finish() {
         return false;
     }
     if (is_forced) {
+        forget_recovery();
         return true;
     }
     autowrite(true);
@@ -3821,6 +3945,9 @@ pub void App.notify_user(int level, str text, bool is_fallback) {
         context.buffer_id = current_id;
         int ran = ext.fire(MED_ext.Event.Message, context, MED_ext.Info(file: path, buffer_id: current_id, text: text, level: level));
         if (ran > 0) {
+            // a toast is still a message: `:messages` keeps it
+            editor.log_text(text);
+            editor.log_text("");
             ext_finish(context);
             return;
         }
@@ -3950,6 +4077,7 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
             }
         }
     }
+    recover_idle(elapsed_ms);
     if (!has_picker) {
         str before_save = notice;
         autosave_idle(elapsed_ms);
@@ -4212,6 +4340,13 @@ void App.flush_clipboard() {
     if (clipboard.is_present && editor.regs.is_clip_dirty) {
         MED_clip.did_copy(clipboard, editor.regs.clip_text());
         editor.regs.did_flush_clipboard();
+    } else if (!clipboard.is_present && editor.regs.is_clip_dirty) {
+        // no tool to hand the text to (an ssh session, a bare container): ask the terminal, OSC 52
+        // (M3_NO_OSC52=1 turns that off; the `+` register then only holds the text)
+        if (os.env("M3_NO_OSC52").or("") == "") {
+            motion.loop.copy(editor.regs.clip_text());
+        }
+        editor.regs.did_flush_clipboard();
     }
 }
 
@@ -4278,6 +4413,7 @@ TUI_app.Action App.finish_event() {
 /// One event: feed its keys to the engine, then the UI requests.
 pub TUI_app.Action App.handle(term.Event event) {
     quiet_ms = 0;
+    recover_ms = 0;
     motion.note_input();
     if (has_picker) {
         return handle_picker(event);
@@ -4325,7 +4461,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Registers", "Symbols", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -5131,7 +5267,7 @@ void App.draw_status(TUI_buffer.Buffer buffer, MED_window.Placed frame, MED_edit
     int count = subject.buffer.line_count();
     int percent = (subject.row + 1) * 100 / count;
     str where = (subject.row + 1).to_str() + ":" + (vcol + 1).to_str() + "  " + percent.to_str() + "% ";
-    str lang = SYN_detect.language_of(file, subject.buffer.line(0));
+    str lang = SYN_detect.language_of(file, MED_text.head(subject.buffer.line(0)));
     if (lang.size() > 0) {
         where = lang + "  " + where;
     }
@@ -5764,6 +5900,8 @@ TUI_app.Action App.handle_picker_wheel(TUI_mouse.Gesture gesture) {
 /// run; the result is its message, or "" when every line ran.
 pub str App.run_script(str text, str label) {
     int number = 0;
+    // `:if` blocks: per open block, is it running (1), waiting for an `:else` (0) or finished/skipped for good (2)
+    List<int> blocks = [];
     for (str raw in text.split("\n")) {
         number = number + 1;
         str line = raw.trim();
@@ -5776,11 +5914,112 @@ pub str App.run_script(str text, str label) {
         if (line.size() == 0) {
             continue;
         }
+        str word = line.split(" ")[0].split("|")[0];
+        str condition = line.substr(word.size(), line.size()).trim();
+        bool is_skipping = false;
+        for (int state in blocks) {
+            if (state != 1) {
+                is_skipping = true;
+            }
+        }
+        if (word == "if" || word == "if(") {
+            if (is_skipping) {
+                blocks.push(2);
+            } else if (MED_ex.is_expression_true(editor, condition)) {
+                blocks.push(1);
+            } else {
+                blocks.push(0);
+            }
+            continue;
+        }
+        if (word == "elseif" || word == "elsei" || word == "else" || word == "el" || word == "endif" || word == "en") {
+            if (blocks.size() == 0) {
+                return label + " line " + number.to_str() + ": E580: :endif without :if";
+            }
+            int top = blocks.pop();
+            if (word == "endif" || word == "en") {
+                continue;
+            }
+            bool is_outer_skipping = false;
+            for (int state in blocks) {
+                if (state != 1) {
+                    is_outer_skipping = true;
+                }
+            }
+            if (top == 1 || top == 2 || is_outer_skipping) {
+                blocks.push(2);
+            } else if (word == "else" || word == "el" || MED_ex.is_expression_true(editor, condition)) {
+                blocks.push(1);
+            } else {
+                blocks.push(0);
+            }
+            continue;
+        }
+        if (is_skipping) {
+            continue;
+        }
         if (!MED_ex.did_run_line(editor, line)) {
             return label + " line " + number.to_str() + ": " + editor.message;
         }
     }
+    if (blocks.size() > 0) {
+        return label + ": E171: Missing :endif";
+    }
     return "";
+}
+
+/// Run the autocommands of `event` for the active buffer.
+void App.fire_autocmd(str event, str subject) {
+    if (editor.autocmds.size() == 0) {
+        return;
+    }
+    MED_ex.fire_event(editor, event, subject);
+}
+
+/// A buffer was loaded: BufNewFile (the file does not exist yet) or BufReadPost, then FileType.
+void App.fire_autocmd_opened(Slot slot) {
+    if (slot.editor.autocmds.size() == 0 || slot.path.size() == 0) {
+        return;
+    }
+    if (slot.stamp.size() == 0) {
+        MED_ex.fire_event(slot.editor, "BufNewFile", slot.path);
+    } else {
+        MED_ex.fire_event(slot.editor, "BufReadPost", slot.path);
+    }
+    str kind = SYN_detect.language_of(slot.path, MED_text.head(slot.editor.buffer.line(0)));
+    if (kind.size() > 0) {
+        MED_ex.fire_event(slot.editor, "FileType", kind);
+    }
+}
+
+/// After start-up: the files named on the command line count as opened, the editor as entered.
+void App.autocmd_started() {
+    if (editor.autocmds.size() == 0) {
+        return;
+    }
+    for (Slot slot in slots) {
+        if (!slot.is_listing) {
+            fire_autocmd_opened(slot);
+        }
+    }
+    fire_autocmd("BufEnter", editor.buffer.path);
+    fire_autocmd("VimEnter", editor.buffer.path);
+}
+
+/// InsertEnter and InsertLeave: told by the mode the last key left.
+void App.fire_mode_autocmds() {
+    if (editor.autocmds.size() == 0) {
+        autocmd_mode = editor.mode;
+        return;
+    }
+    bool is_insert = editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE;
+    bool was_insert = autocmd_mode == MED_editor.INSERT || autocmd_mode == MED_editor.REPLACE;
+    autocmd_mode = editor.mode;
+    if (is_insert && !was_insert) {
+        fire_autocmd("InsertEnter", editor.buffer.path);
+    } else if (!is_insert && was_insert) {
+        fire_autocmd("InsertLeave", editor.buffer.path);
+    }
 }
 
 /// `:source FILE`: run the file's ex lines.
@@ -6011,6 +6250,15 @@ bool App.did_open_list_picker(str name, str arg) {
         }
         open_picker("grep", word);
         return false;
+    } else if (name == "registers") {
+        title = "Registers";
+        List<str> shown_registers = MED_listing.registers(editor, "");
+        for (int index in 1 .. shown_registers.size()) {
+            // "  c  "a   text": the register name is the character after the quote
+            str one_register = shown_registers[index];
+            str register_name = one_register.substr(5, 6);
+            entries.push(MED_picker.Entry(one_register.substr(2, one_register.size()), action: "ex:normal! \"" + register_name + "p"));
+        }
     } else if (name == "options") {
         title = "Options";
         for (str option in MED_option.names()) {
@@ -6172,6 +6420,54 @@ void App.go_quickfix(int how) {
     notice = "(" + (quickfix_index + 1).to_str() + " of " + quickfix_list.size().to_str() + ") " + one.text;
 }
 
+/// `:cc [N]`: jump to entry N of the quickfix list (the current entry without N).
+void App.go_quickfix_number(str arg) {
+    if (quickfix_list.size() == 0) {
+        notice = "E42: No Errors";
+        return;
+    }
+    int number = quickfix_index + 1;
+    if (arg.size() > 0) {
+        match (arg.parse_int()) {
+            case Some(int given): {
+                number = given;
+            }
+            case None: {
+                notice = "E474: Invalid argument: " + arg;
+                return;
+            }
+        }
+    }
+    if (number < 1) {
+        number = 1;
+    }
+    if (number > quickfix_list.size()) {
+        number = quickfix_list.size();
+    }
+    quickfix_index = number - 1;
+    MED_picker.Entry one = quickfix_list[quickfix_index];
+    jump_to(one.path, one.line, one.column);
+    notice = "(" + number.to_str() + " of " + quickfix_list.size().to_str() + ") " + one.text;
+}
+
+/// `:clist`: every entry, numbered, the current one marked.
+void App.list_quickfix() {
+    if (quickfix_list.size() == 0) {
+        notice = "E42: No Errors";
+        return;
+    }
+    List<str> lines = [];
+    for (int position in 0 .. quickfix_list.size()) {
+        MED_picker.Entry one = quickfix_list[position];
+        str mark = " ";
+        if (position == quickfix_index) {
+            mark = ">";
+        }
+        lines.push(mark + (position + 1).to_str() + " " + one.path + ":" + (one.line + 1).to_str() + ":" + (one.column + 1).to_str() + " " + one.text);
+    }
+    overlay = lines;
+}
+
 /// Recent files below the project root, newest first.
 List<MED_picker.Entry> App.recent_entries() {
     List<MED_picker.Entry> out = [];
@@ -6189,6 +6485,7 @@ List<MED_picker.Entry> App.recent_entries() {
 
 /// Load the saved undo history of the active buffer ('undofile'), when its text is the one it was saved for.
 pub void App.restore_undo() {
+    check_recovery();
     if (state_directory.size() == 0 || path.size() == 0 || is_in_listing() || !editor.is_option_on("undofile", false)) {
         return;
     }
@@ -6199,6 +6496,7 @@ pub void App.restore_undo() {
 
 /// Write the undo history of `slot` after its file was written ('undofile').
 void App.save_undo(Slot slot) {
+    drop_recovery(slot);
     if (state_directory.size() == 0 || slot.path.size() == 0 || slot.is_listing || !slot.editor.is_option_on("undofile", false)) {
         return;
     }
@@ -8566,7 +8864,7 @@ void App.ext_fire_slot(MED_ext.Event event, Slot slot, str file) {
     context.buffer_id = slot.id;
     MED_ext.Info info = MED_ext.Info(file: file, buffer_id: slot.id);
     if (MED_ext.event_index(event) == MED_ext.event_index(MED_ext.Event.BufferOpen)) {
-        info.filetype = SYN_detect.language_of(slot.path, slot.editor.buffer.line(0));
+        info.filetype = SYN_detect.language_of(slot.path, MED_text.head(slot.editor.buffer.line(0)));
     }
     ext.fire(event, context, info);
     ext_finish(context);
@@ -8574,6 +8872,22 @@ void App.ext_fire_slot(MED_ext.Event event, Slot slot, str file) {
 
 /// `write_slot` with the BufWritePre / BufWritePost events around it.
 str App.write_hooked(Slot slot, str target) {
+    str file = target.trim();
+    if (file.size() == 0) {
+        file = slot.path;
+    }
+    if (slot.is_listing || slot.editor.autocmds.size() == 0) {
+        return write_hooked_inner(slot, target);
+    }
+    MED_ex.fire_event(slot.editor, "BufWritePre", file);
+    str result = write_hooked_inner(slot, target);
+    if (!result.starts_with("E")) {
+        MED_ex.fire_event(slot.editor, "BufWritePost", file);
+    }
+    return result;
+}
+
+str App.write_hooked_inner(Slot slot, str target) {
     lsp_format_before_write(slot);
     if (!ext.has_handler(MED_ext.Event.BufferWritePre) && !ext.has_handler(MED_ext.Event.BufferWritePost)) {
         return write_slot(slot, target);
@@ -8628,6 +8942,7 @@ pub void App.ext_install() {
 /// After start-up is complete (keymap file, session, theme): Startup, and BufOpen for the files given on the command line.
 pub void App.ext_started() {
     ext.state_directory = state_directory;
+    autocmd_started();
     if (ext.is_empty()) {
         return;
     }
@@ -8657,6 +8972,7 @@ pub void App.ext_started() {
 
 /// When the loop has ended: Shutdown, and stop background jobs.
 pub void App.ext_stop() {
+    fire_autocmd("VimLeavePre", editor.buffer.path);
     if (ext.is_empty()) {
         return;
     }
@@ -8743,6 +9059,18 @@ MED_ext.Status StatusReader.status() {
     return app.status_now();
 }
 
+/// The text of `slot` as `:w` would write it.
+str slot_text(Slot slot) {
+    return slot.editor.buffer.dump();
+}
+
+/// Whether a buffer has a file whose unsaved text is worth a recovery file.
+bool is_recoverable(Slot slot) {
+    return slot.path.size() > 0 && !slot.is_listing && slot.title.size() == 0;
+}
+
+// ---------------------------------------------------------------- autocommands (MED_autocmd, `:autocmd`)
+
 // ---- :Git read commands and :Hunk over the m31git library (begin) ----
 
 // ---- :Git read commands and :Hunk (end) ----
@@ -8804,7 +9132,7 @@ str paste_text(List<int> keys) {
 /// The language a file is served as: what `SYN_detect` says, with TypeScript
 /// folded onto JavaScript (one language server handles both).
 pub str server_language_of(str path, str first_line) {
-    str lang = SYN_detect.language_of(path, first_line);
+    str lang = SYN_detect.language_of(path, MED_text.head(first_line));
     if (lang == "typescript") {
         return "javascript";
     }
@@ -9009,7 +9337,7 @@ str write_slot(Slot slot, str target) {
         MED_projconf.trim_trailing(slot.editor);
     }
     str text = slot.editor.buffer.dump();
-    match (io.write(name, text)) {
+    match (write_text(slot.editor.buffer, name, text)) {
         case Ok(int count): {
             if (slot.path.size() == 0) {
                 slot.path = name;
@@ -9023,8 +9351,38 @@ str write_slot(Slot slot, str target) {
             }
             return "\"" + name + "\" " + slot.editor.buffer.line_count().to_str() + "L, " + count.to_str() + "B written";
         }
-        case Err(io.Error error): {
-            return "E212: Can't open file for writing: " + error.to_str();
+        case Err(str problem): {
+            return problem;
+        }
+    }
+}
+
+/// The bytes of `text` for the file `name`: as they are in the common case, else with the buffer's line ending,
+/// encoding and byte order mark (MED_fileio). Err holds the message to show.
+Result<int, str> write_text(MED_buffer.Buffer buffer, str name, str text) {
+    if (MED_fileio.is_plain(buffer)) {
+        match (io.write(name, text)) {
+            case Ok(int count): {
+                return Result<int, str>.Ok(count);
+            }
+            case Err(io.Error error): {
+                return Result<int, str>.Err("E212: Can't open file for writing: " + error.to_str());
+            }
+        }
+    }
+    match (MED_fileio.encode(text, buffer.format, buffer.encoding, buffer.is_bomb)) {
+        case Ok(bytes raw): {
+            match (io.write_bytes(name, raw)) {
+                case Ok(int count): {
+                    return Result<int, str>.Ok(count);
+                }
+                case Err(io.Error error): {
+                    return Result<int, str>.Err("E212: Can't open file for writing: " + error.to_str());
+                }
+            }
+        }
+        case Err(str problem): {
+            return Result<int, str>.Err(problem);
         }
     }
 }
@@ -9102,6 +9460,12 @@ Slot listing_slot(int id, str directory, str focus, bool is_hidden_shown) {
 /// state, the dot command, histories and the options.
 void share_state(MED_editor.Editor from, MED_editor.Editor into) {
     into.regs = from.regs;
+    into.message_log = from.message_log;
+    into.autocmds = from.autocmds;
+    into.autocmd_group = from.autocmd_group;
+    into.user_defs = from.user_defs;
+    into.message_logged = from.message_logged;
+    into.notice_logged = from.notice_logged;
     into.search_pattern = from.search_pattern;
     into.search_directory = from.search_directory;
     into.sub_pattern = from.sub_pattern;
@@ -9169,14 +9533,21 @@ str file_note(str name, MED_editor.Editor loaded) {
 /// or `name` is empty); an error for a directory or an unreadable file.
 Result<Slot, str> read_slot(int id, str name) {
     str text = "";
+    str format = "unix";
+    str encoding = "utf-8";
+    bool is_bomb = false;
     if (name.size() > 0) {
         if (fs.is_directory(name)) {
             return Result<Slot, str>.Err("\"" + name + "\" is a directory");
         }
         if (fs.is_present(name)) {
-            match (io.read(name)) {
-                case Ok(str content): {
-                    text = content;
+            match (io.read_bytes(name)) {
+                case Ok(bytes raw): {
+                    MED_fileio.Decoded decoded = MED_fileio.decode(raw);
+                    text = decoded.text;
+                    format = decoded.format;
+                    encoding = decoded.encoding;
+                    is_bomb = decoded.is_bomb;
                 }
                 case Err(io.Error error): {
                     return Result<Slot, str>.Err("\"" + name + "\": " + error.to_str());
@@ -9185,6 +9556,9 @@ Result<Slot, str> read_slot(int id, str name) {
         }
     }
     MED_editor.Editor loaded = MED_editor.new(text);
+    loaded.buffer.format = format;
+    loaded.buffer.encoding = encoding;
+    loaded.buffer.is_bomb = is_bomb;
     loaded.buffer.path = name;
     loaded.commentstring = comment_for(name);
     Slot made = Slot(id, loaded, name);
@@ -9286,22 +9660,32 @@ pub Result<App, str> open(str path) {
     return open_all([path]);
 }
 
+/// The slot of one command line argument: a directory is its listing (`m3 .` is `:Explore .`), as in nvim.
+Result<Slot, str> startup_slot(int id, str path) {
+    if (path.size() > 0 && fs.is_directory(path)) {
+        return Result<Slot, str>.Ok(listing_slot(id, plain_directory(path), "", true));
+    }
+    return read_slot(id, path);
+}
+
 /// Open several files as buffers; the first is shown.
 pub Result<App, str> open_all(List<str> paths) {
     App app = App(MED_editor.new(""), "");
     app.next_id = 1;
     bool is_first = true;
     for (str path in paths) {
-        match (read_slot(app.next_id, path)) {
+        match (startup_slot(app.next_id, path)) {
             case Ok(Slot slot): {
                 if (is_first) {
                     app.slots.push(slot);
                     app.wins.push(MED_window.Win(1, slot.id));
                     app.current_id = slot.id;
                     app.editor = slot.editor;
-                    app.path = path;
+                    app.path = slot.path;
                     app.next_id = slot.id + 1;
-                    app.notice = file_note(path, slot.editor);
+                    if (!slot.is_listing) {
+                        app.notice = file_note(path, slot.editor);
+                    }
                     is_first = false;
                 } else {
                     slot.editor.view_height = app.editor.view_height;

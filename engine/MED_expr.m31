@@ -11,6 +11,10 @@
 // abs, trim, strpart, nr2char, char2nr. Anything else is an error.
 
 import engine.MED_case;
+import engine.MED_option;
+import fs;
+import io;
+import os;
 import engine.MED_key;
 
 pub type Context {
@@ -23,6 +27,8 @@ pub type Context {
     pub Map<str, str> registers = {};
     /// `:let` variables: "i" + digits for a number, "s" + text for a string.
     pub Map<str, str> variables = {};
+    /// The names `exists(":Name")` knows: user commands and registered extension commands.
+    pub List<str> commands = [];
 }
 
 pub type Evaluated {
@@ -685,6 +691,37 @@ Value Parser.call(str name, List<Value> arguments) {
         if (name == "nr2char") {
             return text_value(str.from_chars([as_number(only)]));
         }
+        if (name == "has") {
+            return number_value(has_feature(as_text(only)));
+        }
+        if (name == "executable") {
+            return number_value(executable_found(as_text(only)));
+        }
+        if (name == "getenv") {
+            return text_value(os.env(as_text(only)).or(""));
+        }
+        if (name == "exists") {
+            str what = as_text(only);
+            if (what.starts_with("$")) {
+                if (os.env(what.substr(1, what.size())).or("") != "") {
+                    return number_value(1);
+                }
+                return number_value(0);
+            }
+            if (what.starts_with("&")) {
+                if (MED_option.find(what.substr(1, what.size())).name != "") {
+                    return number_value(1);
+                }
+                return number_value(0);
+            }
+            if (what.starts_with(":")) {
+                if (context.commands.contains(what.substr(1, what.size()))) {
+                    return number_value(1);
+                }
+                return number_value(0);
+            }
+            return number_value(0);
+        }
         if (name == "char2nr") {
             List<int> codes = as_text(only).chars();
             if (codes.size() == 0) {
@@ -722,6 +759,56 @@ Value Parser.call(str name, List<Value> arguments) {
     }
     fail("E117: Unknown function: " + name);
     return number_value(0);
+}
+
+/// `has("feature")`: this editor presents itself as Neovim on a Unix.
+int has_feature(str feature) {
+    bool is_mac = fs.is_directory("/System/Library");
+    if (feature == "nvim" || feature == "unix" || feature == "termguicolors" || feature == "vim_starting" || feature.starts_with("nvim-")) {
+        return 1;
+    }
+    if (feature == "mac" || feature == "macunix" || feature == "osx") {
+        if (is_mac) {
+            return 1;
+        }
+        return 0;
+    }
+    if (feature == "linux") {
+        if (is_mac) {
+            return 0;
+        }
+        return 1;
+    }
+    return 0;
+}
+
+/// `executable("name")`: a file with an execute bit in a directory of $PATH (or the path itself, when it has a `/`).
+int executable_found(str name) {
+    if (name.size() == 0) {
+        return 0;
+    }
+    List<str> candidates = [];
+    if (name.contains("/")) {
+        candidates.push(name);
+    } else {
+        for (str folder in os.env("PATH").or("").split(":")) {
+            if (folder.size() > 0) {
+                candidates.push(folder + "/" + name);
+            }
+        }
+    }
+    for (str one in candidates) {
+        match (fs.stat(one)) {
+            case Ok(fs.Stat info): {
+                if (info.is_file() && (info.perm() & 73) != 0) {
+                    return 1;
+                }
+            }
+            case Err(io.Error problem): {
+            }
+        }
+    }
+    return 0;
 }
 
 const int INT_MAX = 9223372036854775807;

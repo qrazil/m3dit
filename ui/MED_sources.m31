@@ -167,7 +167,13 @@ const List<str> TODO_WORDS = ["TODO", "FIXME", "HACK", "XXX", "NOTE", "WARN", "P
 /// The first TODO-style word of `line` that stands as a word (an upper-case
 /// keyword followed by `:` or `(` or a blank or the end), with its byte offset;
 /// the word is "" when there is none.
-pub MED_picker.Entry todo_in(str line) {
+pub MED_picker.Entry todo_in(str whole_line) {
+    // the drawing code asks for every line it paints on every frame: a minified one-line file must not be
+    // searched to its end each time (a TODO that far out is not on the screen anyway)
+    str line = whole_line;
+    if (line.size() > 4096) {
+        line = line.substr(0, 4096);
+    }
     for (str word in TODO_WORDS) {
         int position = line.index_of(word).or(-1);
         while (position >= 0) {

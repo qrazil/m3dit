@@ -1,0 +1,102 @@
+// File text on the way in and out: byte order mark, line ending and character encoding.
+//
+// A file is read as bytes. A UTF-8 byte order mark is dropped from the text and remembered ('bomb'); the line
+// endings are dropped when every line ends in CR LF ('fileformat' dos; one bare LF makes it unix, as nvim's
+// 'fileformats' "unix,dos" does); bytes that are not valid UTF-8 are read as Latin-1 ('fileencoding' latin1, the
+// last of nvim's default 'fileencodings'). Writing puts all three back, so a CRLF file stays CRLF, a BOM stays and
+// a Latin-1 file is not turned into UTF-8 behind the user's back. `:set ff=unix` / `fenc=utf-8` / `nobomb` change
+// what the next write does.
+//
+//   MED_fileio.decode(raw)                           -> Decoded   text plus the three attributes
+//   MED_fileio.encode(text, format, encoding, bomb)  -> Result<bytes, str>
+
+import engine.MED_buffer;
+
+pub type Decoded {
+    pub str text;
+    /// "unix" or "dos"
+    pub str format = "unix";
+    /// "utf-8" or "latin1"
+    pub str encoding = "utf-8";
+    pub bool is_bomb = false;
+}
+
+/// Whether the buffer needs more than `str.to_bytes` to be written.
+pub bool is_plain(MED_buffer.Buffer buffer) {
+    return buffer.format == "unix" && buffer.encoding == "utf-8" && !buffer.is_bomb;
+}
+
+pub Decoded decode(bytes raw) {
+    Decoded out = Decoded("");
+    int start = 0;
+    if (raw.size() >= 3 && raw[0] == 239 && raw[1] == 187 && raw[2] == 191) {
+        out.is_bomb = true;
+        start = 3;
+    }
+    if (start > 0) {
+        raw = raw.substr(start, raw.size());
+    }
+    match (raw.utf8()) {
+        case Some(str text): {
+            out.text = text;
+        }
+        case None: {
+            out.encoding = "latin1";
+            List<int> codes = [];
+            for (int index in 0 .. raw.size()) {
+                codes.push(raw[index]);
+            }
+            out.text = str.from_chars(codes);
+        }
+    }
+    if (out.text.index_of("\r").is_none()) {
+        return out;
+    }
+    List<str> lines = out.text.split("\n");
+    // the last piece has no newline after it, so it is not a line ending's neighbour
+    int ends = lines.size() - 1;
+    if (ends == 0) {
+        return out;
+    }
+    for (int index in 0 .. ends) {
+        if (!lines[index].ends_with("\r")) {
+            return out;
+        }
+    }
+    for (int index in 0 .. ends) {
+        lines[index] = lines[index].substr(0, lines[index].size() - 1);
+    }
+    out.format = "dos";
+    out.text = lines.join("\n");
+    return out;
+}
+
+pub Result<bytes, str> encode(str text, str format, str encoding, bool is_bomb) {
+    str body = text;
+    if (format == "dos") {
+        body = text.split("\n").join("\r\n");
+    }
+    bytes out = [];
+    if (is_bomb) {
+        out.push(239);
+        out.push(187);
+        out.push(191);
+    }
+    if (encoding == "latin1") {
+        for (int code in body.chars()) {
+            if (code > 255) {
+                return Result<bytes, str>.Err("E513: Write error, conversion failed (make 'fenc' empty to override)");
+            }
+            out.push(code);
+        }
+        return Result<bytes, str>.Ok(out);
+    }
+    bytes data = body.to_bytes();
+    if (!is_bomb) {
+        return Result<bytes, str>.Ok(data);
+    }
+    for (int index in 0 .. data.size()) {
+        out.push(data[index]);
+    }
+    return Result<bytes, str>.Ok(out);
+}

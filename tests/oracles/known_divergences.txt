@@ -78,3 +78,31 @@ one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap 
 one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap ab x<CR>:nnoremap <buffer> <lt>nowait> a dd<CR>ab
 # <expr> mappings are not supported (E474)
 one two three\nfour five six\nseven eight nine\nten eleven twelve	0,0	:nnoremap <buffer> <expr> Q "dd"<CR>Q
+# nvim keeps a literal CTRL-A in a typed command line after `normal `; the engine drops it (c_CTRL-A completion key)
+a1\nb2\na3\nb4		:g/\d/normal <C-a><CR>
+# `:put =` evaluates a Vimscript expression; the engine's evaluator (MED_expr) has numbers, strings and a few functions, no lists, floats or variables (no embedded scripting language in 1.0, ROADMAP)
+a\nb		:$put =[1,2]<CR>
+# `:put =` evaluates a Vimscript expression; the engine's evaluator (MED_expr) has numbers, strings and a few functions, no lists, floats or variables (no embedded scripting language in 1.0, ROADMAP)
+a\nb		:put =[1,2]<CR>
+# `:put =` evaluates a Vimscript expression; the engine's evaluator (MED_expr) has numbers, strings and a few functions, no lists, floats or variables (no embedded scripting language in 1.0, ROADMAP)
+a\nb		:put =range(3)<CR>
+# `:put =` evaluates a Vimscript expression; the engine's evaluator (MED_expr) has numbers, strings and a few functions, no lists, floats or variables (no embedded scripting language in 1.0, ROADMAP)
+a\nb		:put =2.5*2<CR>
+# CTRL-O k inside an insert, undone: nvim leaves the cursor one column right of the engine's
+one\ntwo		ox<C-o>ky<Esc>u
+# gv after the Visual line was deleted: nvim clamps the Visual end one column further than the engine
+abc def\nghi		wve<Esc>ddgvd
+# 'formatoptions' a (automatic paragraph formatting) is stored only
+abc def\nghi		:set tw=10 fo+=a<CR>Ax y z w<Esc>
+# 'formatoptions' w (trailing white space continues a paragraph) is stored only
+abc def\nghi		:set tw=10 fo+=w<CR>Ax y z w<Esc>
+# 'virtualedit' all and onemore are stored only (block works)
+abc def\nghi		:set ve=all<CR>$lllix<Esc>
+# 'virtualedit' all and onemore are stored only (block works)
+abc def\nghi		:set ve=onemore<CR>$lix<Esc>
+# 'selection' exclusive and old are stored only (inclusive works)
+abc def\nghi		:set sel=exclusive<CR>vlld
+# 'selection' exclusive and old are stored only (inclusive works)
+abc def\nghi		:set sel=old<CR>v$d
+# gv after a line was opened above the last Visual area: nvim's '< '> follow the text, the engine's gv area does not (the marks do)
+abc def\nghi		wve<Esc>ggOnew<Esc>gvd

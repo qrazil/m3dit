@@ -1,0 +1,263 @@
+# undo tree, branches, time travel
+one\ntwo		xxuuu
+one\ntwo		xuxg-
+one\ntwo		xuxg-g-
+one\ntwo		xuxg-g-g+
+one\ntwo		xuxg-g-g+g+
+one\ntwo		xxxg-g-g-g+
+one\ntwo		xxx:undo 1<CR>
+one\ntwo		xxx:undo 0<CR>
+one\ntwo		xxx:earlier 2<CR>
+one\ntwo		xxx:earlier 2<CR>:later 1<CR>
+one\ntwo		xxx:earlier 1f<CR>
+one\ntwo		xxx<C-r>
+one\ntwo		xxxuu<C-r><C-r>
+one\ntwo		xxxuuix<Esc>g-
+one\ntwo		xxxuuix<Esc>g-g-
+one\ntwo		xxxuuix<Esc>:undo 3<CR>
+one\ntwo		xuxuxu:redo<CR>
+one\ntwo		ixx<Esc>uU
+one\ntwo		xxUU
+one\ntwo		xxU
+one\ntwo		xjxkU
+one\ntwo		xxjxkU
+one\ntwo		3x2u
+one\ntwo		3x3u3<C-r>
+one\ntwo		ddjddu
+one\ntwo		ddu.
+one\ntwo		:s/o/0/<CR>u
+one\ntwo		:%s/o/0/g<CR>u<C-r>
+one\ntwo		:g/o/s/o/0/<CR>u
+one\ntwo		Ax<Esc>Ay<Esc>uu<C-r>
+one\ntwo		Ax<C-g>uy<Esc>u
+one\ntwo		Ax<Left>y<Esc>u
+one\ntwo		Ax<Left><Left>y<Esc>u
+one\ntwo		Ax<Down>y<Esc>u
+one\ntwo		ox<C-o>ky<Esc>u
+one\ntwo		qaxq@au
+one\ntwo		qaxq3@au
+one\ntwo		qaxjq@a@@uu
+one\ntwo		:undojoin|s/o/0/<CR>
+one\ntwo		xu:undolist<CR>
+# counts and dot repeat
+a b c d e f g h		dw3.
+a b c d e f g h		2dw.
+a b c d e f g h		2dw3.
+a b c d e f g h		3dw2.
+a b c d e f g h		d2w.
+a b c d e f g h		cwX<Esc>w.
+a b c d e f g h		cwX<Esc>w2.
+a b c d e f g h		3cwX<Esc>w.
+a b c d e f g h		ciwX<Esc>ww.
+a b c d e f g h		xp.
+a b c d e f g h		~.
+a b c d e f g h		3~.
+a b c d e f g h		3~2.
+a b c d e f g h		rX.
+a b c d e f g h		3rXl.
+a b c d e f g h		Ax<Esc>.
+a b c d e f g h		3Ax<Esc>.
+a b c d e f g h		3Ax<Esc>2.
+a b c d e f g h		ix<Esc>2.
+a b c d e f g h		ox<Esc>.
+a b c d e f g h		3ox<Esc>.
+a b c d e f g h		Ox<Esc>j.
+a b c d e f g h		A<C-r>=1+1<CR><Esc>.
+a b c d e f g h		ia<C-n><Esc>.
+a b c d e f g h		J.
+a b c d e f g h		yyp.
+a b c d e f g h		yyp3.
+a b c d e f g h		yyP.
+a b c d e f g h		>>.
+a b c d e f g h		>>3.
+a b c d e f g h		gUiw.
+a b c d e f g h		gUiww.
+a b c d e f g h		gUiwwgUiw.
+a b c d e f g h		dd.
+a b c d e f g h		d$.
+a b c d e f g h		D.
+a b c d e f g h		wD.
+a b c d e f g h		C1<Esc>.
+a b c d e f g h		s1<Esc>l.
+a b c d e f g h		S1<Esc>.
+a b c d e f g h		:s/ /_/<CR>.
+a b c d e f g h		:s/ /_/<CR>&
+a b c d e f g h		:s/ /_/<CR>g&
+a b c d e f g h		:s/ /_/g<CR>g&
+a b c d e f g h		:s/ /_/<CR>:&&<CR>
+a b c d e f g h		*.
+a b c d e f g h		/c<CR>.
+a b c d e f g h		fcx;.
+a b c d e f g h		fcx,.
+a b c d e f g h		dfc.
+a b c d e f g h		dtc.
+a b c d e f g h		dtc;.
+a b c d e f g h		vlld.
+a b c d e f g h		vlldw.
+a b c d e f g h		vlldw3.
+a b c d e f g h		Vd.
+a b c d e f g h		vly.
+a b c d e f g h		vllcX<Esc>w.
+a b c d e f g h		vlll~w.
+a b c d e f g h		vllrXw.
+a b c d e f g h		vll>w.
+a b c d e f g h		i<C-v>065<Esc>.
+a b c d e f g h		A<C-w><Esc>.
+a b c d e f g h		ia<CR>b<Esc>.
+a b c d e f g h		ia<Tab>b<Esc>.
+a b c d e f g h		2A<C-k>a:<Esc>.
+a b c d e f g h		qaAx<Esc>q@a.
+a b c d e f g h		qadwq.
+a b c d e f g h		qadwq@a.
+a b c d e f g h		qadwq@a@@.
+a b c d e f g h		qadwq2@a.
+a b c d e f g h		qaxq:normal @a<CR>
+a b c d e f g h		qaq
+a b c d e f g h		qAxq
+a b c d e f g h		qaxqqAxq@a
+a b c d e f g h		qa:s/ /_/<CR>q@a
+a b c d e f g h		qa/c<CR>xq@a
+a b c d e f g h		qa/c<CR>xq@:
+a b c d e f g h		:s/ /_/<CR>@:
+a b c d e f g h		:s/ /_/<CR>2@:
+a b c d e f g h		:s/ /_/<CR>@:@@
+a b c d e f g h		:normal x<CR>@:
+a b c d e f g h		:let @a="x"<CR>@a
+a b c d e f g h		:let @a="xx"<CR>@a@@
+a b c d e f g h		:let @a="dw"<CR>:normal @a<CR>
+a b c d e f g h		:let @a="dw"<CR>3@a
+a b c d e f g h		yw:@0<CR>
+a b c d e f g h		:exe "normal 3x"<CR>
+a b c d e f g h		:exe "normal! 2dw"<CR>.
+a b c d e f g h		:2,3normal Ax<CR>
+a b\nc d\ne f		:%normal .<CR>
+a b\nc d\ne f		x:%normal .<CR>
+a b\nc d\ne f		x:2,3normal .<CR>
+a b\nc d\ne f		Ax<Esc>:%normal .<CR>
+a b\nc d\ne f		Ax<Esc>j:normal .<CR>
+a b\nc d\ne f		qaAx<Esc>jq:2,3normal @a<CR>
+a b\nc d\ne f		qaAx<Esc>jq2@a
+a b\nc d\ne f		qaAx<Esc>jq10@a
+a b\nc d\ne f		qaAx<Esc>j@aq@a
+a b\nc d\ne f		qaxj@aq@a
+a b\nc d\ne f		qaxjq@a
+# gi gv g& g8 ga etc.
+abc def\nghi		Ahello<Esc>jgiX<Esc>
+abc def\nghi		ixy<Esc>jgiZ<Esc>
+abc def\nghi		wiXY<Esc>0gi1<Esc>
+abc def\nghi		wvey0gvd
+abc def\nghi		wve<Esc>0gvd
+abc def\nghi		wve<Esc>0gvo<Esc>x
+abc def\nghi		wve<Esc>jgvd
+abc def\nghi		Vj<Esc>gvd
+abc def\nghi		<C-v>jl<Esc>gvd
+abc def\nghi		vee<Esc>gvygvd
+abc def\nghi		vee<Esc>:s/./X/<CR>gvd
+abc def\nghi		wve<Esc>ddgvd
+abc def\nghi		wve<Esc>ggOnew<Esc>gvd
+abc def\nghi		:s/\w/X/<CR>g&
+abc def\nghi		:s/\w/X/<CR>j:&&<CR>
+abc def\nghi		:s/\w\+/X/<CR>jg&
+abc def\nghi		:%s/\w\+/X/<CR>g&
+abc def\nghi		g8
+abc def\nghi		ga
+abc def\nghi		g<C-g>
+abc def\nghi		gJ
+abc def\nghi		gJgJ
+abc def\nghi		gg:2<CR>gJ
+abc def\nghi		gugu
+abc def\nghi		gUgU
+abc def\nghi		g~g~
+abc def\nghi		g?g?
+abc def\nghi		gqap
+abc def\nghi		gqgq
+abc def\nghi		gwgw
+abc def\nghi		wgwiw
+abc def\nghi		gv
+abc def\nghi		gvd
+abc def\nghi		gn
+abc def\nghi		gN
+abc def\nghi		gp
+abc def\nghi		yyjgpix<Esc>
+abc def\nghi		yyjgPix<Esc>
+abc def\nghi		yw]p
+abc def\nghi		yy]p
+abc def\nghi		yyj[p
+abc def\nghi		g;
+abc def\nghi		g,
+abc def\nghi		gi
+abc def\nghi		g'a
+abc def\nghi		majg'ax
+abc def\nghi		majg`ax
+abc def\nghi		majgg:'a<CR>x
+abc def\nghi		gm
+abc def\nghi		gM
+abc def\nghi		g0
+abc def\nghi		g$
+abc def\nghi		g^
+abc def\nghi		gj
+abc def\nghi		gk
+abc def\nghi		ge
+abc def\nghi		gE
+abc def\nghi		gg
+abc def\nghi		gx
+abc def\nghi		gs
+abc def\nghi		gt
+abc def\nghi		gT
+abc def\nghi		g_
+abc def\nghi		wg_
+abc def\nghi		dg_
+abc def\nghi		wd1g_
+abc def\nghi		g_x
+abc def\nghi		2g_x
+abc def\nghi		go
+abc def\nghi		5go
+abc def\nghi		d5go
+abc def\nghi		g<
+abc def\nghi		:set tw=5<CR>gqq
+abc def\nghi		:set tw=5<CR>gqj
+abc def\nghi		:set tw=10<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=10<CR>Ax yy zz ww<CR>more<Esc>
+abc def\nghi		:set tw=10 fo+=a<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=10 fo-=t<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=10 fo+=w<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=10 wm=0<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=5 fo+=l<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=5 fo+=1<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=5 fo+=2<CR>Ax y z w<Esc>
+abc def\nghi		:set tw=5 fo+=n<CR>gqq
+abc def\nghi		:set cc=3<CR>Ax<Esc>
+abc def\nghi		:set list<CR>Ax<Esc>
+abc def\nghi		:set so=2<CR>Gx
+abc def\nghi		:set nu<CR>Gx
+abc def\nghi		:set rnu<CR>jx
+abc def\nghi		:set cul<CR>jx
+abc def\nghi		:set sc<CR>jx
+abc def\nghi		:set hls<CR>/a<CR>x
+abc def\nghi		:set is<CR>/a<CR>x
+abc def\nghi		:set nois<CR>/a<CR>x
+abc def\nghi		:set sw=2 ts=4 sts=2<CR>>>
+abc def\nghi		:set ve=all<CR>$lllix<Esc>
+abc def\nghi		:set ve=onemore<CR>$lix<Esc>
+abc def\nghi		:set ve=block<CR><C-v>jllx
+abc def\nghi		:set ww=h,l<CR>$lx
+abc def\nghi		:set ww=<CR>$<Right>x
+abc def\nghi		:set ww=<,>,[,],h,l<CR>$<Right>x
+abc def\nghi		:set ww=b,s<CR><BS>x
+abc def\nghi		:set sel=exclusive<CR>vlld
+abc def\nghi		:set sel=old<CR>v$d
+abc def\nghi		:set sel=inclusive<CR>v$d
+abc def\nghi		:set mps+=<:><CR>f<%x
+abc def\nghi		:set nojs<CR>:s/c/c./<CR>J
+abc def\nghi		:set js<CR>Ax.<Esc>J
+abc def\nghi		:set cpo+=$<CR>cwX<Esc>
+abc def\nghi		:set cpo+=J<CR>Ax.<Esc>J
+abc def\nghi		:set cpo-=a<CR>:s/c/X/<CR>
+abc def\nghi		:set nosol<CR>ldjx
+abc def\nghi		:set sol<CR>ldjx
+abc def\nghi		:set nostartofline<CR>wjkx
+abc def\nghi		:set et sw=3<CR>>>
+abc def\nghi		:set et sw=3<CR>>>>>
+abc def\nghi		:set et sw=3<CR>3>>
+abc def\nghi		:set et sw=3<CR>>j
+abc def\nghi		:set sw=3 noet<CR>>>>>>>>>

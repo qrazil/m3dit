@@ -54,6 +54,7 @@ if [ -x "$WORK/m3" ]; then
     m3_run --keymap --no-mouse; m3_expect "--keymap does not eat an option" 2 "" "starts with a dash"
     m3_run --no-mouse=0; m3_expect "a flag takes no value" 2 "" "is a flag and takes no value"
     m3_run --;           m3_expect "a lone -- is refused" 2 "" "'--' has no meaning here"
+    m3_run --clean --help; m3_expect "--clean is accepted" 0 "--clean"
     m3_run --h;          m3_expect "--h is refused" 2 "" "help has one spelling"
     m3_run --colors 8 --dump-sample; m3_expect "a bad --colors" 2 "" "'--colors' needs 16, 256 or true"
     [ "$(printf '%s\n' "$err" | wc -l | tr -d ' ')" -ge 2 ] && note "m3 usage errors carry the usage line" || bad "m3 usage error shape" "$err"

@@ -9,6 +9,7 @@ Toast notifications, and a history of them.
   messages and errors (`E486: ...`) stay in the message line, as in Neovim with nvim-notify.
 * `:Notify [info|warn|error] TEXT` shows one by hand; `:Notifications` lists this session's in the finder, newest first;
   `:NotifyClear` dismisses the boxes.
+* Every toast is also in the core's `:messages` ring (the ring is the core's; the plugin's `:Notifications` is the toast history).
 * With the plugin off or not built in, a message goes to the message line as before.
 
 API used (0.3.0): the `Message` event (`Info.text`, `Info.level`), `Ctx.notify` (for other plugins), `Ctx.set_toasts` with

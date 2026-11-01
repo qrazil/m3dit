@@ -2,7 +2,7 @@
 
 ## 0.19.0
 
-`session` becomes a plugin (API 0.4.0), project-wide replace arrives (`:cdo`, `:cfdo`, `:bufdo`), and the extractions that
+This release also carries the core-completeness work (section "Core" below). `session` becomes a plugin (API 0.4.0), project-wide replace arrives (`:cdo`, `:cfdo`, `:bufdo`), and the extractions that
 cannot be done cleanly yet are written down with the exact API each one is missing (`docs/CORE-AND-PLUGINS.md` section 10).
 
 - **`session` plugin** (`plugins/session/`): the cursor position of each file is put back when it is opened, the recent-files
@@ -23,6 +23,40 @@ cannot be done cleanly yet are written down with the exact API each one is missi
   gutter signs and a text overlay, a docked panel, a pty service); nothing there needed a risky core refactor to be left
   as it is.
 - Tests: `t_session_plugin`, `t_cdo`; the version strings follow the API.
+
+### Core (the core-completeness work, formerly 0.17.1)
+
+Every row of the plan's core scope was checked by running the binary
+(`docs/CORE-STATUS.md`: 94 rows, 73 done and tested, the rest named), and the gaps found are closed. No plugin moved.
+
+- **Data safety.** A recovery file per modified buffer (`<state>/recover/`), written when you have been quiet for 1.5 s and
+  removed by `:w` and by a deliberate quit; after `kill -9` or a crash the next open says W325 and `:recover` loads the text
+  (`:recover!` forgets it; option `recover`, on by default). CRLF files stay CRLF (a CRLF file edited with `A` used to gain a
+  lone LF mid-line), a UTF-8 BOM stays, and a file that is not UTF-8 opens as Latin-1 and is written back as Latin-1 instead of
+  being refused (`fileformat`, `fileencoding`, `bomb`; `:set ff=unix` converts; E513 when a character does not fit).
+- **`:messages`** is a 200 line ring of every message and notice (`:messages clear`); it was a no-op.
+- **`:autocmd` `:augroup` `:doautocmd`, `:command` / `:delcommand`, `:if` `:elseif` `:else` `:endif`** in sourced files and the
+  keymap file, with `has()` `exists()` `executable()` `getenv()` in expressions (ROADMAP 24 and 25). Events: BufWritePre,
+  BufWritePost, BufReadPost, BufNewFile, BufEnter, FileType, InsertEnter, InsertLeave, VimEnter, VimLeavePre. 43 corpus cases
+  equal nvim.
+- **Vim parity** (corpus 115 to 117, about 800 new cases against nvim 0.11.5): `:retab[!] [N]` (was missing), `\%V` and
+  `\%'m` in patterns, `zf` in Visual, `d<C-v>w` (forced blockwise operators), the `:s///c` prompt's cursor column, the `"` mark,
+  insert `<C-r><C-w>`. Known divergences that remain are listed with reasons in `tests/oracles/known_divergences.txt`.
+- **Options.** 104 portable nvim options that were refused with E518 are accepted and stored; `docs/OPTIONS.md` is generated from
+  the table and says which of the 324 act (ROADMAP 31). `:set fenc?`, `inccommand`, `wildignore`, `modelines` ... work.
+- **Pickers and lists.** `:Registers`; `:cc N`, `:clist`, `:cwindow`.
+- **Clipboard.** Without a clipboard tool (an ssh session, a bare container) a yank into `+` goes to the terminal as OSC 52;
+  `M3_NO_OSC52=1` turns it off.
+- **Command line.** `--clean` (no keymap file, no state, no session); `m3 DIR` opens the directory listing (it exited 1).
+- **Performance.** A one-line 1 MB file opens in 0.45 s (1.7 s) and an idle editor on it uses 3 percent of a core (58 percent):
+  the status line, the tick and every frame scanned the whole first line for a modeline and for TODO words. 5 MB: 6.4 s to 1.7 s.
+  Start-up and typing latency on ordinary files are unchanged (0.22 s; 1000 characters in 0.15 s).
+- `tests/core_pty.py` (in `tests/test_core.sh`): ten pty scenarios for the above; `scripts/options_doc.py --check` keeps
+  `docs/OPTIONS.md` current.
+- **Not fixed, and why** (docs/CORE-STATUS.md): the terminal stays raw after SIGTERM, SIGHUP or a trap (m31 has no signal
+  handler or `on_trap`); `:w!` on a read-only file needs `fs.chmod` in the m31 stdlib; LSP document and workspace symbols,
+  type definition and call hierarchy are not requested; `selection=exclusive`, `virtualedit=all`, `formatoptions` a and w are
+  stored only; no location list; no help topics or man page; no `NO_COLOR` or screen reader mode.
 
 ## 0.18.0
 
