@@ -1,0 +1,69 @@
+// The `whichkey` plugin through the App: the leader popup and the prefix help wait 400 ms after the last key, the
+// leader popup stays while the sequence goes on, :set nowhichkey turns the prefix help off (not the leader popup), and
+// :PluginDisable whichkey turns both off.
+
+import tests.MED_check;
+import tui.core.TUI_buffer;
+import ui.MED_app;
+import term;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+match (MED_app.open("")) {
+    case Ok(MED_app.App app): {
+        app.ext_install();
+        app.ext_started();
+        type_text(app, " ");
+        check.ok("space starts a leader", app.is_leader);
+        check.ok("which-key waits", !app.is_which_key);
+        app.tick(100);
+        check.ok("still waiting at 100 ms", !app.is_which_key);
+        app.tick(400);
+        check.ok("the popup shows after the delay", app.is_which_key);
+        TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 24);
+        app.render(screen, screen.area());
+        check.ok("it lists the groups", screen.to_str().contains("file"));
+        type_text(app, "f");
+        check.ok("the popup stays while the sequence goes on", app.is_which_key);
+        type_text(app, "\x1b");
+        check.ok("escape ends it", !app.is_leader && !app.is_which_key);
+        type_text(app, "g");
+        app.tick(100);
+        check.ok("prefix help waits", !app.is_prefix_help);
+        app.tick(400);
+        check.ok("prefix help shows after the delay", app.is_prefix_help);
+        type_text(app, "\x1b");
+        app.tick(50);
+        check.ok("and goes with the prefix", !app.is_prefix_help);
+        type_text(app, ":set nowhichkey\rg");
+        app.tick(900);
+        check.ok(":set nowhichkey: no prefix help", !app.is_prefix_help);
+        type_text(app, "\x1b ");
+        app.tick(900);
+        check.ok("but the leader popup shows", app.is_which_key);
+        type_text(app, "\x1b:set whichkey\r:PluginDisable whichkey\r");
+        type_text(app, " ");
+        app.tick(900);
+        check.ok("plugin off: no leader popup", !app.is_which_key);
+        type_text(app, "\x1bg");
+        app.tick(900);
+        check.ok("and no prefix help", !app.is_prefix_help);
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_whichkey");
