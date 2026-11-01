@@ -127,7 +127,7 @@ def main():
         term.type(":Hello x\r")
         check("plain: no Hello command", "E492" in term.text() or "Not an editor command" in term.text(), term.text())
         term.type(":Plugins\r")
-        check("plain: no plugin section", "Compiled plugins" not in term.text(), term.text())
+        check("plain: neither fixture plugin is listed", "  hello  " not in term.text() and "  greeter  " not in term.text(), term.text())
         term.close()
     finally:
         shutil.rmtree(parent, ignore_errors=True)

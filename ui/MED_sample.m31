@@ -64,6 +64,9 @@ pub str ansi_of(TUI_buffer.Buffer buffer, TUI_style.Depth depth) {
 MED_app.App app_for(Sample sample, str theme_name, str themes_directory, TUI_style.Depth depth, str transparent) {
     match (MED_app.open_all([sample.path, "other.txt"])) {
         case Ok(MED_app.App app): {
+            // the buffer line and the TODO badge are plugins: the sample shows the default build's screen
+            app.ext_install();
+            app.ext_started();
             app.theme_directory = themes_directory;
             match (depth) {
                 case Ansi16: {
