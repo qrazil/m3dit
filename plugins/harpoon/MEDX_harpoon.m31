@@ -1,0 +1,146 @@
+// The `harpoon` plugin: pin the files you keep going back to and jump to them by number. It was `App.run_harpoon`,
+// `load_harpoon`, the `harpoon` picker and fifteen keymap rows; now it is six commands and fifteen maps over the
+// per-project state file the host keeps (`Ctx.state_lines("harpoon")`, the file the core wrote before, so existing
+// lists carry over). Lazy: nothing is read until a command runs.
+
+import ext.MED_ext;
+import fs;
+
+/// What survives between commands: the index last jumped to (next and previous start from it when the current file
+/// is not pinned).
+type Pins {
+    int index = -1;
+}
+
+const str NO_STATE = "Harpoon needs a state directory (HOME is not set)";
+const str NOTHING = "Harpoon: nothing pinned (<Space>ha)";
+
+Result<bool, str> done(MED_ext.Ctx context, str text) {
+    context.say(text);
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> add(MED_ext.Ctx context) {
+    if (!context.has_state()) {
+        return done(context, NO_STATE);
+    }
+    List<str> pinned = context.state_lines("harpoon");
+    str file = context.absolute_path();
+    if (file.size() == 0 || !fs.is_file(file)) {
+        return done(context, "Harpoon: this buffer has no file");
+    }
+    if (pinned.contains(file)) {
+        return done(context, "Harpoon: already pinned (" + (pinned.index_of(file).or(0) + 1).to_str() + ")");
+    }
+    pinned.push(file);
+    context.did_set_state_lines("harpoon", pinned);
+    return done(context, "Harpoon: pinned as " + pinned.size().to_str());
+}
+
+Result<bool, str> remove(MED_ext.Ctx context) {
+    if (!context.has_state()) {
+        return done(context, NO_STATE);
+    }
+    str file = context.absolute_path();
+    List<str> kept = [];
+    for (str one in context.state_lines("harpoon")) {
+        if (one != file) {
+            kept.push(one);
+        }
+    }
+    context.did_set_state_lines("harpoon", kept);
+    return done(context, "Harpoon: removed");
+}
+
+Result<bool, str> menu(MED_ext.Ctx context) {
+    if (!context.has_state()) {
+        return done(context, NO_STATE);
+    }
+    List<str> pinned = context.state_lines("harpoon");
+    if (pinned.size() == 0) {
+        return done(context, NOTHING);
+    }
+    List<str> labels = [];
+    for (int index in 0 .. pinned.size()) {
+        labels.push((index + 1).to_str() + "  " + context.relative_path(pinned[index]));
+    }
+    context.pick_files("Harpoon", labels, pinned);
+    return Result<bool, str>.Ok(true);
+}
+
+/// Jump to a pinned file: `step` is 1 (next), -1 (previous) or 0 with `slot` (1-based) the number asked for.
+Result<bool, str> jump(Pins pins, MED_ext.Ctx context, int step, str slot) {
+    if (!context.has_state()) {
+        return done(context, NO_STATE);
+    }
+    List<str> pinned = context.state_lines("harpoon");
+    if (pinned.size() == 0) {
+        return done(context, NOTHING);
+    }
+    int target = 0;
+    if (step != 0) {
+        int here = pinned.index_of(context.absolute_path()).or(-1);
+        if (here < 0) {
+            here = pins.index;
+        }
+        target = here + step;
+        if (target >= pinned.size()) {
+            target = 0;
+        }
+        if (target < 0) {
+            target = pinned.size() - 1;
+        }
+    } else {
+        target = slot.parse_int().or(1) - 1;
+        if (target < 0 || target >= pinned.size()) {
+            return done(context, "Harpoon: no file " + slot);
+        }
+    }
+    pins.index = target;
+    context.open_file(pinned[target]);
+    context.say_later("Harpoon " + (target + 1).to_str() + "/" + pinned.size().to_str() + ": " + context.relative_path(pinned[target]));
+    return Result<bool, str>.Ok(true);
+}
+
+/// `:Harpoon N`, or the menu without a number.
+Result<bool, str> number(Pins pins, MED_ext.Ctx context, str arguments) {
+    if (arguments.trim().size() == 0) {
+        return menu(context);
+    }
+    return jump(pins, context, 0, arguments.trim());
+}
+
+type Harpoon {
+    Pins pins;
+}
+
+Result<bool, str> Harpoon.activate(MED_ext.Registry api) {
+    Pins state = pins;
+    api.did_command("HarpoonAdd", "pin this file", (MED_ext.Ctx context, str arguments, bool is_bang) => add(context));
+    api.did_command("HarpoonRemove", "unpin this file", (MED_ext.Ctx context, str arguments, bool is_bang) => remove(context));
+    api.did_command("HarpoonMenu", "list the pinned files", (MED_ext.Ctx context, str arguments, bool is_bang) => menu(context));
+    api.did_command("HarpoonNext", "jump to the next pinned file", (MED_ext.Ctx context, str arguments, bool is_bang) => jump(state, context, 1, ""));
+    api.did_command("HarpoonPrev", "jump to the previous pinned file", (MED_ext.Ctx context, str arguments, bool is_bang) => jump(state, context, -1, ""));
+    api.did_command("Harpoon", "jump to pinned file N (the menu without a number)", (MED_ext.Ctx context, str arguments, bool is_bang) => number(state, context, arguments));
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("harpoon", summary: "pinned files per project, <Space>1..9");
+    spec.triggers.push(MED_ext.on_command("Harpoon"));
+    spec.commands.push(MED_ext.command("HarpoonAdd", "pin this file"));
+    spec.commands.push(MED_ext.command("HarpoonRemove", "unpin this file"));
+    spec.commands.push(MED_ext.command("HarpoonMenu", "list the pinned files"));
+    spec.commands.push(MED_ext.command("HarpoonNext", "jump to the next pinned file"));
+    spec.commands.push(MED_ext.command("HarpoonPrev", "jump to the previous pinned file"));
+    spec.groups.push(MED_ext.GroupSpec("<Space>h", "harpoon"));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>ha", "HarpoonAdd", "Harpoon: add this file"));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>he", "HarpoonMenu", "Harpoon: menu"));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>hn", "HarpoonNext", "Harpoon: next"));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>hp", "HarpoonPrev", "Harpoon: previous"));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>hd", "HarpoonRemove", "Harpoon: remove this file"));
+    for (int slot in 1 .. 10) {
+        spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>" + slot.to_str(), "Harpoon " + slot.to_str(), "Harpoon: file " + slot.to_str()));
+    }
+    api.did_plugin(spec, Harpoon(Pins()));
+}
