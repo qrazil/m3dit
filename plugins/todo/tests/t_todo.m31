@@ -1,0 +1,57 @@
+// The `todo` plugin through the App: ]t and [t (the `bracketed` plugin's keys, :Todo next and prev) jump between
+// TODO words, the badge is drawn only in comments, `:Todo` opens the finder, and :PluginDisable takes the badge away.
+
+import tests.MED_check;
+import ui.MED_app;
+import term;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+match (MED_app.open("")) {
+    case Ok(MED_app.App app): {
+        app.ext_install();
+        app.ext_started();
+        type_text(app, "iline one\rx TODO: first\rline three\rFIXME second\rNOTETAKING no word\r\x1bgg");
+        type_text(app, "]t");
+        check.eq_int("]t goes to the next TODO line", app.editor.row, 1);
+        check.eq_int("at the word", app.editor.col, 2);
+        type_text(app, "]t");
+        check.eq_int("and the next", app.editor.row, 3);
+        type_text(app, "]t");
+        check.eq_int("wraps around to the first", app.editor.row, 1);
+        type_text(app, "[t");
+        check.eq_int("[t wraps back", app.editor.row, 3);
+        type_text(app, ":Todo prev\r");
+        check.eq_int(":Todo prev", app.editor.row, 1);
+        type_text(app, "\x0f");
+        check.eq_int("<C-o> returns to where the jump started", app.editor.row, 3);
+        type_text(app, ":Todo\r");
+        check.ok(":Todo opens the finder", app.has_picker);
+        type_text(app, "\x1b");
+        check.eq_str("the plugin is active", app.ext.state_text(app.ext.find_plugin("todo")), "active");
+        check.ok("it has a decorator", app.ext.has_decorators());
+        check.eq_int("a TODO word is a span", app.ext.decorate("x TODO: first", app.editor).size(), 1);
+        check.eq_int("NOTETAKING is not a word", app.ext.decorate("NOTETAKING no word", app.editor).size(), 0);
+        type_text(app, ":set notodohl\r");
+        check.eq_int("the option switches it off", app.ext.decorate("x TODO: first", app.editor).size(), 0);
+        type_text(app, ":set todohl\r:PluginDisable todo\r");
+        check.eq_int("disabled: no span", app.ext.decorate("x TODO: first", app.editor).size(), 0);
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_todo");

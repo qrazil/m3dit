@@ -1,0 +1,107 @@
+// The `todo` plugin: TODO FIXME HACK XXX NOTE WARN PERF BUG in a comment are drawn as a badge (theme scope `ui.todo`),
+// `:Todo` lists them across the project in the finder (the core's `todos` source: ripgrep or the built-in grep),
+// `:Todo next` and `:Todo prev` (`]t`, `[t` of `bracketed`) jump between them in the buffer, `<Space>ft` lists them.
+// It was a branch in `App.draw_line`, `:Todo` in the core's command table and a row of the finder keys. The highlight
+// is a `Decorator` (API 0.3.0); the option `todohl` still switches it off (`:set notodohl`).
+
+import engine.MED_buffer;
+import ext.MED_ext;
+
+const List<str> WORDS = ["TODO", "FIXME", "HACK", "XXX", "NOTE", "WARN", "PERF", "BUG"];
+
+bool is_word_byte(int byte) {
+    return (byte >= 48 && byte <= 57) || (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+}
+
+/// Where the first TODO-style word stands in `line` (a word of its own, as a keyword), -1 for none; `found` gets its size.
+int find_word(str line, Hit found) {
+    for (str word in WORDS) {
+        int position = line.index_of(word).or(-1);
+        while (position >= 0) {
+            bool is_start = position == 0 || !is_word_byte(line.byte_at(position - 1));
+            int after = position + word.size();
+            bool is_end = after >= line.size() || !is_word_byte(line.byte_at(after));
+            if (is_start && is_end) {
+                found.size = word.size();
+                return position;
+            }
+            int next = line.substr(position + 1, line.size()).index_of(word).or(-1);
+            if (next < 0) {
+                break;
+            }
+            position = position + 1 + next;
+        }
+    }
+    return -1;
+}
+
+/// The size of the word `find_word` found.
+type Hit {
+    int size = 0;
+}
+
+type Badge {
+}
+
+List<MED_ext.Span> Badge.spans(str line) {
+    List<MED_ext.Span> marks = [];
+    Hit found = Hit();
+    int position = find_word(line, found);
+    if (position >= 0) {
+        marks.push(MED_ext.Span(position, position + found.size, "ui.todo", is_in_comment: true));
+    }
+    return marks;
+}
+
+/// Jump to the next (or previous) line with a TODO word, wrapping; the column is the word's.
+Result<bool, str> jump(MED_ext.Ctx context, bool is_forward) {
+    int total = context.line_count();
+    int step = -1;
+    if (is_forward) {
+        step = 1;
+    }
+    int row = context.cursor().row;
+    Hit found = Hit();
+    for (int steps in 0 .. total) {
+        row = row + step;
+        if (row >= total) {
+            row = 0;
+        }
+        if (row < 0) {
+            row = total - 1;
+        }
+        int column = find_word(context.line(row), found);
+        if (column >= 0) {
+            context.set_jump_mark();
+            context.set_cursor(MED_buffer.Pos(row, column));
+            return Result<bool, str>.Ok(true);
+        }
+    }
+    context.say("No TODO comments");
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> todo(MED_ext.Ctx context, str arguments) {
+    str word = arguments.trim();
+    if (word == "next" || word == "prev") {
+        return jump(context, word == "next");
+    }
+    context.open_picker("todos", arguments);
+    return Result<bool, str>.Ok(true);
+}
+
+type Todo {
+}
+
+Result<bool, str> Todo.activate(MED_ext.Registry api) {
+    api.did_decorate("todohl", Badge());
+    api.did_command("Todo", "TODO comments of the project; next and prev move in the buffer", (MED_ext.Ctx context, str arguments, bool is_bang) => todo(context, arguments));
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("todo", summary: "highlight TODO FIXME HACK NOTE WARN");
+    spec.commands.push(MED_ext.command("Todo", "TODO comments of the project; next and prev move in the buffer"));
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>ft", "Todo", "TODO comments"));
+    api.did_plugin(spec, Todo());
+}
