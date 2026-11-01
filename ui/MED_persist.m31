@@ -76,3 +76,76 @@ pub str disk_stamp(str file) {
         }
     }
 }
+
+/// The recovery file of the buffer at absolute path `file`: the text as it was when the editor last sat idle, so a
+/// `kill -9`, a power cut or a crash loses at most the last moments. `directory/recover/` + the path with `/` as `%`.
+pub str recovery_file(str directory, str file) {
+    return directory + "/recover/" + file.split("/").join("%");
+}
+
+/// Write the recovery file. `stamp` is the disk stamp of the file the text started from (the header tells
+/// `:recover` whether the file changed meanwhile). Silent on failure: this must never get in the way of editing.
+pub void save_recovery(str directory, str file, str stamp, str text) {
+    if (directory.size() == 0 || file.size() == 0) {
+        return;
+    }
+    match (fs.makedirs(directory + "/recover")) {
+        case Ok(bool did_make): {
+        }
+        case Err(io.Error error): {
+            return;
+        }
+    }
+    match (io.write(recovery_file(directory, file), "m3recover 1\n" + file.split("\n").join(" ") + "\n" + stamp + "\n" + text)) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+        }
+    }
+}
+
+/// Remove the recovery file (the buffer was written, or its changes were given up on purpose).
+pub void remove_recovery(str directory, str file) {
+    if (directory.size() == 0 || file.size() == 0) {
+        return;
+    }
+    str name = recovery_file(directory, file);
+    if (fs.is_file(name)) {
+        match (fs.remove(name)) {
+            case Ok(bool did_remove): {
+            }
+            case Err(io.Error error): {
+            }
+        }
+    }
+}
+
+/// The text a recovery file holds; "" when there is none or it is not ours. A buffer with no text at all is
+/// "\n"-less, so "no recovery" and "recovered an empty buffer" are told apart by `has_recovery`.
+pub str read_recovery(str directory, str file) {
+    if (directory.size() == 0 || file.size() == 0) {
+        return "";
+    }
+    str name = recovery_file(directory, file);
+    if (!fs.is_file(name)) {
+        return "";
+    }
+    match (io.read(name)) {
+        case Ok(str data): {
+            List<str> parts = data.split("\n");
+            if (parts.size() < 4 || parts[0] != "m3recover 1") {
+                return "";
+            }
+            int skip = parts[0].size() + parts[1].size() + parts[2].size() + 3;
+            return data.substr(skip, data.size());
+        }
+        case Err(io.Error error): {
+            return "";
+        }
+    }
+}
+
+/// Whether a recovery file exists for `file`.
+pub bool has_recovery(str directory, str file) {
+    return directory.size() > 0 && file.size() > 0 && fs.is_file(recovery_file(directory, file));
+}

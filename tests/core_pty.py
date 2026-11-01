@@ -53,6 +53,56 @@ def messages_ring(binary, root):
         s.close()
 
 
+def recovery_files(root):
+    folder = os.path.join(root, ".state", "m3", "recover")
+    return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+
+
+def wait_until(check, seconds=10.0):
+    end = time.time() + seconds
+    while time.time() < end:
+        if check():
+            return True
+        time.sleep(0.1)
+    return False
+
+
+@scenario
+def recovery_after_kill9(binary, root):
+    keymap = os.path.join(root, "empty.vim")
+    open(keymap, "w").close()
+    s = Session(binary, root, ["a.txt"], keymap=keymap)
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send("ggIRECOVER \x1b", settle=0.3)
+        assert wait_until(lambda: recovery_files(root)), "no recovery file after the idle time"
+        s.proc.kill()
+        s.proc.wait()
+        os.close(s.master)
+    except BaseException:
+        s.close()
+        raise
+    assert open(os.path.join(root, "a.txt")).read() == "one\ntwo\nthree\n", "kill -9 must not touch the file"
+    second = Session(binary, root, ["a.txt"], keymap=keymap)
+    try:
+        assert second.wait_for("one"), second.text()
+        assert second.wait_for("W325"), "no notice about the recovery file:\n" + second.text()
+        second.pump(2.5)  # the idle tick must not delete the recovery file of a buffer that was only opened
+        assert recovery_files(root), "the recovery file went away on its own"
+        second.send(":recover\r", settle=0.4)
+        assert "RECOVER one" in second.text(), second.text()
+        second.send(":w\r", settle=0.4)
+        assert open(os.path.join(root, "a.txt")).read().startswith("RECOVER one\n")
+        assert wait_until(lambda: not recovery_files(root), 3.0), "the recovery file stays after :w"
+        second.send("ix\x1b", settle=0.3)
+        assert wait_until(lambda: recovery_files(root)), "no recovery file for the second edit"
+        second.send(":q!\r", settle=0.5)
+        second.pump(1.0)
+        assert not recovery_files(root), "a deliberate :q! leaves a recovery file"
+    finally:
+        second.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

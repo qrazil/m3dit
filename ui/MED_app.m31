@@ -83,6 +83,8 @@ const int GREP_DEBOUNCE_MS = 120;
 const int MAP_TIMEOUT_MS = 1000;
 /// How often (ms) the active buffer's file is checked for an outside change.
 const int WATCH_MS = 1000;
+/// Quiet time before the recovery files are brought up to date.
+const int RECOVER_MS = 1500;
 /// How often (ms) the recent-files and cursor-position state is brought up to date.
 const int STATE_MS = 1000;
 const int PREVIEW_LINES = 3000;
@@ -123,6 +125,8 @@ pub type Slot {
     pub List<str> local_lines = [];
     /// The file on disk as last read or written (MED_persist.disk_stamp), to notice an outside change.
     pub str stamp = "";
+    /// `editor.buffer.tick` when the recovery file was last written (-1: never).
+    pub int recover_tick = -1;
 }
 
 /// A terminal pane: a program on a pty whose output fills a buffer.
@@ -284,6 +288,7 @@ pub type App {
     /// Time since the last disk check ('autoread') and since the last key ('autosave').
     int watch_ms = 0;
     int quiet_ms = 0;
+    int recover_ms = 0;
     str lsp_failed_for = "";
     bool is_lsp_gr = false;
     /// Label jump: 0 off, 1 waiting for the character to look for, 2 for a label.
@@ -950,6 +955,114 @@ void App.autosave_idle(int elapsed_ms) {
     }
 }
 
+/// The text of `slot` as `:w` would write it.
+str slot_text(Slot slot) {
+    return slot.editor.buffer.dump();
+}
+
+/// Whether a buffer has a file whose unsaved text is worth a recovery file.
+bool is_recoverable(Slot slot) {
+    return slot.path.size() > 0 && !slot.is_listing && slot.title.size() == 0;
+}
+
+/// Keep a recovery file of every modified buffer once the user has been quiet for RECOVER_MS (the 'recover'
+/// option, seconds; 0 turns it off, and the state directory must exist: `-u NONE` keeps none). Only buffers whose
+/// text changed since the last write are written, so an idle editor costs a loop over the buffers per tick.
+void App.recover_idle(int elapsed_ms) {
+    if (state_directory.size() == 0) {
+        return;
+    }
+    if (recover_ms < 0) {
+        return;
+    }
+    recover_ms = recover_ms + elapsed_ms;
+    if (recover_ms < RECOVER_MS) {
+        return;
+    }
+    if (editor.option_number("recover", 1) <= 0) {
+        return;
+    }
+    // done until the next key
+    recover_ms = -1000000000;
+    save_active();
+    for (int position in 0 .. slots.size()) {
+        Slot slot = slots[position];
+        if (!is_recoverable(slot) || slot.recover_tick == slot.editor.buffer.tick) {
+            continue;
+        }
+        if (is_slot_modified(slot)) {
+            MED_persist.save_recovery(state_directory, absolute_of(slot.path), slot.stamp, slot_text(slot));
+        } else {
+            drop_recovery(slot);
+        }
+        slot.recover_tick = slot.editor.buffer.tick;
+    }
+}
+
+/// The editor ends on purpose (:q! and :qa!): the unsaved text is given up, so no recovery file stays behind.
+void App.forget_recovery() {
+    save_active();
+    for (Slot slot in slots) {
+        if (is_recoverable(slot)) {
+            MED_persist.remove_recovery(state_directory, absolute_of(slot.path));
+        }
+    }
+}
+
+/// The buffer is saved (or given up): its recovery file is stale.
+void App.drop_recovery(Slot slot) {
+    if (state_directory.size() == 0 || !is_recoverable(slot) || is_slot_modified(slot)) {
+        return;
+    }
+    MED_persist.remove_recovery(state_directory, absolute_of(slot.path));
+    slot.recover_tick = slot.editor.buffer.tick;
+}
+
+/// A buffer was opened: say so when a recovery file of a session that did not end normally holds other text.
+void App.check_recovery() {
+    if (state_directory.size() == 0 || path.size() == 0 || is_in_listing()) {
+        return;
+    }
+    str file = absolute_of(path);
+    if (!MED_persist.has_recovery(state_directory, file)) {
+        return;
+    }
+    str saved = MED_persist.read_recovery(state_directory, file);
+    if (saved == editor.buffer.dump()) {
+        MED_persist.remove_recovery(state_directory, file);
+        return;
+    }
+    active_slot().recover_tick = editor.buffer.tick;
+    notice = "W325: unsaved text of an earlier session is kept for this file: :recover loads it, :recover! forgets it";
+}
+
+/// `:recover` loads the recovery file into the active buffer as one undoable change; `:recover!` removes it.
+void App.recover(bool is_forced) {
+    Slot slot = active_slot();
+    if (!is_recoverable(slot) || !MED_persist.has_recovery(state_directory, absolute_of(slot.path))) {
+        notice = "E305: No swap file found for " + slot.path;
+        return;
+    }
+    str file = absolute_of(slot.path);
+    if (is_forced) {
+        MED_persist.remove_recovery(state_directory, file);
+        notice = "recovery file removed";
+        return;
+    }
+    str saved = MED_persist.read_recovery(state_directory, file);
+    MED_buffer.Buffer fresh = MED_buffer.load(saved);
+    int last = editor.buffer.line_count() - 1;
+    editor.open_block();
+    editor.change(MED_buffer.Pos(0, 0), MED_buffer.Pos(last, editor.buffer.line_size(last)), fresh.lines.join("\n"));
+    editor.end_block();
+    editor.buffer.is_eol = fresh.is_eol;
+    editor.row = 0;
+    editor.col = 0;
+    editor.clamp();
+    editor.want_from_cursor();
+    notice = "recovered the unsaved text; :w to keep it";
+}
+
 /// `:e [file]`, `:e!`, `:e #`, `:enew`.
 void App.edit(str target, bool is_forced) {
     str name = target.trim();
@@ -1204,6 +1317,8 @@ void App.run_request(str request) {
         run_session(arg);
     } else if (name == "checktime") {
         check_disk();
+    } else if (name == "recover") {
+        recover(is_forced);
     } else if (name == "edit") {
         edit(arg, is_forced);
     } else if (name == "enew") {
@@ -1629,6 +1744,7 @@ bool App.did_finish() {
         return false;
     }
     if (is_forced) {
+        forget_recovery();
         return true;
     }
     autowrite(true);
@@ -3808,6 +3924,7 @@ TUI_app.Action App.tick_work(int elapsed_ms) {
             }
         }
     }
+    recover_idle(elapsed_ms);
     if (!has_picker) {
         str before_save = notice;
         autosave_idle(elapsed_ms);
@@ -4168,6 +4285,7 @@ TUI_app.Action App.finish_event() {
 /// One event: feed its keys to the engine, then the UI requests.
 pub TUI_app.Action App.handle(term.Event event) {
     quiet_ms = 0;
+    recover_ms = 0;
     motion.note_input();
     if (has_picker) {
         return handle_picker(event);
@@ -4215,7 +4333,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Symbols", "Todo", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -6110,6 +6228,7 @@ pub void App.note_state() {
 
 /// Load the saved undo history of the active buffer ('undofile'), when its text is the one it was saved for.
 pub void App.restore_undo() {
+    check_recovery();
     if (state_directory.size() == 0 || path.size() == 0 || is_in_listing() || !editor.is_option_on("undofile", false)) {
         return;
     }
@@ -6120,6 +6239,7 @@ pub void App.restore_undo() {
 
 /// Write the undo history of `slot` after its file was written ('undofile').
 void App.save_undo(Slot slot) {
+    drop_recovery(slot);
     if (state_directory.size() == 0 || slot.path.size() == 0 || slot.is_listing || !slot.editor.is_option_on("undofile", false)) {
         return;
     }
