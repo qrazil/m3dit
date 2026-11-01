@@ -240,7 +240,6 @@ const List<str> SPECS = [
     "more::bool:true",
     "terse::bool:false",
     "warn::bool:true",
-    // the rest of nvim's portable options (stored only, with nvim's own defaults; docs/OPTIONS.md says which ones act)
     "allowrevins:ari:bool:false",
     "autochdir:acd:bool:false",
     "backupext:bex:str:~",
@@ -345,6 +344,8 @@ const List<str> SPECS = [
     "writeany:wa:bool:false",
     "writedelay:wd:num:0"
 ];
+
+// the rest of nvim's portable options (stored only, with nvim's own defaults; docs/OPTIONS.md says which ones act)
 
 /// Every option name, in table order.
 pub List<str> names() {

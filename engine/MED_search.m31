@@ -89,11 +89,11 @@ pub MED_regex.Regex attach_context(MED_editor.Editor editor, MED_regex.Regex reg
             first = last;
             last = swap;
         }
-        regex.vis_kind = kind;
-        regex.vis_row1 = first.row;
-        regex.vis_col1 = first.col;
-        regex.vis_row2 = last.row;
-        regex.vis_col2 = last.col;
+        regex.visible_kind = kind;
+        regex.visible_row1 = first.row;
+        regex.visible_col1 = first.col;
+        regex.visible_row2 = last.row;
+        regex.visible_col2 = last.col;
         if (kind == 22 && first.row < editor.buffer.line_count() && last.row < editor.buffer.line_count()) {
             int one = MED_text.display_col(editor.buffer.line(first.row), first.col, editor.tab);
             int two = MED_text.display_col(editor.buffer.line(last.row), last.col, editor.tab);
@@ -106,8 +106,8 @@ pub MED_regex.Regex attach_context(MED_editor.Editor editor, MED_regex.Regex reg
                 one = two;
                 two = hold;
             }
-            regex.vis_left = one;
-            regex.vis_right = two;
+            regex.visible_left = one;
+            regex.visible_right = two;
         }
     }
     regex.marks = editor.marks;

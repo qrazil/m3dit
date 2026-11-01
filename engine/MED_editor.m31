@@ -311,6 +311,13 @@ pub type Editor {
     /// Ex commands extensions defined (`:Name args` becomes the request "Name args" for the front end). Empty unless
     /// an extension is built in (docs/EXTENSIONS.md).
     pub List<str> user_commands = [];
+    /// `:autocmd` records (MED_autocmd) and the group a `:augroup` block is in ("" outside one).
+    pub List<str> autocmds = [];
+    pub str autocmd_group = "";
+    /// How deep autocommands run autocommands (a runaway chain stops).
+    pub int autocmd_depth = 0;
+    /// `:command` definitions: name to "NARGS\x01BANG\x01REPLACEMENT".
+    pub Map<str, str> user_defs = {};
     /// The ex commands the front end carries out (MED_cmdtab); `MED_ex` hands them over as requests instead of failing.
     pub List<str> ui_commands = MED_cmdtab.core_ui_commands();
     /// The theme names `:theme` and `:colorscheme` complete (set by the front end).
@@ -574,11 +581,6 @@ pub void Editor.set_cursor(MED_buffer.Pos position) {
     row = position.row;
     col = position.col;
 }
-
-/// Start the undo block now, remembering the cursor as it is (what Vim's
-/// u_save() sees when an ex command positions the cursor "for undo").
-/// The most messages the ring keeps; the oldest go first.
-pub const int MESSAGE_LOG_MAX = 200;
 
 /// Put `text` (one message, or a listing of several lines) in the ring unless it is the one logged last. Empty text
 /// re-arms the ring so the same message shown again later counts again.
@@ -1491,6 +1493,10 @@ pub void Editor.check_pcmark() {
     marks.set("'prev", MED_buffer.Pos(-1, 0));
 }
 
+/// Start the undo block now, remembering the cursor as it is (what Vim's
+/// u_save() sees when an ex command positions the cursor "for undo").
+/// The most messages the ring keeps; the oldest go first.
+pub const int MESSAGE_LOG_MAX = 200;
 const int LIST_SIZE = 100;
 
 pub str jump_name(int index) {
