@@ -1,0 +1,72 @@
+// The `statusline` plugin through the App: the segment (branch, hunks, diagnostics) follows the host's answers within a
+// Tick, and the buffer line is the plugin's: shown from two buffers, switched by :set nobufferline and by
+// :PluginDisable, a plus on a modified buffer.
+
+import io;
+import os;
+import tests.MED_check;
+import tui.core.TUI_buffer;
+import ui.MED_app;
+import ui.MED_lsp;
+import term;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+MED_check.Check check = MED_check.Check();
+str file = os.env("M3_TEST_TMP").or("/tmp") + "/statusline.txt";
+match (io.write(file, "one\n")) {
+    case Ok(int count): {
+    }
+    case Err(io.Error error): {
+    }
+}
+match (MED_app.open(file)) {
+    case Ok(MED_app.App app): {
+        app.ext_install();
+        app.ext_started();
+        TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 12);
+        app.render(screen, screen.area());
+        check.ok("one buffer: no buffer line", !screen.row_text(0).contains("statusline.txt"));
+        type_text(app, ":enew\r");
+        app.render(screen, screen.area());
+        check.ok("two buffers: the buffer line", screen.row_text(0).contains(" 1 ") && screen.row_text(0).contains(" 2 ") && screen.row_text(0).contains("statusline.txt"));
+        type_text(app, "ix\x1b");
+        app.render(screen, screen.area());
+        check.ok("a modified buffer has a plus", screen.row_text(0).contains("+"));
+        type_text(app, ":set nobufferline\r");
+        screen = TUI_buffer.Buffer.sized(80, 12);
+        app.render(screen, screen.area());
+        check.ok(":set nobufferline hides it", !screen.row_text(0).contains("statusline.txt"));
+        type_text(app, ":set bufferline\r:PluginDisable statusline\r");
+        screen = TUI_buffer.Buffer.sized(80, 12);
+        app.render(screen, screen.area());
+        check.ok(":PluginDisable hides it", !screen.row_text(0).contains("statusline.txt"));
+        type_text(app, ":PluginEnable statusline\r:buffer 1\r");
+        app.branch = "main";
+        app.tick(300);
+        screen = TUI_buffer.Buffer.sized(240, 12);
+        app.render(screen, screen.area());
+        check.ok("the branch shows after a Tick", screen.to_str().contains("main"));
+        app.diagnostics.set(app.path, [MED_lsp.Diagnostic(0, 0, 0, 1, 1, "bad"), MED_lsp.Diagnostic(0, 0, 0, 1, 2, "meh")]);
+        app.tick(300);
+        app.render(screen, screen.area());
+        check.ok("and the diagnostic counts", app.ext.segments().contains("E:1 W:1"));
+        check.ok("in the segment", app.ext.segments().contains("main"));
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_statusline");

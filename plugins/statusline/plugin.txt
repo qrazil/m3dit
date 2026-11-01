@@ -1,0 +1,2 @@
+name: statusline
+summary: mode, file, branch, diagnostics, filetype, position; tabline

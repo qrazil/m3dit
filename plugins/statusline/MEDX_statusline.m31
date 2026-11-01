@@ -1,0 +1,70 @@
+// The `statusline` plugin: the parts of the status line beyond the core's minimal one (mode, file name, filetype,
+// position) and the buffer line. It was `is_plugin_on("statusline")` branches in `App.draw_statusline` and `App.tabline_rows`;
+// now the host answers `Ctx.status()` (branch, hunk counts against HEAD, language server errors and warnings and what it
+// is busy with), this plugin turns it into the segment `statusline.status` every Tick, and gives the buffer line
+// (` 1 name + ` labels, shown from two buffers, switched by `:set nobufferline`) with `did_bar`. The text is the one the
+// core drew before: `main +1 ~2 -0  E:1 W:0  LSP: indexing`. Changes show within one Tick (250 ms).
+
+import ext.MED_ext;
+
+const int MIN_BUFFERS = 2;
+
+/// What the segment says now.
+str line_of(MED_ext.Status status) {
+    str text = "";
+    if (status.branch.size() > 0) {
+        text = status.branch;
+        if (status.has_hunks && status.added + status.changed + status.removed > 0) {
+            text = text + " +" + status.added.to_str() + " ~" + status.changed.to_str() + " -" + status.removed.to_str();
+        }
+    }
+    if (status.errors + status.warnings > 0) {
+        if (text.size() > 0) {
+            text = text + "  ";
+        }
+        text = text + "E:" + status.errors.to_str() + " W:" + status.warnings.to_str();
+    }
+    if (status.busy.size() > 0) {
+        if (text.size() > 0) {
+            text = text + "  ";
+        }
+        text = text + status.busy;
+    }
+    return text;
+}
+
+Result<bool, str> refresh(MED_ext.Ctx context) {
+    context.set_segment("status", line_of(context.status()));
+    return Result<bool, str>.Ok(true);
+}
+
+type Labels {
+}
+
+/// ` 3 name + `: the number, the name, a plus when it has unsaved changes.
+List<MED_ext.BarCell> Labels.cells(List<MED_ext.BufferInfo> buffers) {
+    List<MED_ext.BarCell> cells = [];
+    for (MED_ext.BufferInfo one in buffers) {
+        str label = " " + one.id.to_str() + " " + one.name;
+        if (one.is_modified) {
+            label = label + " +";
+        }
+        cells.push(MED_ext.BarCell(label + " ", is_current: one.is_current));
+    }
+    return cells;
+}
+
+type Statusline {
+}
+
+Result<bool, str> Statusline.activate(MED_ext.Registry api) {
+    api.did_bar(MIN_BUFFERS, "bufferline", Labels());
+    api.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => refresh(context));
+    api.did_hook(MED_ext.Event.BufferOpen, (MED_ext.Ctx context, MED_ext.Info info) => refresh(context));
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("statusline", summary: "mode, file, branch, diagnostics, filetype, position; tabline");
+    api.did_plugin(spec, Statusline());
+}
