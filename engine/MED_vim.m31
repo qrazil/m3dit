@@ -788,7 +788,7 @@ MED_motion.Motion paragraph_in_folds(MED_editor.Editor editor, int directory, in
                     is_fold_skipped = true;
                 }
             }
-            if (!is_first && did_skip && curr >= 0 && curr <= last && MED_motion.is_starts_paragraph(editor.buffer, curr, false)) {
+            if (!is_first && did_skip && curr >= 0 && curr <= last && MED_motion.is_starts_paragraph(editor.buffer, curr, false, macros: nroff_macros(editor, true))) {
                 break;
             }
             if (is_fold_skipped) {
@@ -819,6 +819,16 @@ MED_motion.Motion paragraph_in_folds(MED_editor.Editor editor, int directory, in
     return motion;
 }
 
+/// The nroff macros that end a paragraph or a section: 'sections', and with `is_paragraph` also 'paragraphs'.
+/// Lookups only happen at a line that starts with a dot.
+str nroff_macros(MED_editor.Editor editor, bool is_paragraph) {
+    str sections = editor.opts.get("sections").or("SHNHH HUnhsh");
+    if (is_paragraph) {
+        return editor.opts.get("paragraphs").or("IPLPPPQPP TPHPLIPpLpItpplpipbp") + sections;
+    }
+    return sections;
+}
+
 // `[[` `]]` `[]` `][`: the previous / next line that starts with `{` or `}`.
 MED_motion.Motion section_motion(MED_editor.Editor editor, int first, int second, int count) {
     int directory = 1;
@@ -840,7 +850,7 @@ MED_motion.Motion section_motion(MED_editor.Editor editor, int first, int second
             if (line.size() != 0) {
                 did_skip = true;
             }
-            if (!is_at_first && did_skip && line.size() > 0 && (line.byte_at(0) == what || line.byte_at(0) == 12)) {
+            if (!is_at_first && did_skip && line.size() > 0 && (line.byte_at(0) == what || line.byte_at(0) == 12 || (line.byte_at(0) == 46 && MED_motion.is_macro_line(line, nroff_macros(editor, false))))) {
                 break;
             }
             curr = curr + directory;
@@ -1104,7 +1114,7 @@ MED_motion.Motion run_motion_raw(MED_editor.Editor editor, List<int> keys, int c
         if (editor.folds.size() > 0 && !editor.is_fold_off) {
             return paragraph_in_folds(editor, directory, count1(count));
         }
-        MED_motion.Motion motion_item = MED_motion.paragraph(editor.buffer, editor.row, directory, count1(count));
+        MED_motion.Motion motion_item = MED_motion.paragraph(editor.buffer, editor.row, directory, count1(count), macros: nroff_macros(editor, true));
         return motion_item;
     }
     if (key == 40 || key == 41) {
@@ -1690,10 +1700,21 @@ void op_reindent(MED_editor.Editor editor, Oap oap) {
 
 // ------------------------------------------------------------------- gq, gw
 
+/// 'textwidth', else the window width less 'wrapmargin' when that is set, else 0 (Vim's comp_textwidth).
+int wrap_width(MED_editor.Editor editor) {
+    if (editor.textwidth > 0) {
+        return editor.textwidth;
+    }
+    if (editor.wrapmargin > 0) {
+        return MED_num.larger(editor.view_width - editor.wrapmargin, 1);
+    }
+    return 0;
+}
+
 // 'textwidth' for formatting (Vim's comp_textwidth): 0 means the window width
 // less one, at most 79.
 int format_width(MED_editor.Editor editor) {
-    int width = editor.textwidth;
+    int width = wrap_width(editor);
     if (width <= 0) {
         width = editor.view_width - 1;
         if (width > 79) {
@@ -3431,7 +3452,7 @@ bool has_format_flag(MED_editor.Editor editor, str flag) {
 // blank run that starts within the width (or the first one), and carry what
 // follows to a new line with the same indent ('autoindent').
 void ins_auto_wrap(MED_editor.Editor editor, int code_point) {
-    int width = editor.textwidth;
+    int width = wrap_width(editor);
     str typed = str.from_chars([code_point]);
     bool is_comments = has_format_flag(editor, "c");
     bool is_text = has_format_flag(editor, "t");
@@ -3578,7 +3599,7 @@ void ins_char(MED_editor.Editor editor, int code_point) {
         editor.can_si_back = false;
         editor.has_si_extra = false;
     }
-    if ((editor.mode == MED_editor.INSERT || (editor.mode == MED_editor.REPLACE && editor.col >= editor.buffer.line_size(editor.row))) && editor.textwidth > 0 && code_point != 32 && code_point != 9 && (has_format_flag(editor, "t") || has_format_flag(editor, "c"))) {
+    if ((editor.mode == MED_editor.INSERT || (editor.mode == MED_editor.REPLACE && editor.col >= editor.buffer.line_size(editor.row))) && (editor.textwidth > 0 || editor.wrapmargin > 0) && code_point != 32 && code_point != 9 && (has_format_flag(editor, "t") || has_format_flag(editor, "c"))) {
         ins_auto_wrap(editor, code_point);
     }
     str text = str.from_chars([code_point]);

@@ -2344,6 +2344,15 @@ pub str option_text(MED_editor.Editor editor, MED_option.Spec spec) {
     if (name == "textwidth") {
         return editor.textwidth.to_str();
     }
+    if (name == "wrapmargin") {
+        return editor.wrapmargin.to_str();
+    }
+    if (name == "scroll") {
+        return editor.scroll_opt.to_str();
+    }
+    if (name == "magic") {
+        return bool_text(!editor.is_nomagic);
+    }
     if (name == "commentstring") {
         return editor.commentstring;
     }
@@ -2399,6 +2408,12 @@ void option_store(MED_editor.Editor editor, MED_option.Spec spec, str text) {
         editor.softtabstop = count;
     } else if (name == "textwidth") {
         editor.textwidth = count;
+    } else if (name == "wrapmargin") {
+        editor.wrapmargin = count;
+    } else if (name == "scroll") {
+        editor.scroll_opt = count;
+    } else if (name == "magic") {
+        editor.is_nomagic = !is_on;
     } else if (name == "commentstring") {
         editor.commentstring = text;
     } else if (name == "expandtab") {
@@ -4282,9 +4297,9 @@ Step cmd_sub(MED_editor.Editor editor, Cmd cmd_value) {
     MED_search.set_last_pattern(editor, pattern, true);
     MED_regex.Regex regex = MED_regex.Regex();
     if (do_ic == 1) {
-        regex = MED_search.attach_context(editor, MED_regex.compile(pattern, true, false, editor.sub_replacement));
+        regex = MED_search.attach_context(editor, MED_regex.compile(MED_search.magic_of(editor, pattern), true, false, editor.sub_replacement));
     } else if (do_ic == 2) {
-        regex = MED_search.attach_context(editor, MED_regex.compile(pattern, false, false, editor.sub_replacement));
+        regex = MED_search.attach_context(editor, MED_regex.compile(MED_search.magic_of(editor, pattern), false, false, editor.sub_replacement));
     } else {
         regex = MED_search.compile_with(editor, pattern, false);
     }
@@ -4675,7 +4690,7 @@ Step cmd_sort(MED_editor.Editor editor, Cmd cmd) {
                     return fail(editor, "E35: No previous regular expression");
                 }
             }
-            regex = MED_search.attach_context(editor, MED_regex.compile(pattern, editor.is_ignorecase, false, editor.sub_replacement));
+            regex = MED_search.attach_context(editor, MED_regex.compile(MED_search.magic_of(editor, pattern), editor.is_ignorecase, false, editor.sub_replacement));
             if (!regex.is_ok) {
                 return fail(editor, regex.error);
             }

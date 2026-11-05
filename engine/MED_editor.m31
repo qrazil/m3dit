@@ -145,6 +145,10 @@ pub type Editor {
     pub int shiftwidth = 8;
     /// 'textwidth' (0: the window width, at most 79, for `gq`) and the window's width.
     pub int textwidth = 0;
+    /// 'wrapmargin': with 'textwidth' 0, lines break this many columns before the window's right edge.
+    pub int wrapmargin = 0;
+    /// 'magic' off: patterns are read as if they began with \M.
+    pub bool is_nomagic = false;
     pub int view_width = 80;
     /// Columns taken by the line-number column (0 without one).
     pub int view_gutter = 0;

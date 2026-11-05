@@ -1,0 +1,111 @@
+# vi options and ex addressing probe (docs/VI-CORE.md)
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set nomagic<CR>:s/i.t/X/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set nomagic<CR>:s/i\\.t/X/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set nomagic<CR>/m.in<CR>x
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set nomagic<CR>:s/int/*/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set tw=0 wm=70<CR>A aaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccc<Esc>
+l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20\nl21\nl22\nl23\nl24\nl25\nl26\nl27\nl28\nl29\nl30\n	0,0	:set scroll=3<CR><C-d>
+l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20\nl21\nl22\nl23\nl24\nl25\nl26\nl27\nl28\nl29\nl30\n	0,0	:set scroll=3<CR>2<C-d>
+l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20\nl21\nl22\nl23\nl24\nl25\nl26\nl27\nl28\nl29\nl30\n	10,0	:set scroll=3<CR><C-u>
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	0,0	]]
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	0,0	2]]
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	6,0	[[
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	0,0	}
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	0,0	d]]
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	0,0	:set sections=XX<CR>]]
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	0,0	:set paragraphs=SH<CR>}
+.PP\nfirst\n.SH\nsecond\n.NH\nthird\n\nfourth\n	0,0	:set paragraphs=SH<CR>2}
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set readonly<CR>:w<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set ro<CR>x
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set list<CR>:set list?<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set report=0<CR>3dd
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set remap<CR>:map a b<CR>:map b x<CR>a
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set noremap<CR>:map a b<CR>:map b x<CR>a
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set terse warn writeany slowopen<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set shell=/bin/sh<CR>:!echo hi<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set shiftwidth=3<CR>>>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set sw=3 sr<CR>>>>>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set ts=4 list<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set sm<CR>A)<Esc>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set taglength=3 tl?<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:set ai<CR>A<CR>x<Esc>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	1,4	:set ai<CR>A<CR>x<Esc>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	1,4	:set noai<CR>A<CR>x<Esc>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	i<C-v>u00e9<Esc>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	ia<C-v><CR><Esc>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3s/$/!/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:%s/\\s\\+$//e<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2;+1d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:1;/second/d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:/int/,/return/d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	3,0	:-,+d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	3,0	:.-1,.+1d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3>><CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3<<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3!cat -n<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:.!tr a-z A-Z<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:g/^$/d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:g!/second/d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:g/a/m0<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:g/second/t.<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:g/second/j<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:g/second/.,+1d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:v/./d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3co0<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:m+<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	3,0	:m-2<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:s/\\(second\\)/\\u\\1/<CR>j
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/second/\\u&/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/\\w\\+/\\U&/g<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/line/L/g<CR>:s/~/Z/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/line/L/<CR>:&&<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/line/L/<CR>j:&&<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/line/L/<CR>:~<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/line/L/<CR>g&
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/second/S/<CR>j&
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	:s/line/&&/gc<CR>yn
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	qaq:s/int/X/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	"ayiw"byiw:let @c=@a.@b<CR>"cp
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:k a<CR>:ka<CR>:'a<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	mA:1<CR>'A
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	7,0	mA:e #<CR>'A
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	"_dd"1p
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	dd"-p
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	dw"-p
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	yw"0p
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	"qyyj"Qyy"qp
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2<CR>:pu<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	yy:2<CR>:pu<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	yy:2<CR>:pu!<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:@:<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:s/int/X/<CR>:@:<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:let @a="s/int/X/"<CR>:@a<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:let @a="s/int/X/\\n"<CR>:*a<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	yy:*0<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:normal Ix<CR>:normal u<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:x<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:w<CR>:q<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2<CR>:?int?<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:'<,'>d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	Vj:d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	Vj:s/int/X/<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:1,$j<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:j3<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:d 3<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:d a 2<CR>"ap
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:y 3<CR>P
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3y|pu<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2|3d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2d|d<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:p<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3p<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:nu<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3l<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3#<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3=<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2z3<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2z-<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2z.<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2z+<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2z^<CR>
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:z=2<CR>

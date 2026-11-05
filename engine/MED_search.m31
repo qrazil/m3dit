@@ -62,12 +62,21 @@ pub void set_last_pattern(MED_editor.Editor editor, str pattern, bool is_sub) {
     editor.regs.set_special("/", pattern);
 }
 
+/// `pattern` as 'magic' reads it: with `:set nomagic` it starts with `\M` (very nomagic is `\V`; an explicit
+/// `\v`, `\m`, `\M` or `\V` at the start wins).
+pub str magic_of(MED_editor.Editor editor, str pattern) {
+    if (!editor.is_nomagic) {
+        return pattern;
+    }
+    return "\\M" + pattern;
+}
+
 pub MED_regex.Regex compile_with(MED_editor.Editor editor, str pattern, bool is_no_scs) {
     bool is_scs = editor.is_smartcase;
     if (is_no_scs) {
         is_scs = false;
     }
-    return attach_context(editor, MED_regex.compile(pattern, editor.is_ignorecase, is_scs, editor.sub_replacement));
+    return attach_context(editor, MED_regex.compile(magic_of(editor, pattern), editor.is_ignorecase, is_scs, editor.sub_replacement));
 }
 
 /// Give `regex` what `\%V` and `\%'m` need: the last Visual area (or the live one) and the marks.

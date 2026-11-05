@@ -314,19 +314,45 @@ pub bool did_bckend_word(Cur cursor, int count, bool is_big, bool is_eol) {
     return true;
 }
 
-pub bool is_starts_paragraph(MED_buffer.Buffer buffer, int row, bool is_both) {
+/// Whether `line` is an nroff macro line (`.SH`) whose name is one of the pairs of `macros` ('paragraphs' or
+/// 'sections'; a pair with a space or one letter names a one-letter macro), Vim's inmacro.
+pub bool is_macro_line(str line, str macros) {
+    if (line.size() < 2 || line.byte_at(0) != 46 || macros.size() == 0) {
+        return false;
+    }
+    int first = line.byte_at(1);
+    int second = 32;
+    if (line.size() > 2) {
+        second = line.byte_at(2);
+    }
+    int at = 0;
+    while (at < macros.size()) {
+        int want_first = macros.byte_at(at);
+        int want_second = 32;
+        if (at + 1 < macros.size()) {
+            want_second = macros.byte_at(at + 1);
+        }
+        if (want_first == first && (want_second == second || (want_second == 32 && (line.size() == 2 || second == 32)))) {
+            return true;
+        }
+        at = at + 2;
+    }
+    return false;
+}
+
+pub bool is_starts_paragraph(MED_buffer.Buffer buffer, int row, bool is_both, str macros = "") {
     str line = buffer.line(row);
     if (line.size() == 0) {
         return true;
     }
     int first = line.byte_at(0);
-    return first == 12 || (is_both && first == 125);
+    return first == 12 || (is_both && first == 125) || (first == 46 && is_macro_line(line, macros));
 }
 
 /// `{` (dir -1) and `}` (dir 1). Returns the row, or -1 when it cannot move.
 /// `last_line_end` is set when the motion ended on the last line's last
 /// character (then it is inclusive).
-pub Motion paragraph(MED_buffer.Buffer buffer, int row, int directory, int count) {
+pub Motion paragraph(MED_buffer.Buffer buffer, int row, int directory, int count, str macros = "") {
     int curr = row;
     int left = count;
     while (left > 0) {
@@ -337,7 +363,7 @@ pub Motion paragraph(MED_buffer.Buffer buffer, int row, int directory, int count
             if (buffer.line_size(curr) != 0) {
                 did_skip = true;
             }
-            if (!is_first && did_skip && is_starts_paragraph(buffer, curr, false)) {
+            if (!is_first && did_skip && is_starts_paragraph(buffer, curr, false, macros: macros)) {
                 break;
             }
             curr = curr + directory;
