@@ -106,3 +106,11 @@ abc def\nghi		:set sel=exclusive<CR>vlld
 abc def\nghi		:set sel=old<CR>v$d
 # gv after a line was opened above the last Visual area: nvim's '< '> follow the text, the engine's gv area does not (the marks do)
 abc def\nghi		wve<Esc>ggOnew<Esc>gvd
+# headless nvim expands the abbreviation inside the typed :unabbreviate line; the engine (like interactive Vim) does not
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n		:ab xx yy<CR>:unab xx<CR>ixx <Esc>
+# an unnamed buffer: nvim's :e! empties it, the engine has no file to re-read and keeps the text
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n		:e!<CR>
+# quitting: the oracle has no result after ZZ and ZQ in nvim (the process exits), the engine reports a quit
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n		ZZ
+# quitting: the oracle has no result after ZZ and ZQ in nvim (the process exits), the engine reports a quit
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n		xZQ

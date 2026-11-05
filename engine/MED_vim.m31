@@ -5668,7 +5668,7 @@ bool did_cmd_undo_time(MED_editor.Editor editor, int count, bool is_forward) {
     return editor.did_undo_to(target);
 }
 
-void enter_cmdline(MED_editor.Editor editor, int kind, List<int> saved) {
+pub void enter_cmdline(MED_editor.Editor editor, int kind, List<int> saved) {
     editor.mode_before_cmd = editor.mode;
     editor.cmd_type = kind;
     set_cmdline(editor, "");
@@ -8309,6 +8309,11 @@ void cmdline_key(MED_editor.Editor editor, int key) {
         return;
     }
     if (key == 27 || key == 3) {
+        if (editor.cmd_type == 62) {
+            // :append, :insert, :change given up: nothing is changed
+            editor.ex_input_kind = "";
+            editor.ex_input_lines = [];
+        }
         cmdline_leave(editor);
         return;
     }
@@ -8327,6 +8332,20 @@ void cmdline_key(MED_editor.Editor editor, int key) {
         str line = editor.cmdline;
         int kind = editor.cmd_type;
         List<int> saved = editor.cmd_saved;
+        if (kind == 62) {
+            // text for :append, :insert, :change: a line with only a dot ends it, MED_ex puts the lines in
+            cmdline_leave(editor);
+            if (line.trim() == ".") {
+                editor.ex_queue.push(str.from_chars([2]) + "exinput");
+            } else {
+                editor.ex_input_lines.push(line);
+                if (editor.is_autoindent && editor.ex_input_indent.size() == 0) {
+                    editor.ex_input_indent = MED_text.leading_white(line);
+                }
+                enter_cmdline(editor, 62, []);
+            }
+            return;
+        }
         hist_add(editor, line);
         cmdline_leave(editor);
         if (kind == 58) {

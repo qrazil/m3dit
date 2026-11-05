@@ -466,3 +466,12 @@ pub int col_at_display(str line, int want, int tab) {
     }
     return last;
 }
+
+/// The blanks (spaces and tabs) a line starts with.
+pub str leading_white(str line) {
+    int stop = 0;
+    while (stop < line.size() && (line.byte_at(stop) == 32 || line.byte_at(stop) == 9)) {
+        stop = stop + 1;
+    }
+    return line.substr(0, stop);
+}

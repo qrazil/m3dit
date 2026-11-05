@@ -463,6 +463,15 @@ pub type Editor {
     /// Ex command lines typed (or replayed) and not yet run: MED_ex runs them,
     /// because only it can call into the ex executor.
     pub List<str> ex_queue = [];
+    /// `:append`, `:insert` and `:change` read their text a line at a time (a `.` line ends it): which command,
+    /// the row the text goes after (-1: the top), the rows `:change` replaces (first, last; -1: none), the indent
+    /// `autoindent` copies and the lines so far.
+    pub str ex_input_kind = "";
+    pub int ex_input_after = 0;
+    pub int ex_input_first = -1;
+    pub int ex_input_last = -1;
+    pub str ex_input_indent = "";
+    pub List<str> ex_input_lines = [];
     /// Macros stopped for an ex command, first to continue first.
     pub List<Resume> resume = [];
     pub List<int> park = [];
