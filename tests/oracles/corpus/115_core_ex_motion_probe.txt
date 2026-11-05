@@ -421,7 +421,7 @@ a\nb\nc\nd		!!echo hi<CR>
 a\nb\nc\nd		!jsort -r<CR>
 a\nb\nc\nd		:r !echo hi<CR>
 a\nb\nc\nd		:%!sort -r<CR>
-a\nb\nc\nd		:2,3!tac<CR>
+a\nb\nc\nd		:2,3!sort -r<CR>
 abc		~
 abc		3~
 abc		g~l
