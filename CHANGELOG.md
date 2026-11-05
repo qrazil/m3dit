@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.20.0
+
+The vi core, a profile of the owner's Neovim setup, and the two parity documents. The plugin-API extractions of
+`docs/CORE-AND-PLUGINS.md` section 10 (surround, autopairs, git signs, explorer, terminal) were **not** done: the API stays 0.4.0 and the
+seams are as that section describes them (`docs/NVIM-PARITY.md` says why).
+
+- **Argument list**: `:args [FILE...]`, `:next [FILE...]`, `:Next`, `:previous`, `:first`, `:rewind`, `:last`, `:wnext`, `:argadd`, `:argdelete`,
+  `:argdo`, `:windo`, `:tabdo`. The files on the command line are the list (`E163`/`E164`/`E165` as Vim). No glob.
+- **Tags**: `:tag`, `:tselect`, `:tjump`, `:tnext`, `:tprevious`, `:trewind`, `:tlast`, `:pop`, `:tags`, CTRL-] and CTRL-T over the 'tags' option (ctags
+  format), `m3 -t TAG`.
+- **`:make`, `:grep`, `:vimgrep`** (and `:l` forms) fill the quickfix list from 'makeprg' / 'grepprg' output or by searching files.
+- **Ex mode**: `gQ`, `m3 -e` (a plain `Q` stays nvim's: it replays the last recorded macro); `:visual` leaves. **`:append`, `:insert`, `:change`**, **`:file`**, **`:preserve`**.
+- **Command line**: `-c CMD`, `+CMD`, `+N`, `+`, `-t TAG`, `-R`, `-r`, `-e`.
+- **Options that act now**: 'wrapmargin', 'scroll', 'magic' (`nomagic`), 'paragraphs', 'sections' (nroff macros in `{ }` and `[[ ]]`).
+- **Parity with the owner's Neovim**: `:Profile nvim` reproduces his options and the editor-behaviour keymaps (`H J K L` and `CTRL-H/J/K/L` move
+  lines, `- _ > <` hunks, `<Space>b` buffers, ...); `:Formatter LANG CMD` and 'formatonsave' (conform.nvim's format on save through external
+  commands, the language server as fallback); `:set pumkeys=blink` (Tab accepts, CTRL-J / CTRL-K move).
+- **Docs**: `docs/NVIM-PARITY.md` (every plugin and map of his config, with a status), `docs/VI-CORE.md` (the POSIX vi/ex requirements, with a status).
+- **Tests**: oracle corpora 118 and 119 (316 cases against nvim), `tests/t_vi.m31`, core_pty `vi_command_line_and_ex_mode`.
+
 ## 0.19.0
 
 This release also carries the core-completeness work (section "Core" below). `session` becomes a plugin (API 0.4.0), project-wide replace arrives (`:cdo`, `:cfdo`, `:bufdo`), and the extractions that
