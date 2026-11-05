@@ -339,6 +339,46 @@ def autocmds_user_commands_and_if_in_keymap(binary, root):
     assert body.startswith("ONE"), "BufWritePre autocmd should have changed the text: %r" % body
 
 
+@scenario
+def vi_command_line_and_ex_mode(binary, root):
+    with open(os.path.join(root, "b.txt"), "w") as f:
+        f.write("beta\ngamma\n")
+    with open(os.path.join(root, "tags"), "w") as f:
+        f.write("gamma\tb.txt\t/^gamma$/;\"\tf\n")
+    # -c runs an ex line after the files are read, +N goes to a line
+    s = Session(binary, root, ["-c", "s/one/ONE/", "+3", "a.txt", "b.txt"])
+    try:
+        assert s.wait_for("ONE"), s.text()
+        s.send("x", settle=0.3)
+        assert "hree" in s.text() and "three" not in s.text(), "+3 should put the cursor on line 3:\n" + s.text()
+        # the argument list: :next goes to the second file, :args shows both with the current one in brackets
+        s.send(":w\r:next\r", settle=0.5)
+        assert "beta" in s.text(), s.text()
+        s.send(":args\r", settle=0.4)
+        assert "a.txt [b.txt]" in s.text(), s.text()
+        s.send(":prev\r", settle=0.4)
+        assert "ONE" in s.text(), s.text()
+        # Ex mode: the command line stays open; :visual leaves
+        s.send("Q", settle=0.3)
+        s.send("2\r", settle=0.3)
+        s.send("s/two/TWO/\r", settle=0.3)
+        s.send("visual\r", settle=0.3)
+        assert "TWO" in s.text(), s.text()
+        s.send("ihi\x1b", settle=0.3)
+        assert "hi" in s.text() and "-- INSERT --" not in s.text(), s.text()
+    finally:
+        s.close()
+    # -t jumps to the tag
+    s = Session(binary, root, ["-t", "gamma", "a.txt"])
+    try:
+        s.send("", settle=0.5)
+        assert s.wait_for("gamma"), s.text()
+        s.send(":pop\r", settle=0.4)
+        assert "ONE" in s.text() or "three" in s.text() or "hree" in s.text(), s.text()
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

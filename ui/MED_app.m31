@@ -274,6 +274,8 @@ pub type App {
     /// The argument list (`:args`, `:next`, `:argdo`): the files named on the command line, and where `:next` is.
     pub List<str> arglist = [];
     pub int arg_index = 0;
+    /// Ex mode (`Q`, `gQ`, `m3 -e`): the command line comes back after each command, until `:visual`.
+    pub bool is_ex_mode = false;
     /// The tag stack (`:tag`, CTRL-], `:pop`, CTRL-T) and the matches of the last `:tag`.
     pub List<TagFrame> tag_stack = [];
     pub List<MED_tags.Tag> tag_matches = [];
@@ -1431,6 +1433,11 @@ void App.run_request(str request) {
         run_tag(name, arg.trim());
     } else if (name == "make" || name == "grep" || name == "lgrep" || name == "vimgrep" || name == "lvimgrep" || name == "lmake") {
         run_make(name, arg, is_forced);
+    } else if (name == "visual") {
+        is_ex_mode = false;
+        if (arg.trim().size() > 0) {
+            edit(arg, is_forced);
+        }
     } else if (name == "file") {
         run_file_command(arg.trim());
     } else if (name == "preserve") {
@@ -1752,6 +1759,9 @@ void App.run_requests() {
 /// for another buffer) unless it was forced.
 bool App.did_finish() {
     run_requests();
+    if (is_ex_mode && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && !editor.is_quit) {
+        begin_command("");
+    }
     editor.log_message();
     editor.log_notice(notice);
     fire_mode_autocmds();
@@ -4234,6 +4244,13 @@ bool App.should_quit_after(int key) {
     if (editor.mode == MED_editor.INSERT && key == 19 && has_server_here()) {
         // CTRL-S: signature help for the call under the cursor
         run_lsp_command("signature", "");
+        return did_finish();
+    }
+    if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && key == 81 && (editor.pending.size() == 0 || (editor.pending.size() == 1 && editor.pending[0] == 103))) {
+        // Q, gQ: Ex mode
+        editor.pending = [];
+        is_ex_mode = true;
+        begin_command("");
         return did_finish();
     }
     if (editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && editor.ta_keys.size() == 0 && (key == 29 || key == 20)) {
@@ -6946,6 +6963,21 @@ void App.run_vimgrep(str arg, bool is_forced) {
         places.push(MED_errfmt.Place(file: hit.path, line: hit.line + 1, column: hit.column + 1, text: hit.text));
     }
     fill_quickfix(places, is_forced, "vimgrep");
+}
+
+/// The ex lines of `-c`, `+CMD` and `-t` (and `:recover` for `-r`), run once the files are read; `-e` then starts Ex mode.
+pub void App.run_startup(List<str> lines, bool is_ex_start) {
+    for (str line in lines) {
+        bool did_run = MED_ex.did_run_line(editor, line);
+        run_requests();
+        if (!did_run) {
+            break;
+        }
+    }
+    if (is_ex_start) {
+        is_ex_mode = true;
+        begin_command("");
+    }
 }
 
 /// `:file` shows the buffer's name and position; `:file NAME` renames the buffer.

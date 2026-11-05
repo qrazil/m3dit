@@ -4,6 +4,7 @@ import io;
 import os;
 import tests.MED_check;
 import ui.MED_app;
+import engine.MED_editor;
 import ui.MED_picker;
 import term;
 
@@ -112,6 +113,20 @@ match (MED_app.open_all([base + "-a.txt"])) {
         type_text(app, ":grep three " + base + "-c.txt\r");
         check.eq_int(":grep finds the line", app.quickfix_list.size(), 1);
         check.eq_str("and went to it", app.editor.buffer.dump(), "foo three\n");
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+// Ex mode: Q keeps the command line open after each command, :visual leaves
+match (MED_app.open_all([base + "-a.txt"])) {
+    case Ok(MED_app.App app): {
+        type_text(app, "Q");
+        check.ok("Q opens the command line", app.editor.mode == MED_editor.CMDLINE);
+        type_text(app, "s/bar/EX/\r");
+        check.ok("and it is open again after a command", app.editor.mode == MED_editor.CMDLINE);
+        type_text(app, "visual\r");
+        check.ok(":visual leaves Ex mode", app.editor.mode == MED_editor.NORMAL && !app.is_ex_mode);
     }
     case Err(str message): {
         print("cannot open: " + message);

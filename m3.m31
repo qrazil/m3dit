@@ -119,6 +119,38 @@ table.completions();
 table.epilog = "keys: Vim; <Space> leader (which-key), <Space>ff files, <Space>e file tree, <Space>? all keys, :Plugins, :q quits\nexit status: 0 ok, 1 could not start (no terminal, unreadable file), 2 usage error";
 List<str> raw = os.arguments();
 raw.remove_at(0);
+// vi's command line, taken out before the grammar sees it: `-c CMD` and `+CMD` (`+` is `$`, `+N` is line N) run an ex
+// line after the files are read, `-t TAG` is `:tag TAG`, `-R` and `-r` are `:set readonly` and `:recover`, `-e` and
+// `-E` start in Ex mode (docs/VI-CORE.md)
+List<str> startup_lines = [];
+List<str> kept = [];
+bool is_ex_start = false;
+bool is_recover_start = false;
+int raw_at = 0;
+while (raw_at < raw.size()) {
+    str word = raw[raw_at];
+    raw_at = raw_at + 1;
+    if (word == "-c" && raw_at < raw.size()) {
+        startup_lines.push(raw[raw_at]);
+        raw_at = raw_at + 1;
+    } else if (word == "-t" && raw_at < raw.size()) {
+        startup_lines.push("tag " + raw[raw_at]);
+        raw_at = raw_at + 1;
+    } else if (word == "+") {
+        startup_lines.push("$");
+    } else if (word.size() > 1 && word.byte_at(0) == 43) {
+        startup_lines.push(word.substr(1, word.size()));
+    } else if (word == "-R") {
+        startup_lines.push("set readonly");
+    } else if (word == "-r") {
+        is_recover_start = true;
+    } else if (word == "-e" || word == "-E") {
+        is_ex_start = true;
+    } else {
+        kept.push(word);
+    }
+}
+raw = kept;
 args.Parsed given = table.parse_or_exit(args.migrate("m3", raw, ["-u", "--keymap", "-v", "--version", "-h", "--help"]));
 str theme_name = given.value("theme").or("");
 str dump_colours = given.value("colors").or("");
@@ -258,6 +290,13 @@ match (MED_app.open_all(files)) {
         TUI_style.Depth depth = colour_depth();
         TUI_app.Loop loop = TUI_app.Loop(should_report_paste: true, should_report_mouse: is_mouse, should_sync: true, should_scroll: false, should_report_focus: true, should_manage_cursor: true, animate_ms: 50, depth: depth);
         app.ext_started();
+        if (is_project_session) {
+            app.arglist = [];
+        }
+        if (is_recover_start) {
+            startup_lines.insert(0, "recover");
+        }
+        app.run_startup(startup_lines, is_ex_start);
         app.motion.loop = loop;
         app.motion.configure(is_no_anim, is_truecolour(), !is_light_background());
         match (loop.run_with((TUI_buffer.Buffer buffer, TUI_geometry.Rect area) => app.render(buffer, area), (term.Event event) => app.handle(event), (int elapsed_ms) => app.tick(elapsed_ms), (TUI_mouse.Routed routed) => app.handle_mouse(routed))) {
