@@ -29,7 +29,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 | Project settings | core | `.editorconfig`, `.m3.toml` | tabstop, formatting, per-project options |
 | Themes, transparent terminals, truecolor with fallbacks | core | theme engine (14 themes) | decision: stays in core |
 | Clipboard, mouse, bracketed paste | core | | OSC 52 / wl-copy / xclip / pbcopy detected |
-| Multi-buffer / project search and replace | core (0.19.0), partial | `:cdo` `:cfdo` `:bufdo` in `MED_app.run_do` | the finder sends hits to quickfix (`<C-q>`), then `:cdo s/old/new/ \| update`; stops at the first failing line. Still missing: `:windo`, `:argdo`, `:vimgrep`, `:grep` (below) |
+| Multi-buffer / project search and replace | core (0.19.0), partial | `:cdo` `:cfdo` `:bufdo` in `MED_app.run_do` | the finder sends hits to quickfix (`<C-q>`), then `:cdo s/old/new/ \| update`; stops at the first failing line. `:windo`, `:argdo`, `:tabdo`, `:vimgrep`, `:grep`, `:make` exist since 0.20.0 (docs/VI-CORE.md); 'errorformat' is not read |
 | Diff mode (`:diffthis`, `]c` between two windows) | **missing** | | `:Git diff` and hunk preview exist; two-window diff does not |
 | `:make` and the quickfix errorformat | **missing** | | quickfix is fed by the finder and LSP only |
 | Spell checking | **declined** | ROADMAP | not before 1.x |
