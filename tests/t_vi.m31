@@ -95,4 +95,26 @@ match (MED_app.open_all([base + "-a.txt"])) {
         print("cannot open: " + message);
     }
 }
+// :grep and :vimgrep fill the quickfix list; :make runs makeprg and reads file:line: text
+match (MED_app.open_all([base + "-a.txt"])) {
+    case Ok(MED_app.App app): {
+        app.root = os.env("M3_TEST_TMP").or("/tmp");
+        type_text(app, ":vimgrep /three/ " + base + "-c.txt " + base + "-b.txt\r");
+        check.eq_int(":vimgrep found one entry", app.quickfix_list.size(), 1);
+        check.eq_int("at line 0", app.quickfix_list[0].line, 0);
+        type_text(app, ":set makeprg=printf\\ 'x.c:3:7:\\ boom\\\\nnoise\\\\ny.c:9:\\ bad\\\\n'\r");
+        type_text(app, ":make!\r");
+        check.eq_int(":make parsed two places", app.quickfix_list.size(), 2);
+        check.eq_str("the first", app.quickfix_list[0].text, "x.c:3: boom");
+        check.eq_int("with its column", app.quickfix_list[0].column, 6);
+        type_text(app, ":grep zzzz " + base + "-c.txt\r");
+        check.eq_int(":grep with no match empties the list", app.quickfix_list.size(), 0);
+        type_text(app, ":grep three " + base + "-c.txt\r");
+        check.eq_int(":grep finds the line", app.quickfix_list.size(), 1);
+        check.eq_str("and went to it", app.editor.buffer.dump(), "foo three\n");
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
 check.finish("t_vi");

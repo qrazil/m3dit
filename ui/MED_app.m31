@@ -27,6 +27,7 @@ import engine.MED_editor;
 import engine.MED_ex;
 import engine.MED_vim;
 import engine.MED_tags;
+import engine.MED_errfmt;
 import engine.MED_fold;
 import syntax.core.SYN_class;
 import syntax.core.SYN_detect;
@@ -978,6 +979,23 @@ void App.recover_idle(int elapsed_ms) {
     }
     // done until the next key
     recover_ms = -1000000000;
+    write_recoveries();
+}
+
+/// `:preserve`: bring the recovery files up to date now (vi's "write the whole buffer to the swap file").
+void App.preserve_now() {
+    if (state_directory.size() == 0) {
+        notice = "E313: Cannot preserve, there is no swap file";
+        return;
+    }
+    for (int position in 0 .. slots.size()) {
+        slots[position].recover_tick = -1;
+    }
+    write_recoveries();
+    notice = "Preserved";
+}
+
+void App.write_recoveries() {
     save_active();
     for (int position in 0 .. slots.size()) {
         Slot slot = slots[position];
@@ -1411,6 +1429,12 @@ void App.run_request(str request) {
         run_do(name, arg);
     } else if (name == "tag" || name == "tselect" || name == "tjump" || name == "tnext" || name == "tprevious" || name == "tNext" || name == "trewind" || name == "tfirst" || name == "tlast" || name == "pop" || name == "tags") {
         run_tag(name, arg.trim());
+    } else if (name == "make" || name == "grep" || name == "lgrep" || name == "vimgrep" || name == "lvimgrep" || name == "lmake") {
+        run_make(name, arg, is_forced);
+    } else if (name == "file") {
+        run_file_command(arg.trim());
+    } else if (name == "preserve") {
+        preserve_now();
     } else if (name == "args" || name == "next" || name == "Next" || name == "previous" || name == "first" || name == "rewind" || name == "last" || name == "wnext" || name == "argadd" || name == "argdelete") {
         run_arglist(name, arg, is_forced);
     } else if (name == "cc") {
@@ -6836,6 +6860,103 @@ void App.run_do(str name, str line) {
             return;
         }
     }
+}
+
+/// Fill the quickfix list from compiler or grep output and go to the first entry (not with `!`).
+void App.fill_quickfix(List<MED_errfmt.Place> places, bool is_forced, str what) {
+    List<MED_picker.Entry> entries = [];
+    for (MED_errfmt.Place one in places) {
+        int column = 0;
+        if (one.column > 0) {
+            column = one.column - 1;
+        }
+        entries.push(MED_picker.Entry(one.file + ":" + one.line.to_str() + ": " + one.text, path: one.file, line: one.line - 1, column: column));
+    }
+    quickfix_list = entries;
+    quickfix_index = -1;
+    if (entries.size() == 0) {
+        notice = what + ": no matches";
+        return;
+    }
+    if (is_forced) {
+        notice = entries.size().to_str() + " entries in the quickfix list";
+        return;
+    }
+    go_quickfix(0);
+}
+
+/// `:make [ARGS]` runs 'makeprg', `:grep ARGS` runs 'grepprg'; the places in their output become the quickfix list.
+/// `:vimgrep /PATTERN/ FILE...` searches the files itself. Files are named as the shell expands them.
+void App.run_make(str name, str arg, bool is_forced) {
+    if (name == "vimgrep" || name == "lvimgrep") {
+        run_vimgrep(arg.trim(), is_forced);
+        return;
+    }
+    str program = editor.opts.get("makeprg").or("make");
+    if (name == "grep" || name == "lgrep") {
+        program = editor.opts.get("grepprg").or("grep -HIn $* /dev/null");
+        if (arg.trim().size() == 0) {
+            notice = "E471: Argument required";
+            return;
+        }
+    }
+    autowrite(false);
+    str line = MED_errfmt.command_of(program, arg.trim());
+    MED_shell.Ran ran = MED_shell.run(["sh", "-c", line + " 2>&1"], root, "", timeout_ms: 120000);
+    if (ran.code < 0) {
+        notice = "E282: cannot run " + line;
+        return;
+    }
+    fill_quickfix(MED_errfmt.parse(MED_shell.split_lines(ran.text)), is_forced, name);
+}
+
+/// `:vimgrep /PATTERN/[g][j] FILE...` (the patterns of `:grep` without a program; no `**` expansion).
+void App.run_vimgrep(str arg, bool is_forced) {
+    if (arg.size() < 3) {
+        notice = "E471: Argument required";
+        return;
+    }
+    int delimiter = arg.byte_at(0);
+    int end = -1;
+    for (int index in 1 .. arg.size()) {
+        if (arg.byte_at(index) == delimiter && arg.byte_at(index - 1) != 92) {
+            end = index;
+            break;
+        }
+    }
+    if (end < 0) {
+        notice = "E682: Invalid search pattern or delimiter not found";
+        return;
+    }
+    str pattern = arg.substr(1, end);
+    List<str> files = [];
+    for (str word in arg.substr(end + 1, arg.size()).trim().split(" ")) {
+        if (word.size() > 0 && !(files.size() == 0 && (word == "g" || word == "j" || word == "gj"))) {
+            files.push(word);
+        }
+    }
+    if (files.size() == 0) {
+        notice = "E471: Argument required";
+        return;
+    }
+    MED_shell.Ran listed = MED_shell.run(["sh", "-c", "for f in " + files.join(" ") + "; do [ -f \"$f\" ] && echo \"$(cd \"$(dirname \"$f\")\" && pwd)/$(basename \"$f\")\"; done"], root, "", timeout_ms: 20000);
+    MED_grep.Corpus searched = MED_grep.load(".", MED_shell.split_lines(listed.text));
+    List<MED_errfmt.Place> places = [];
+    for (MED_grep.Hit hit in MED_grep.search(searched, pattern, false)) {
+        places.push(MED_errfmt.Place(file: hit.path, line: hit.line + 1, column: hit.column + 1, text: hit.text));
+    }
+    fill_quickfix(places, is_forced, "vimgrep");
+}
+
+/// `:file` shows the buffer's name and position; `:file NAME` renames the buffer.
+void App.run_file_command(str arg) {
+    if (arg.size() > 0) {
+        path = arg;
+        save_active();
+        notice = "\"" + arg + "\"";
+        return;
+    }
+    notice = file_note(path, editor);
 }
 
 /// A place the tag stack returns to.

@@ -1,0 +1,78 @@
+// Compiler and grep output as quickfix places (`:make`, `:grep`).
+//
+// The formats understood are the ones every common tool prints: `FILE:LINE:COL: TEXT`, `FILE:LINE: TEXT` and
+// `FILE(LINE,COL): TEXT` / `FILE(LINE): TEXT`. Anything else (a banner, a summary) is not a place and is left out.
+//
+//   MED_errfmt.Place               file, 1-based line, 1-based column (0 when the line has none) and the text
+//   MED_errfmt.parse(lines)        the places of the lines, in order
+//   MED_errfmt.command_of(program, arguments)  `program` with `$*` replaced by `arguments` (or `arguments` appended)
+
+pub type Place {
+    pub str file = "";
+    pub int line = 0;
+    pub int column = 0;
+    pub str text = "";
+}
+
+/// One line as a place; `file` is "" when the line is not one.
+pub Place place_of(str line) {
+    Place none = Place();
+    int paren = line.index_of("(").or(-1);
+    int colon = line.index_of(":").or(-1);
+    if (paren > 0 && (colon < 0 || paren < colon)) {
+        int shut = line.index_of("):").or(-1);
+        if (shut > paren) {
+            List<str> numbers = line.substr(paren + 1, shut).split(",");
+            int row = numbers[0].parse_int().or(0);
+            if (row > 0) {
+                int column = 0;
+                if (numbers.size() > 1) {
+                    column = numbers[1].trim().parse_int().or(0);
+                }
+                return Place(file: line.substr(0, paren), line: row, column: column, text: line.substr(shut + 2, line.size()).trim());
+            }
+        }
+        return none;
+    }
+    if (colon <= 0) {
+        return none;
+    }
+    str rest = line.substr(colon + 1, line.size());
+    int second = rest.index_of(":").or(-1);
+    if (second <= 0) {
+        return none;
+    }
+    int row = rest.substr(0, second).parse_int().or(0);
+    if (row <= 0) {
+        return none;
+    }
+    str after = rest.substr(second + 1, rest.size());
+    int third = after.index_of(":").or(-1);
+    int column = 0;
+    if (third > 0) {
+        int number = after.substr(0, third).parse_int().or(0);
+        if (number > 0) {
+            column = number;
+            after = after.substr(third + 1, after.size());
+        }
+    }
+    return Place(file: line.substr(0, colon), line: row, column: column, text: after.trim());
+}
+
+pub List<Place> parse(List<str> lines) {
+    List<Place> places = [];
+    for (str line in lines) {
+        Place one = place_of(line);
+        if (one.file.size() > 0) {
+            places.push(one);
+        }
+    }
+    return places;
+}
+
+pub str command_of(str program, str arguments) {
+    if (program.contains("$*")) {
+        return program.split("$*").join(arguments);
+    }
+    return (program + " " + arguments).trim();
+}
