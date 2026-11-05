@@ -38,7 +38,7 @@ write_file(base + "-b.txt", "foo two\n");
 write_file(base + "-c.txt", "foo three\n");
 match (MED_app.open_all([base + "-a.txt", base + "-b.txt", base + "-c.txt"])) {
     case Ok(MED_app.App app): {
-        check.eq_str("the command line files are the argument list", app.args_text(), "[" + base + "-a.txt] " + base + "-b.txt " + base + "-c.txt");
+        check.eq_str("the command line files are the argument list", app.arguments_text(), "[" + base + "-a.txt] " + base + "-b.txt " + base + "-c.txt");
         type_text(app, ":next\r");
         check.eq_str(":next goes to the second", app.editor.buffer.dump(), "foo two\n");
         type_text(app, ":last\r");
@@ -57,7 +57,7 @@ match (MED_app.open_all([base + "-a.txt", base + "-b.txt", base + "-c.txt"])) {
         check.eq_str(":argdo ran in the first file", app.editor.buffer.dump(), "bar one\n");
         type_text(app, ":args " + base + "-b.txt " + base + "-c.txt\r");
         check.eq_str(":args FILES edits the first", app.editor.buffer.dump(), "bar two\n");
-        check.eq_str("and sets the list", app.args_text(), "[" + base + "-b.txt] " + base + "-c.txt");
+        check.eq_str("and sets the list", app.arguments_text(), "[" + base + "-b.txt] " + base + "-c.txt");
         type_text(app, ":split\r");
         type_text(app, ":windo s/bar/WIN/\r");
         check.eq_str(":windo ran in a window", app.editor.buffer.dump(), "WIN two\n");

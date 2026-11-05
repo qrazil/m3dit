@@ -325,17 +325,17 @@ pub bool is_macro_line(str line, str macros) {
     if (line.size() > 2) {
         second = line.byte_at(2);
     }
-    int at = 0;
-    while (at < macros.size()) {
-        int want_first = macros.byte_at(at);
+    int offset = 0;
+    while (offset < macros.size()) {
+        int want_first = macros.byte_at(offset);
         int want_second = 32;
-        if (at + 1 < macros.size()) {
-            want_second = macros.byte_at(at + 1);
+        if (offset + 1 < macros.size()) {
+            want_second = macros.byte_at(offset + 1);
         }
         if (want_first == first && (want_second == second || (want_second == 32 && (line.size() == 2 || second == 32)))) {
             return true;
         }
-        at = at + 2;
+        offset = offset + 2;
     }
     return false;
 }

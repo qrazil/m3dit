@@ -6999,14 +6999,6 @@ void App.run_file_command(str arg) {
     notice = file_note(path, editor);
 }
 
-/// A place the tag stack returns to.
-pub type TagFrame {
-    pub str file = "";
-    pub int row = 0;
-    pub int col = 0;
-    pub str name = "";
-}
-
 /// Read the tags files of the 'tags' option for `name`; fills `tag_matches`.
 void App.find_tags(str name) {
     tag_matches = [];
@@ -7151,7 +7143,7 @@ void App.run_arglist(str name, str arg, bool is_forced) {
         return;
     }
     if (name == "args" && named.size() == 0) {
-        notice = args_text();
+        notice = arguments_text();
         return;
     }
     if ((name == "args" || name == "next") && named.size() > 0) {
@@ -7193,7 +7185,7 @@ void App.run_arglist(str name, str arg, bool is_forced) {
 }
 
 /// `:args` text: the list, the current file in brackets.
-pub str App.args_text() {
+pub str App.arguments_text() {
     List<str> listed = [];
     for (int index in 0 .. arglist.size()) {
         if (index == arg_index) {
@@ -8794,7 +8786,7 @@ void App.add_formatter(str arg) {
 
 /// Run the first usable formatter of `slot` over the whole buffer (as `:%!COMMAND` does, so it is one undo step).
 /// True when one ran and succeeded.
-bool App.format_externally(Slot slot) {
+bool App.did_format_externally(Slot slot) {
     if (formatter_keys.size() == 0 || slot.is_listing || slot.path.size() == 0 || !slot.editor.is_option_on("formatonsave", true)) {
         return false;
     }
@@ -9390,7 +9382,7 @@ str App.write_hooked(Slot slot, str target) {
 }
 
 str App.write_hooked_inner(Slot slot, str target) {
-    if (!format_externally(slot)) {
+    if (!did_format_externally(slot)) {
         lsp_format_before_write(slot);
     }
     if (!ext.has_handler(MED_ext.Event.BufferWritePre) && !ext.has_handler(MED_ext.Event.BufferWritePost)) {
@@ -9552,6 +9544,14 @@ bool App.did_tick_ext(int elapsed_ms) {
     ext_finish(context);
     ext_watch();
     return is_changed;
+}
+
+/// A place the tag stack returns to.
+pub type TagFrame {
+    pub str file = "";
+    pub int row = 0;
+    pub int col = 0;
+    pub str name = "";
 }
 
 /// The host side of `Ctx.status`.
