@@ -276,6 +276,9 @@ pub type App {
     pub int arg_index = 0;
     /// Ex mode (`Q`, `gQ`, `m3 -e`): the command line comes back after each command, until `:visual`.
     pub bool is_ex_mode = false;
+    /// External formatters (`:Formatter LANGUAGE COMMAND`), tried in order for a buffer of that language or extension.
+    pub List<str> formatter_keys = [];
+    pub List<str> formatter_commands = [];
     /// The tag stack (`:tag`, CTRL-], `:pop`, CTRL-T) and the matches of the last `:tag`.
     pub List<TagFrame> tag_stack = [];
     pub List<MED_tags.Tag> tag_matches = [];
@@ -1438,6 +1441,8 @@ void App.run_request(str request) {
         if (arg.trim().size() > 0) {
             edit(arg, is_forced);
         }
+    } else if (name == "Formatter") {
+        add_formatter(arg.trim());
     } else if (name == "file") {
         run_file_command(arg.trim());
     } else if (name == "preserve") {
@@ -8734,6 +8739,63 @@ str App.apply_workspace_edit(json.Value edit) {
     return problem;
 }
 
+/// `:Formatter LANGUAGE COMMAND...`: a filter (text in on standard input, formatted text out) for buffers of that
+/// language (`rust`) or file extension (`tsx`), run before every write (`:set noformatonsave` turns it off). Several
+/// for one language are tried in order and the first whose program is on PATH wins, like conform.nvim's lists.
+/// `$FILE` in the command is the buffer's file name. `:Formatter` alone lists them.
+void App.add_formatter(str arg) {
+    int space = arg.index_of(" ").or(-1);
+    if (space < 0) {
+        List<str> lines = [];
+        for (int index in 0 .. formatter_keys.size()) {
+            lines.push(formatter_keys[index] + ": " + formatter_commands[index]);
+        }
+        notice = lines.join("; ");
+        return;
+    }
+    formatter_keys.push(arg.substr(0, space));
+    formatter_commands.push(arg.substr(space + 1, arg.size()).trim());
+}
+
+/// Run the first usable formatter of `slot` over the whole buffer (as `:%!COMMAND` does, so it is one undo step).
+/// True when one ran and succeeded.
+bool App.format_externally(Slot slot) {
+    if (formatter_keys.size() == 0 || slot.is_listing || slot.path.size() == 0 || !slot.editor.is_option_on("formatonsave", true)) {
+        return false;
+    }
+    str language = SYN_detect.language_of(slot.path, MED_text.head(slot.editor.buffer.line(0)));
+    str extension = "";
+    List<str> dotted = slot.path.split(".");
+    if (dotted.size() > 1) {
+        extension = dotted[dotted.size() - 1];
+    }
+    for (int index in 0 .. formatter_keys.size()) {
+        str key = formatter_keys[index];
+        if (key != language && key != extension) {
+            continue;
+        }
+        str command = formatter_commands[index];
+        str program = command.split(" ")[0];
+        if (MED_shell.which(program).is_none()) {
+            continue;
+        }
+        int row = slot.editor.row;
+        int col = slot.editor.col;
+        bool did_run = MED_ex.did_run_line(slot.editor, "%!" + command.split("$FILE").join(slot.path));
+        bool is_failed = !did_run || is_error_text(slot.editor.message);
+        slot.editor.message = "";
+        if (is_failed) {
+            continue;
+        }
+        slot.editor.row = row;
+        slot.editor.col = col;
+        slot.editor.clamp();
+        slot.editor.want_from_cursor();
+        return true;
+    }
+    return false;
+}
+
 /// `:set lspformat`: before a buffer is written, its language server formats it (`textDocument/formatting`; a
 /// short wait for the answer, then the write goes on either way).
 void App.lsp_format_before_write(Slot slot) {
@@ -9293,7 +9355,9 @@ str App.write_hooked(Slot slot, str target) {
 }
 
 str App.write_hooked_inner(Slot slot, str target) {
-    lsp_format_before_write(slot);
+    if (!format_externally(slot)) {
+        lsp_format_before_write(slot);
+    }
     if (!ext.has_handler(MED_ext.Event.BufferWritePre) && !ext.has_handler(MED_ext.Event.BufferWritePost)) {
         return write_slot(slot, target);
     }

@@ -132,4 +132,20 @@ match (MED_app.open_all([base + "-a.txt"])) {
         print("cannot open: " + message);
     }
 }
+// :Formatter runs a filter over the buffer before :w
+write_file(base + "-f.txt", "quiet words\n");
+match (MED_app.open_all([base + "-f.txt"])) {
+    case Ok(MED_app.App app): {
+        type_text(app, ":Formatter txt tr a-z A-Z\r");
+        type_text(app, ":w\r");
+        check.eq_str("the formatter ran before the write", app.editor.buffer.dump(), "QUIET WORDS\n");
+        type_text(app, "u");
+        check.eq_str("and is one undo step", app.editor.buffer.dump(), "quiet words\n");
+        type_text(app, ":set noformatonsave\r:w\r");
+        check.eq_str("noformatonsave turns it off", app.editor.buffer.dump(), "quiet words\n");
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
 check.finish("t_vi");
