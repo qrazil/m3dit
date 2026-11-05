@@ -4254,14 +4254,14 @@ bool App.should_quit_after(int key) {
         run_lsp_command("signature", "");
         return did_finish();
     }
-    if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && key == 81 && (editor.pending.size() == 0 || (editor.pending.size() == 1 && editor.pending[0] == 103))) {
+    if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && key == 81 && (editor.pending.size() == 0 || (editor.pending.size() == 1 && editor.pending[0] == 103)) && !editor.maps.has_prefix("n", 81) && !editor.local_maps.has_prefix("n", 81)) {
         // Q, gQ: Ex mode
         editor.pending = [];
         is_ex_mode = true;
         begin_command("");
         return did_finish();
     }
-    if (editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && editor.ta_keys.size() == 0 && (key == 29 || key == 20)) {
+    if (editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && editor.ta_keys.size() == 0 && (key == 29 || key == 20) && !editor.maps.has_prefix("n", key) && !editor.local_maps.has_prefix("n", key)) {
         // CTRL-]: jump to the tag under the cursor; CTRL-T: back up the tag stack
         if (key == 20) {
             run_tag("pop", "");
