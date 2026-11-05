@@ -121,8 +121,8 @@ match (MED_app.open_all([base + "-a.txt"])) {
 // Ex mode: Q keeps the command line open after each command, :visual leaves
 match (MED_app.open_all([base + "-a.txt"])) {
     case Ok(MED_app.App app): {
-        type_text(app, "Q");
-        check.ok("Q opens the command line", app.editor.mode == MED_editor.CMDLINE);
+        type_text(app, "gQ");
+        check.ok("gQ opens the command line", app.editor.mode == MED_editor.CMDLINE);
         type_text(app, "s/bar/EX/\r");
         check.ok("and it is open again after a command", app.editor.mode == MED_editor.CMDLINE);
         type_text(app, "visual\r");

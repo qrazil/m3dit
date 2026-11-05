@@ -70,7 +70,7 @@ Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119).
 | `:rec[over]` | done+tested | older; `-r` calls it |
 | `:ta[g]`, `:ts[elect]`, `:tj[ump]`, `:tn[ext]`, `:tp[revious]`, `:tN`, `:tr[ewind]`, `:tl[ast]`, `:po[p]`, `:tags` | done+tested (new) | `t_vi`; see Tags |
 | `:gr[ep]`, `:vim[grep]`, `:mak[e]` (and `l` forms) | done+tested (new) | fill the quickfix list; see below |
-| `:vi[sual]`, `:Q`/`gQ` (Ex mode) | done+tested (new) | see Ex mode |
+| `:vi[sual]`, `gQ` (Ex mode) | done+tested (new) | see Ex mode; vi's `Q` is **divergence kept** (below) |
 | `:st[op]`, `:su[spend]`, `CTRL-Z` | missing | needs the terminal library to raise SIGTSTP and restore the screen on SIGCONT: **m31 request**: signals (`SIGTSTP`/`SIGCONT` handlers or `os.raise`), the same blocker as `docs/M31-ON-TRAP-REQUEST.md` |
 | `:sh[ell]` | missing | would run `$SHELL` with the terminal handed over (needs a terminal suspend/resume in tui); the `terminal` plugin's `:terminal` is the m3 way |
 | `:ex`, `:o[pen]` (open mode) | divergence kept | `:open` is a vi line-at-a-time visual mode; nvim has no open mode either |
@@ -94,7 +94,7 @@ entry is jumped to (not with `!`). `:vimgrep /pat/ files` searches the named fil
 
 ## Ex mode
 
-`Q` and `gQ` (and `m3 -e`) open the command line; it opens again after each command until `:visual` (`:vi`). Divergence: the line is the editor's
+`gQ` (and `m3 -e`) opens the command line; it opens again after each command until `:visual` (`:vi`). Vi's `Q` is **not** Ex mode here: nvim 0.11 makes `Q` replay the last recorded macro (checked with `nvim --headless`, corpus 118 has the cases) and Vim commands behave like nvim. Divergence: the line is the editor's
 command line at the bottom of the screen, not a scrolling teletype; there is no `:` prompt character change. Esc closes the line and it comes back.
 
 ## Options

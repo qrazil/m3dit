@@ -275,7 +275,7 @@ pub type App {
     /// The argument list (`:args`, `:next`, `:argdo`): the files named on the command line, and where `:next` is.
     pub List<str> arglist = [];
     pub int arg_index = 0;
-    /// Ex mode (`Q`, `gQ`, `m3 -e`): the command line comes back after each command, until `:visual`.
+    /// Ex mode (`gQ`, `m3 -e`): the command line comes back after each command, until `:visual`.
     pub bool is_ex_mode = false;
     /// External formatters (`:Formatter LANGUAGE COMMAND`), tried in order for a buffer of that language or extension.
     pub List<str> formatter_keys = [];
@@ -4254,8 +4254,8 @@ bool App.should_quit_after(int key) {
         run_lsp_command("signature", "");
         return did_finish();
     }
-    if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && key == 81 && (editor.pending.size() == 0 || (editor.pending.size() == 1 && editor.pending[0] == 103)) && !editor.maps.has_prefix("n", 81) && !editor.local_maps.has_prefix("n", 81)) {
-        // Q, gQ: Ex mode
+    if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && key == 81 && editor.pending.size() == 1 && editor.pending[0] == 103 && !editor.maps.has_prefix("n", 103) && !editor.local_maps.has_prefix("n", 103)) {
+        // gQ: Ex mode (a plain Q is nvim's: it replays the last recorded macro)
         editor.pending = [];
         is_ex_mode = true;
         begin_command("");

@@ -5874,6 +5874,13 @@ void run_cmd(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> typed)
                 set_cmdline(editor, ".,.+" + (count - 1).to_str());
             }
         }
+    } else if (key == 81) {
+        // Q (nvim 0.11): replay the last recorded register
+        if (editor.last_recorded == "") {
+            is_ok = false;
+        } else {
+            run_macro(editor, editor.last_recorded, count);
+        }
     } else if (key == 38) {
         editor.ex_queue.push("&&");
     } else if (key == 103) {
@@ -6313,6 +6320,7 @@ void stop_recording(MED_editor.Editor editor) {
     }
     str text = MED_key.encode(editor.macro_keys);
     editor.regs.set_named(editor.macro_reg, MED_register.Reg(text.split("\n"), MED_register.CHAR));
+    editor.last_recorded = editor.macro_reg;
     editor.macro_reg = "";
     editor.macro_keys = [];
 }

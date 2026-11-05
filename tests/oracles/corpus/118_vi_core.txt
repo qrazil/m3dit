@@ -205,3 +205,6 @@ int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecon
 int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	de
 int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	dE
 int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	d(
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	qaxjqQ
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	qaxjq2Q
+int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	Q

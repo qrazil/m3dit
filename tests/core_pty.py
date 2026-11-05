@@ -359,7 +359,7 @@ def vi_command_line_and_ex_mode(binary, root):
         s.send(":prev\r", settle=0.4)
         assert "ONE" in s.text(), s.text()
         # Ex mode: the command line stays open; :visual leaves
-        s.send("Q", settle=0.3)
+        s.send("gQ", settle=0.3)
         s.send("2\r", settle=0.3)
         s.send("s/two/TWO/\r", settle=0.3)
         s.send("visual\r", settle=0.3)

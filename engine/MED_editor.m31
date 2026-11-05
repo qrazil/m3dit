@@ -244,6 +244,8 @@ pub type Editor {
     /// The last command took a character argument (f, t, r ...): see `feed_key`.
     pub bool is_char_done = false;
     pub str last_macro = "";
+    /// The register of the last finished recording: `Q` replays it.
+    pub str last_recorded = "";
     /// Insert session.
     pub int ins_cmd = 0;
     pub int ins_count = 1;
