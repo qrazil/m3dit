@@ -65,4 +65,34 @@ match (MED_app.open_all([base + "-a.txt", base + "-b.txt", base + "-c.txt"])) {
         print("cannot open: " + message);
     }
 }
+// tags: a tags file next to the files, found through :set tags=
+write_file(base + "-src.c", "int helper(void)\n{\n}\n\nint main(void)\n{\n    return helper();\n}\n");
+write_file(base + "-tags", "!_TAG_FILE_FORMAT\t2\nhelper\t" + base + "-src.c\t/^int helper(void)$/;\"\tf\nmain\t" + base + "-src.c\t5;\"\tf\n");
+match (MED_app.open_all([base + "-a.txt"])) {
+    case Ok(MED_app.App app): {
+        type_text(app, ":set tags=" + base + "-tags\r");
+        type_text(app, ":tag main\r");
+        check.eq_int(":tag with a line number address", app.editor.row, 4);
+        check.eq_int("the tag stack has the place left", app.tag_stack.size(), 1);
+        type_text(app, "jjj");
+        type_text(app, ":tag helper\r");
+        check.eq_int(":tag with a search address", app.editor.row, 0);
+        type_text(app, ":pop\r");
+        check.eq_int(":pop returns to the line left", app.editor.row, 7);
+        app.editor.row = 6;
+        app.editor.col = 12;
+        type_text(app, "\x1d");
+        check.eq_int("CTRL-] jumps to the word under the cursor", app.editor.row, 0);
+        type_text(app, "\x14");
+        check.eq_int("CTRL-T returns", app.editor.row, 6);
+        type_text(app, ":tag nosuch\r");
+        check.ok("an unknown tag is E426", app.notice.starts_with("E426") || app.editor.message.starts_with("E426"));
+        type_text(app, ":pop\r");
+        type_text(app, ":pop\r");
+        check.ok("an empty stack is E73", app.notice.starts_with("E73") || app.editor.message.starts_with("E73"));
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
 check.finish("t_vi");

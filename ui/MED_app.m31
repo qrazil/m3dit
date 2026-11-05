@@ -26,6 +26,7 @@ import engine.MED_fileio;
 import engine.MED_editor;
 import engine.MED_ex;
 import engine.MED_vim;
+import engine.MED_tags;
 import engine.MED_fold;
 import syntax.core.SYN_class;
 import syntax.core.SYN_detect;
@@ -272,6 +273,11 @@ pub type App {
     /// The argument list (`:args`, `:next`, `:argdo`): the files named on the command line, and where `:next` is.
     pub List<str> arglist = [];
     pub int arg_index = 0;
+    /// The tag stack (`:tag`, CTRL-], `:pop`, CTRL-T) and the matches of the last `:tag`.
+    pub List<TagFrame> tag_stack = [];
+    pub List<MED_tags.Tag> tag_matches = [];
+    pub List<str> tag_match_dirs = [];
+    pub int tag_match_index = 0;
     /// Where recent files, positions and harpoon lists are kept ("" none).
     pub str state_directory = "";
     pub List<str> recent = [];
@@ -1403,6 +1409,8 @@ void App.run_request(str request) {
         has_picker = false;
     } else if (name == "cdo" || name == "cfdo" || name == "bufdo" || name == "argdo" || name == "windo" || name == "tabdo") {
         run_do(name, arg);
+    } else if (name == "tag" || name == "tselect" || name == "tjump" || name == "tnext" || name == "tprevious" || name == "tNext" || name == "trewind" || name == "tfirst" || name == "tlast" || name == "pop" || name == "tags") {
+        run_tag(name, arg.trim());
     } else if (name == "args" || name == "next" || name == "Next" || name == "previous" || name == "first" || name == "rewind" || name == "last" || name == "wnext" || name == "argadd" || name == "argdelete") {
         run_arglist(name, arg, is_forced);
     } else if (name == "cc") {
@@ -4204,6 +4212,20 @@ bool App.should_quit_after(int key) {
         run_lsp_command("signature", "");
         return did_finish();
     }
+    if (editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && editor.ta_keys.size() == 0 && (key == 29 || key == 20)) {
+        // CTRL-]: jump to the tag under the cursor; CTRL-T: back up the tag stack
+        if (key == 20) {
+            run_tag("pop", "");
+        } else {
+            str word = word_under_cursor();
+            if (word.size() == 0) {
+                notice = "E349: No identifier under cursor";
+            } else {
+                run_tag("tag", word);
+            }
+        }
+        return did_finish();
+    }
     if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && has_server_here() && is_lsp_key(key)) {
         if (key == 75 && editor.pending.size() == 0) {
             run_lsp_command("hover", "");
@@ -6814,6 +6836,127 @@ void App.run_do(str name, str line) {
             return;
         }
     }
+}
+
+/// A place the tag stack returns to.
+pub type TagFrame {
+    pub str file = "";
+    pub int row = 0;
+    pub int col = 0;
+    pub str name = "";
+}
+
+/// Read the tags files of the 'tags' option for `name`; fills `tag_matches`.
+void App.find_tags(str name) {
+    tag_matches = [];
+    tag_match_dirs = [];
+    tag_match_index = 0;
+    str here = "";
+    if (path.size() > 0) {
+        here = MED_tree.parent_of(path);
+    }
+    bool is_ignore = editor.is_option_on("ignorecase", false);
+    for (str file in MED_tags.files_of(editor.opts.get("tags").or("./tags;,tags"), here)) {
+        match (io.read(file)) {
+            case Ok(str text): {
+                for (MED_tags.Tag one in MED_tags.entries_of(text, name, is_ignore)) {
+                    tag_matches.push(one);
+                    tag_match_dirs.push(MED_tree.parent_of(file));
+                }
+            }
+            case Err(io.Error error): {
+            }
+        }
+    }
+}
+
+/// Jump to match `index` of `tag_matches` (the current place is already on the stack).
+void App.jump_to_tag(int index) {
+    MED_tags.Tag one = tag_matches[index];
+    str file = one.file;
+    str base = tag_match_dirs[index];
+    if (!file.starts_with("/") && base.size() > 0 && base != ".") {
+        file = base + "/" + file;
+    }
+    edit(file, false);
+    int row = MED_tags.line_of(editor.buffer.lines, one.address);
+    if (row < 0) {
+        notice = "E426: tag not found: " + one.name;
+        return;
+    }
+    editor.row = row;
+    editor.col = 0;
+    editor.clamp();
+    editor.want_from_cursor();
+    tag_match_index = index;
+    notice = "tag " + (index + 1).to_str() + " of " + tag_matches.size().to_str();
+}
+
+/// `:tag NAME` and its relatives, `:pop`, `:tags` (CTRL-] is `:tag` with the word under the cursor, CTRL-T is `:pop`).
+void App.run_tag(str name, str arg) {
+    if (name == "tags") {
+        List<str> lines = ["  # TO tag         FROM line  in file/text"];
+        for (int index in 0 .. tag_stack.size()) {
+            TagFrame frame = tag_stack[index];
+            lines.push("> " + (index + 1).to_str() + "    " + frame.name + "   " + (frame.row + 1).to_str() + "  " + frame.file);
+        }
+        overlay = lines;
+        return;
+    }
+    if (name == "pop") {
+        if (tag_stack.size() == 0) {
+            notice = "E73: tag stack empty";
+            return;
+        }
+        TagFrame back = tag_stack.pop();
+        edit(back.file, false);
+        editor.row = back.row;
+        editor.col = back.col;
+        editor.clamp();
+        editor.want_from_cursor();
+        return;
+    }
+    if (name == "tnext" || name == "tprevious" || name == "tNext" || name == "trewind" || name == "tfirst" || name == "tlast") {
+        if (tag_matches.size() == 0) {
+            notice = "E73: tag stack empty";
+            return;
+        }
+        int target = tag_match_index;
+        if (name == "tnext") {
+            target = target + 1;
+        } else if (name == "tprevious" || name == "tNext") {
+            target = target - 1;
+        } else if (name == "trewind" || name == "tfirst") {
+            target = 0;
+        } else {
+            target = tag_matches.size() - 1;
+        }
+        if (target >= tag_matches.size()) {
+            notice = "E428: Cannot go beyond last matching tag";
+            return;
+        }
+        if (target < 0) {
+            notice = "E425: Cannot go before first matching tag";
+            return;
+        }
+        jump_to_tag(target);
+        return;
+    }
+    if (arg.size() == 0) {
+        notice = "E471: Argument required";
+        return;
+    }
+    find_tags(arg);
+    if (tag_matches.size() == 0) {
+        notice = "E426: tag not found: " + arg;
+        return;
+    }
+    if (editor.opts.get("tags").or("./tags;,tags") == "") {
+        notice = "E433: No tags file";
+        return;
+    }
+    tag_stack.push(TagFrame(file: path, row: editor.row, col: editor.col, name: arg));
+    jump_to_tag(0);
 }
 
 /// The argument list commands: `:args [FILE...]`, `:next [FILE...]`, `:Next`/`:previous`, `:first`/`:rewind`, `:last`,

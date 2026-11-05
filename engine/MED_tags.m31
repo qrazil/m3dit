@@ -1,0 +1,165 @@
+// Tags files (vi's `ctags` support): `:tag NAME`, CTRL-], CTRL-T, `:tags`, `-t NAME`.
+//
+// A tags file is lines of `NAME<TAB>FILE<TAB>ADDRESS[;"<TAB>FIELDS]`. The address is a line number or a search
+// pattern between `/.../` or `?...?` (`\/` and `\\` escape the delimiter and the backslash; `^` and `$` at the ends
+// anchor the line, everything else is literal, as vi searches a tag with `nomagic`). Lines that start with `!` are
+// header lines. Module API:
+//
+//   MED_tags.Tag                    one entry: name, file, address, kind
+//   MED_tags.entries_of(text, name) the entries of a tags file whose name is `name` (case follows `is_ignore`)
+//   MED_tags.line_of(lines, address) the 0-based line an address names, or -1
+//   MED_tags.files_of(option, current_directory)  the tags files an option value names, in order
+
+pub type Tag {
+    pub str name = "";
+    pub str file = "";
+    pub str address = "";
+    pub str kind = "";
+}
+
+/// The entries of the tags file `text` named `name`.
+pub List<Tag> entries_of(str text, str name, bool is_ignore) {
+    List<Tag> found = [];
+    str wanted = name;
+    if (is_ignore) {
+        wanted = name.to_lower();
+    }
+    for (str line in text.split("\n")) {
+        if (line.size() == 0 || line.byte_at(0) == 33) {
+            continue;
+        }
+        List<str> fields = line.split("\t");
+        if (fields.size() < 3) {
+            continue;
+        }
+        str here = fields[0];
+        if (is_ignore) {
+            here = here.to_lower();
+        }
+        if (here != wanted) {
+            continue;
+        }
+        str address = fields[2];
+        // `;"` ends the address; the fields after it hold the kind
+        str kind = "";
+        int cut = address.index_of(";\"").or(-1);
+        if (cut >= 0) {
+            address = address.substr(0, cut);
+        }
+        for (int index in 3 .. fields.size()) {
+            str field = fields[index];
+            if (field.size() == 1) {
+                kind = field;
+            } else if (field.starts_with("kind:")) {
+                kind = field.substr(5, field.size());
+            }
+        }
+        found.push(Tag(name: fields[0], file: fields[1], address: address, kind: kind));
+    }
+    return found;
+}
+
+/// The text between the delimiters of a search address, `\/` and `\\` undone; ^ and $ at the ends are returned
+/// through `anchors` as "^", "$" or "^$" in the first element.
+List<str> pattern_of(str address) {
+    List<str> result = ["", ""];
+    if (address.size() < 2) {
+        return result;
+    }
+    int delimiter = address.byte_at(0);
+    int last = address.size() - 1;
+    if (address.byte_at(last) != delimiter) {
+        last = address.size();
+    }
+    str inner = address.substr(1, last);
+    str out = "";
+    int index = 0;
+    while (index < inner.size()) {
+        int byte = inner.byte_at(index);
+        if (byte == 92 && index + 1 < inner.size() && (inner.byte_at(index + 1) == delimiter || inner.byte_at(index + 1) == 92)) {
+            out = out + inner.substr(index + 1, index + 2);
+            index = index + 2;
+        } else {
+            out = out + inner.substr(index, index + 1);
+            index = index + 1;
+        }
+    }
+    str anchors = "";
+    if (out.starts_with("^")) {
+        anchors = anchors + "^";
+        out = out.substr(1, out.size());
+    }
+    if (out.ends_with("$") && !out.ends_with("\\$")) {
+        anchors = anchors + "$";
+        out = out.substr(0, out.size() - 1);
+    }
+    result[0] = anchors;
+    result[1] = out;
+    return result;
+}
+
+/// The 0-based line `address` names in `lines` (a number, or the first line that has the pattern), or -1.
+pub int line_of(List<str> lines, str address) {
+    if (address.size() == 0) {
+        return -1;
+    }
+    int first = address.byte_at(0);
+    if (first >= 48 && first <= 57) {
+        int number = address.parse_int().or(0);
+        if (number < 1 || number > lines.size()) {
+            return -1;
+        }
+        return number - 1;
+    }
+    if (first != 47 && first != 63) {
+        return -1;
+    }
+    List<str> parts = pattern_of(address);
+    bool is_start = parts[0].contains("^");
+    bool is_end = parts[0].contains("$");
+    str pattern = parts[1];
+    for (int row in 0 .. lines.size()) {
+        str line = lines[row];
+        if (is_start && is_end) {
+            if (line == pattern) {
+                return row;
+            }
+        } else if (is_start) {
+            if (line.starts_with(pattern)) {
+                return row;
+            }
+        } else if (is_end) {
+            if (line.ends_with(pattern)) {
+                return row;
+            }
+        } else if (line.contains(pattern)) {
+            return row;
+        }
+    }
+    return -1;
+}
+
+/// The tags files `option` ('tags': comma separated; `./name` is relative to the directory of the current file,
+/// a trailing `;` after a name is Vim's upward search and is read as the plain name) for a file in `directory`.
+pub List<str> files_of(str option, str directory) {
+    List<str> files = [];
+    for (str part in option.split(",")) {
+        str name = part.trim();
+        if (name.ends_with(";")) {
+            name = name.substr(0, name.size() - 1);
+        }
+        if (name.size() == 0) {
+            continue;
+        }
+        if (name.starts_with("./")) {
+            if (directory.size() == 0) {
+                files.push(name.substr(2, name.size()));
+            } else {
+                files.push(directory + "/" + name.substr(2, name.size()));
+            }
+        } else {
+            files.push(name);
+        }
+    }
+    return files;
+}
