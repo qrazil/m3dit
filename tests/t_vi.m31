@@ -153,7 +153,8 @@ match (MED_app.open_all([base + "-a.txt"])) {
     case Ok(MED_app.App app): {
         type_text(app, ":Profile nvim\r");
         check.eq_str("no error", app.notice, "");
-        check.eq_int("shiftwidth", app.editor.option_number("shiftwidth", 8), 4);
+        check.eq_int("tabstop", app.editor.tab, 4);
+        check.eq_int("shiftwidth", app.editor.shiftwidth, 4);
         check.eq_str("pumkeys", app.editor.opts.get("pumkeys").or(""), "blink");
         type_text(app, "ofirst\x1bosecond\x1bgg");
         type_text(app, "J");
