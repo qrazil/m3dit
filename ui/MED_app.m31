@@ -269,6 +269,9 @@ pub type App {
     /// The quickfix list and the entry `]q` / `:cnext` last went to.
     pub List<MED_picker.Entry> quickfix_list = [];
     pub int quickfix_index = -1;
+    /// The argument list (`:args`, `:next`, `:argdo`): the files named on the command line, and where `:next` is.
+    pub List<str> arglist = [];
+    pub int arg_index = 0;
     /// Where recent files, positions and harpoon lists are kept ("" none).
     pub str state_directory = "";
     pub List<str> recent = [];
@@ -1334,7 +1337,7 @@ void App.run_request(str request) {
         }
     } else if (name == "only") {
         only_window();
-    } else if (name.starts_with("tab")) {
+    } else if (name.starts_with("tab") && name != "tabdo") {
         run_tab_command(name, arg, is_forced);
     } else if (name == "Rename" || name == "Delete" || name == "Create" || name == "Mkdir") {
         listing_file_command(name, arg);
@@ -1398,8 +1401,10 @@ void App.run_request(str request) {
         open_picker("quickfix", "");
     } else if (name == "cclose") {
         has_picker = false;
-    } else if (name == "cdo" || name == "cfdo" || name == "bufdo") {
+    } else if (name == "cdo" || name == "cfdo" || name == "bufdo" || name == "argdo" || name == "windo" || name == "tabdo") {
         run_do(name, arg);
+    } else if (name == "args" || name == "next" || name == "Next" || name == "previous" || name == "first" || name == "rewind" || name == "last" || name == "wnext" || name == "argadd" || name == "argdelete") {
+        run_arglist(name, arg, is_forced);
     } else if (name == "cc") {
         go_quickfix_number(arg.trim());
     } else if (name == "clist") {
@@ -6755,11 +6760,23 @@ void App.run_do(str name, str line) {
     }
     List<int> ids = [];
     List<MED_picker.Entry> places = [];
+    List<str> files = [];
+    List<int> window_ids = [];
     if (name == "bufdo") {
         for (Slot one in slots) {
             if (!one.is_listing) {
                 ids.push(one.id);
             }
+        }
+    } else if (name == "argdo") {
+        files = arglist;
+    } else if (name == "windo") {
+        for (MED_window.Win one in wins) {
+            window_ids.push(one.id);
+        }
+    } else if (name == "tabdo") {
+        for (int number in 0 .. pages.size()) {
+            window_ids.push(number);
         }
     } else {
         if (quickfix_list.size() == 0) {
@@ -6775,10 +6792,17 @@ void App.run_do(str name, str line) {
             places.push(one);
         }
     }
-    int total = ids.size() + places.size();
+    int total = ids.size() + places.size() + files.size() + window_ids.size();
     for (int index in 0 .. total) {
         if (name == "bufdo") {
             activate(ids[index]);
+        } else if (name == "argdo") {
+            arg_index = index;
+            edit(files[index], false);
+        } else if (name == "windo") {
+            focus_window(window_ids[index]);
+        } else if (name == "tabdo") {
+            go_page(window_ids[index]);
         } else {
             jump_to(places[index].path, places[index].line, places[index].column);
         }
@@ -6790,6 +6814,91 @@ void App.run_do(str name, str line) {
             return;
         }
     }
+}
+
+/// The argument list commands: `:args [FILE...]`, `:next [FILE...]`, `:Next`/`:previous`, `:first`/`:rewind`, `:last`,
+/// `:wnext`, `:argadd FILE...`, `:argdelete FILE...`. Names are split at spaces; there is no glob.
+void App.run_arglist(str name, str arg, bool is_forced) {
+    List<str> named = [];
+    for (str word in arg.trim().split(" ")) {
+        if (word.size() > 0) {
+            named.push(word);
+        }
+    }
+    if (name == "argadd") {
+        for (str word in named) {
+            if (!arglist.contains(word)) {
+                arglist.push(word);
+            }
+        }
+        return;
+    }
+    if (name == "argdelete") {
+        List<str> kept = [];
+        for (str known in arglist) {
+            if (!named.contains(known)) {
+                kept.push(known);
+            }
+        }
+        arglist = kept;
+        if (arg_index >= arglist.size()) {
+            arg_index = 0;
+        }
+        return;
+    }
+    if (name == "args" && named.size() == 0) {
+        notice = args_text();
+        return;
+    }
+    if ((name == "args" || name == "next") && named.size() > 0) {
+        arglist = named;
+        arg_index = 0;
+        edit(arglist[0], is_forced);
+        return;
+    }
+    if (arglist.size() == 0) {
+        notice = "E163: There is only one file to edit";
+        if (name == "args") {
+            notice = "";
+        }
+        return;
+    }
+    int target = arg_index;
+    if (name == "wnext") {
+        write_file("");
+    }
+    if (name == "next" || name == "wnext") {
+        target = arg_index + 1;
+        if (target >= arglist.size()) {
+            notice = "E165: Cannot go beyond last file";
+            return;
+        }
+    } else if (name == "Next" || name == "previous") {
+        target = arg_index - 1;
+        if (target < 0) {
+            notice = "E164: Cannot go before first file";
+            return;
+        }
+    } else if (name == "first" || name == "rewind") {
+        target = 0;
+    } else if (name == "last") {
+        target = arglist.size() - 1;
+    }
+    arg_index = target;
+    edit(arglist[target], is_forced);
+}
+
+/// `:args` text: the list, the current file in brackets.
+pub str App.args_text() {
+    List<str> listed = [];
+    for (int index in 0 .. arglist.size()) {
+        if (index == arg_index) {
+            listed.push("[" + arglist[index] + "]");
+        } else {
+            listed.push(arglist[index]);
+        }
+    }
+    return listed.join(" ");
 }
 
 /// Where the terminal of buffer `id` is in `terms`, or -1.
@@ -9700,6 +9809,11 @@ pub Result<App, str> open_all(List<str> paths) {
     }
     if (is_first) {
         return Result<App, str>.Err("no buffer");
+    }
+    for (str path in paths) {
+        if (path != "") {
+            app.arglist.push(path);
+        }
     }
     app.did_use_theme(MED_theme.DARK);
     return Result<App, str>.Ok(app);
