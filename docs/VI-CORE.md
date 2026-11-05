@@ -2,8 +2,8 @@
 
 What POSIX `vi` and `ex` (IEEE 1003.1 `vi` and `ex` utilities) require, checked against `nvim --headless -u NONE` (nvim 0.11.5) and
 against m3. The owner's rule is "Vim commands behave exactly like nvim", so where vi and Vim differ, Vim (nvim) wins and the row says
-**divergence kept on purpose**. The POSIX pages were not reachable from the build host; the list below is the spec's command and option
-tables as they are in `man ex`/`vi_diff` and the text of POSIX.1-2017 `vi`, written down by hand.
+**divergence kept on purpose**. The POSIX pages were not fetched (no network was used); the list is written from the spec's command and option tables from memory and
+checked item by item against nvim, so an item the spec has and this file lacks is a gap in this file.
 
 Status words: **done+tested** (an oracle corpus case or a unit/pty test exercises it), **partial**, **missing**, **divergence kept**.
 Corpora: `tests/oracles/corpus/118_vi_core.txt` and `119_vi_options_ex.txt` (written for this file: 316 cases, all equal to nvim except
@@ -48,7 +48,7 @@ depth). `U` (undo line) is a Vim command that nvim keeps; matches. Text objects 
 
 ## Ex commands and addresses
 
-Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119, 25 address cases).
+Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119).
 
 | command | status | note |
 |---|---|---|
@@ -64,8 +64,8 @@ Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119, 25 
 | `:r file`, `:r !cmd`, `:{range}!cmd` filters, `:!` | done+tested | corpus 118 |
 | `:e!`, `:e #`, `:f[ile]` | done+tested (`:file` new) | `:file NAME` renames the buffer |
 | `:@x`, `:*x` | done+tested | corpus 119 |
-| `:u[ndo]`, `:red[o]`, `:ve[rsion]` | done+tested | corpus 118; `:version` in CORE-STATUS |
-| `:w`, `:w!`, `:w >> file`, `:wq`, `:x`, `:q`, `:q!` | done+tested | `:x`/`:w`/`:q` are harness artifacts in the oracle (they end the process); unit and pty tests cover them |
+| `:u[ndo]`, `:red[o]`, `:ve[rsion]` | done+tested | corpus 118 (`u`); `:version` is in CORE-STATUS |
+| `:w`, `:w!`, `:wq`, `:x`, `:q`, `:q!` | done+tested | `:x`/`:w`/`:q` are harness artifacts in the oracle (they end the process); unit and pty tests cover them |
 | `:pre[serve]` | done (new) | writes the recovery files now; message "Preserved" |
 | `:rec[over]` | done+tested | older; `-r` calls it |
 | `:ta[g]`, `:ts[elect]`, `:tj[ump]`, `:tn[ext]`, `:tp[revious]`, `:tN`, `:tr[ewind]`, `:tl[ast]`, `:po[p]`, `:tags` | done+tested (new) | `t_vi`; see Tags |
