@@ -10,6 +10,11 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# The oracle corpus completes paths under tests/: python must not leave a
+# __pycache__ there (macOS CI found one and the completion cases diverged).
+export PYTHONDONTWRITEBYTECODE=1
+rm -rf tests/__pycache__ scripts/__pycache__
+
 if [ -z "${M31_ROOT:-}" ]; then
     echo "M31_ROOT is not set -- point it at a checkout of github.com/qrazil/m31" \
          "(or an extracted release's runtime SDK)." >&2
