@@ -183,6 +183,7 @@ const List<str> SPECS = [
     "jumpoptions:jop:str:clean",
     "tagstack:tgst:bool:true",
     "formatonsave:fos:bool:true",
+    "pumkeys::str:vim",
     "delcombine:deco:bool:false",
     "emoji:emo:bool:true",
     "ambiwidth:ambw:str:single",

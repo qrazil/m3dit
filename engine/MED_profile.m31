@@ -1,0 +1,68 @@
+// Key and option profiles: `:Profile NAME` (or the line `Profile NAME` in the keymap file) runs the profile's ex lines.
+//
+//   nvim    the owner's Neovim setup, the parts that are editor behaviour (docs/NVIM-PARITY.md lists every line and
+//           what in the config it stands for). m3's own defaults stay available: a profile is opt-in, `:mapclear`
+//           and `:set` undo it, and a later line of the keymap file wins over it.
+//
+//   MED_profile.names()        the profile names
+//   MED_profile.lines_of(name) the ex lines of a profile ([] when unknown)
+
+pub List<str> names() {
+    return ["nvim"];
+}
+
+pub List<str> lines_of(str name) {
+    if (name == "nvim") {
+        return nvim();
+    }
+    return [];
+}
+
+List<str> nvim() {
+    return [
+        // init.lua
+        "set tabstop=4 shiftwidth=4 expandtab relativenumber ignorecase smartcase mouse=a smoothscroll",
+        // keymaps.lua
+        "nnoremap <Space>b <Cmd>Buffers<CR>",
+        "nnoremap <Space>gn :!git checkout -b ",
+        "nnoremap <Space>gr :!git branch -m ",
+        "nnoremap <Space>gdd <Cmd>Git diff<CR>",
+        "nnoremap <Space>gt <Cmd>Git diff<CR>",
+        "nnoremap <Space>a <Cmd>Symbols<CR>",
+        // mini.move: H J K L move the line in Normal mode, CTRL-H J K L move the selection in Visual mode
+        "nnoremap H <lt><lt>",
+        "nnoremap L >>",
+        "nnoremap J :m +1<CR>",
+        "nnoremap K :m -2<CR>",
+        "xnoremap <C-h> <lt>gv",
+        "xnoremap <C-l> >gv",
+        "xnoremap <C-j> :m '>+1<CR>gv",
+        "xnoremap <C-k> :m '<lt>-2<CR>gv",
+        // gitsigns: > and < next and previous hunk, - and _ stage and reset the hunk, <leader>hS stages the buffer
+        "nnoremap > <Cmd>Hunk next<CR>",
+        "nnoremap <lt> <Cmd>Hunk prev<CR>",
+        "nnoremap - <Cmd>Hunk stage<CR>",
+        "nnoremap _ <Cmd>Hunk reset<CR>",
+        "xnoremap - <Esc><Cmd>Hunk stage<CR>",
+        "xnoremap _ <Esc><Cmd>Hunk reset<CR>",
+        "nnoremap <Space>hu <Cmd>Hunk undo<CR>",
+        "nnoremap <Space>hS :!git add -- %<CR>",
+        // blink.cmp: Tab accepts, CTRL-J and CTRL-K move in the popup
+        "set pumkeys=blink",
+        // conform.nvim: formatters by file type, then the language server (lsp_format = fallback)
+        "set lspformat",
+        "Formatter rust rustfmt --edition 2021 --emit stdout",
+        "Formatter python ruff format --stdin-filename $FILE -",
+        "Formatter lua stylua --stdin-filepath $FILE -",
+        "Formatter javascript prettierd $FILE",
+        "Formatter javascript prettier --stdin-filepath $FILE",
+        "Formatter typescript prettierd $FILE",
+        "Formatter typescript prettier --stdin-filepath $FILE",
+        "Formatter jsx prettierd $FILE",
+        "Formatter jsx prettier --stdin-filepath $FILE",
+        "Formatter tsx prettierd $FILE",
+        "Formatter tsx prettier --stdin-filepath $FILE",
+        "Formatter json prettier --stdin-filepath $FILE",
+        "Formatter jsonc prettier --stdin-filepath $FILE"
+    ];
+}

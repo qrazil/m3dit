@@ -148,4 +148,21 @@ match (MED_app.open_all([base + "-f.txt"])) {
         print("cannot open: " + message);
     }
 }
+// :Profile nvim: the owner's maps and options
+match (MED_app.open_all([base + "-a.txt"])) {
+    case Ok(MED_app.App app): {
+        type_text(app, ":Profile nvim\r");
+        check.eq_str("no error", app.notice, "");
+        check.eq_int("shiftwidth", app.editor.option_number("shiftwidth", 8), 4);
+        check.eq_str("pumkeys", app.editor.opts.get("pumkeys").or(""), "blink");
+        type_text(app, "ofirst\x1bosecond\x1bgg");
+        type_text(app, "J");
+        check.eq_str("J moves the line down (mini.move), not a join", app.editor.buffer.dump(), "first\nfoo one\nsecond\n");
+        type_text(app, ":Profile nosuch\r");
+        check.ok("an unknown profile is E474", app.notice.starts_with("E474") || app.editor.message.starts_with("E474"));
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
 check.finish("t_vi");

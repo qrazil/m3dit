@@ -27,6 +27,7 @@ import engine.MED_editor;
 import engine.MED_ex;
 import engine.MED_vim;
 import engine.MED_tags;
+import engine.MED_profile;
 import engine.MED_errfmt;
 import engine.MED_fold;
 import syntax.core.SYN_class;
@@ -1441,6 +1442,8 @@ void App.run_request(str request) {
         if (arg.trim().size() > 0) {
             edit(arg, is_forced);
         }
+    } else if (name == "Profile") {
+        run_profile(arg.trim());
     } else if (name == "Formatter") {
         add_formatter(arg.trim());
     } else if (name == "file") {
@@ -8389,6 +8392,26 @@ bool App.did_use_pum_key(int key) {
         pum_close();
         return false;
     }
+    if (editor.opts.get("pumkeys").or("vim") == "blink") {
+        // blink.cmp's preset of the owner's config: Tab accepts, CTRL-J / CTRL-K and the arrows move
+        if (key == MED_key.TAB) {
+            if (pum.selected < 0) {
+                pum.move(1);
+            }
+            pum_accept();
+            return true;
+        }
+        if (key == 10) {
+            pum.move(1);
+            pum_note_selection();
+            return true;
+        }
+        if (key == 11) {
+            pum.move(-1);
+            pum_note_selection();
+            return true;
+        }
+    }
     if (key == MED_key.TAB || key == 14 || key == MED_key.DOWN) {
         pum.move(1);
         pum_note_selection();
@@ -8737,6 +8760,18 @@ str App.apply_workspace_edit(json.Value edit) {
         }
     }
     return problem;
+}
+
+/// `:Profile NAME`: the ex lines of a built-in profile (MED_profile) run as a keymap file would.
+void App.run_profile(str name) {
+    List<str> lines = MED_profile.lines_of(name);
+    if (lines.size() == 0) {
+        notice = "E474: Invalid argument: Profile " + MED_profile.names().join(" or ") + " (not '" + name + "')";
+        return;
+    }
+    str failure = run_script(lines.join("\n"), "profile " + name);
+    editor.message = "";
+    notice = failure;
 }
 
 /// `:Formatter LANGUAGE COMMAND...`: a filter (text in on standard input, formatted text out) for buffers of that
