@@ -1434,6 +1434,15 @@ pub void Registry.put_signs(int owner, int buffer_id, List<Sign> signs, bool is_
         set.texts[one.row] = one.text;
         set.scopes[one.row] = one.scope;
     }
+    match (sign_sets.get(buffer_id.to_str())) {
+        case Some(SignSet before): {
+            if (before.owner == owner && before.is_reserved == is_reserved && before.texts.join("\n") == set.texts.join("\n") && before.scopes.join("\n") == set.scopes.join("\n")) {
+                return;
+            }
+        }
+        case None: {
+        }
+    }
     sign_sets.set(buffer_id.to_str(), set);
     is_screen_dirty = true;
 }
@@ -2391,6 +2400,10 @@ pub bool Ctx.has_signs() {
 /// Tell the status line about the repository of this buffer (0.5.0; `Ctx.status` answers with it).
 pub void Ctx.set_git_summary(GitSummary summary) {
     if (buffer_id <= 0) {
+        return;
+    }
+    GitSummary before = registry.git_summary_of(buffer_id);
+    if (before.branch == summary.branch && before.has_hunks == summary.has_hunks && before.added == summary.added && before.changed == summary.changed && before.removed == summary.removed) {
         return;
     }
     registry.git_summaries.set(buffer_id.to_str(), summary);

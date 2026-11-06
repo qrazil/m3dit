@@ -78,6 +78,30 @@ MED_ext.Sign sign_of(int row, int kind) {
     return MED_ext.Sign(row, "_", "diff.minus");
 }
 
+/// The status line numbers for the file as last diffed.
+MED_ext.GitSummary summary_of(State state, MED_ext.Ctx context) {
+    MED_ext.GitSummary summary = MED_ext.GitSummary(branch: state.branch);
+    match (state.files.get(context.buffer_id.to_str())) {
+        case Some(FileInfo known): {
+            if (known.has_base) {
+                summary.has_hunks = true;
+                for (int kind in known.hunks.kinds) {
+                    if (kind == MEDX_git_hunk.ADDED) {
+                        summary.added = summary.added + 1;
+                    } else if (kind == MEDX_git_hunk.CHANGED) {
+                        summary.changed = summary.changed + 1;
+                    } else if (kind == MEDX_git_hunk.REMOVED) {
+                        summary.removed = summary.removed + 1;
+                    }
+                }
+            }
+        }
+        case None: {
+        }
+    }
+    return summary;
+}
+
 /// Tell the host what the file looks like now: the signs, the hunk spans and the status line counts.
 void publish(State state, MED_ext.Ctx context, FileInfo info) {
     List<MED_ext.Sign> signs = [];
@@ -185,8 +209,12 @@ Result<bool, str> ticked(State state, MED_ext.Ctx context, MED_ext.Info info) {
     }
     if (state.branch_ms >= REFRESH_MS || (state.branch.size() == 0 && state.branch_ms >= FIRST_BRANCH_MS)) {
         state.branch_ms = 0;
+        str before = state.branch;
         read_branch(state, context);
-        is_forced = true;
+        if (state.branch != before) {
+            // only a changed branch is told to the host (the signs stay as they are)
+            context.set_git_summary(summary_of(state, context));
+        }
     }
     if (is_forced) {
         refresh(state, context, true);
