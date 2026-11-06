@@ -115,7 +115,7 @@ def leader_which_key(binary, root):
     try:
         assert s.wait_for("hello world"), s.text()
         s.send(" ", settle=0.8)
-        assert s.wait_for("find"), "leader which-key missing:\n" + s.text()
+        assert s.wait_for("Find files"), "leader which-key missing:\n" + s.text()
         assert "windows" in s.text(), s.text()
     finally:
         s.close()

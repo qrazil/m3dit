@@ -609,9 +609,9 @@ def app_section(binary, repo):
     got = run(binary, repo, "app", path, ":Git bogus\r")
     check(":Git with an unknown word says so", any("unknown command" in n for n in got.get("NOTICE", [])))
     git(repo, "checkout", "-q", "--", "f.txt")
-    got = run(binary, repo, "app", path, ":13\r gB")
+    got = run(binary, repo, "app", path, ":13\r ghb")
     sha = blame_oracle(repo, "f.txt")[12]
-    check("<Space>gB names the commit of the line", any(n.startswith(sha[:8]) or n.startswith("^" + sha[:7]) for n in got.get("NOTICE", [])), "%r" % got.get("NOTICE"))
+    check("<Space>ghb names the commit of the line", any(n.startswith(sha[:8]) or n.startswith("^" + sha[:7]) for n in got.get("NOTICE", [])), "%r" % got.get("NOTICE"))
     got = run(binary, repo, "app", path, ":Hunk bogus\r")
     check(":Hunk with an unknown word says so", any(n.startswith("Hunk:") for n in got.get("NOTICE", [])))
 

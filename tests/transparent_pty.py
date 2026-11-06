@@ -355,8 +355,9 @@ def surfaces(quick):
         Surface("command-line menu (wildmenu)", ":colorscheme t\t", "\x1b", bar=True),
         Surface("listing (:ls)", ":ls\r", "\r"),
         Surface("hunk preview", "gg:Hunk preview\r", "\r", wait=0.5),
-        Surface("which-key", " ", "\x1b", kind="popup", popup_rows=0, wait=0.4),
-        Surface("which-key, a sub-prefix", " f", "\x1b\x1b", kind="popup", popup_rows=0, wait=0.4),
+        # the default leader menu is taller and sits beside the text, so the TODO badge of the file shows beside it (one row)
+        Surface("which-key", " ", "\x1b", kind="popup", popup_rows=1, wait=0.4),
+        Surface("which-key, a sub-prefix", " f", "\x1b\x1b", kind="popup", popup_rows=1, wait=0.4),
         Surface("notification box (notify plugin)", ":Notify warn disk almost full\r", ":NotifyClear\r", kind="popup", popup_rows=0, wait=0.4),
         Surface("jump labels", " j", "\x1b", kind="popup", popup_rows=2, wait=0.4),
         Surface("finder: files", " ff", "\x1b", kind="popup", popup_rows=1, wait=0.5),
