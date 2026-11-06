@@ -4,6 +4,7 @@
 
 import io;
 import os;
+import ext.MED_ext;
 import tests.MED_check;
 import tui.core.TUI_buffer;
 import ui.MED_app;
@@ -54,7 +55,7 @@ match (MED_app.open(file)) {
         app.render(screen, screen.area());
         check.ok(":PluginDisable hides it", !screen.row_text(0).contains("statusline.txt"));
         type_text(app, ":PluginEnable statusline\r:buffer 1\r");
-        app.branch = "main";
+        app.ext.git_summaries.set(app.current_id.to_str(), MED_ext.GitSummary(branch: "main"));
         app.tick(300);
         screen = TUI_buffer.Buffer.sized(240, 12);
         app.render(screen, screen.area());

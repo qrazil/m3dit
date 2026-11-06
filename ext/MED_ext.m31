@@ -717,7 +717,7 @@ pub type Registry {
     /// Gutter signs per buffer number (`Ctx.set_signs`), the git summaries (`Ctx.set_git_summary`) and the preview
     /// providers (`did_preview`), all 0.5.0.
     Map<str, SignSet> sign_sets = {};
-    Map<str, GitSummary> git_summaries = {};
+    pub Map<str, GitSummary> git_summaries = {};
     List<PreviewEntry> previewers = [];
 }
 
