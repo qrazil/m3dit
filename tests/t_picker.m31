@@ -92,7 +92,7 @@ explore.feed(97);
 check.ok("minus is text otherwise", explore.feed(45) == MED_picker.Outcome.Stay);
 check.eq_str("minus typed", explore.query, "a-");
 // the leader table
-List<MED_keymap.Binding> table = MED_keymap.defaults();
+List<MED_keymap.Binding> table = MED_keymap.defaults("legacy");
 check.eq_int("f is a prefix", MED_keymap.lookup(table, "f"), MED_keymap.IS_PREFIX);
 check.eq_int("ff is a leaf", MED_keymap.lookup(table, "ff"), MED_keymap.IS_LEAF);
 check.eq_int("space space is a leaf", MED_keymap.lookup(table, " "), MED_keymap.IS_LEAF);

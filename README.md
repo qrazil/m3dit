@@ -216,22 +216,28 @@ long to write (then fewer steps, then none). Numbers and budgets: [docs/UX-PERF.
 
 ## Keys
 
-Normal-mode `<Space>` is the leader; a pending sequence shows which-key after a short delay.
+Normal-mode `<Space>` is the leader; a pending sequence shows which-key after a short delay (`:set nowhichkey` turns it off).
 
-| keys | action |
+**Key profiles** (`:Profile NAME`, `--profile NAME`, or the line `Profile NAME` first in the keymap file): a profile is a whole key
+tree, and choosing one replaces the other. `default` (what a normal build starts in) is the sane IDE tree below; `minimal` is bare vi (no leader, no plugin
+keys; a `--no-plugins` build starts in it); `nvim` is the owner's Neovim keys; `legacy` is the tree of 0.21.0 and before. Every key of every profile is in
+[docs/KEYMAP.md](docs/KEYMAP.md); the reasons are in [docs/KEYMAP-REVIEW.md](docs/KEYMAP-REVIEW.md).
+
+| keys (`default`) | action |
 |---|---|
 | `jk` | Insert mode: back to Normal |
 | `<Space>ff` / `<Space><Space>` | find files |
-| `<Space>fr` `fd` `fq` | recent files, lines of the buffer, quickfix |
-| `<Space>fb` / `<Space>,` | buffers |
-| `<Space>fg` / `<Space>/` | live grep |
-| `<Space>fc` / `<Space>:` | command palette |
-| `<Space>?` / `<Space>fh` | keymap help |
-| `<Space>e` / `<Space>fe` | file explorer (`-` goes up) |
-| `<Space>bn` `bp` `ba` `bd` `bl` | next, previous, alternate, delete, list buffers |
-| `<Space>sv` `sh` `se` `sc` `z` `o` | split right, split below, equalise, close, close, only this window |
-| `<Space>n` | new buffer |
-| `<Space>w` / `<Space>qq` / `<Space>qa` | write, quit, quit all |
+| `<Space>fr` `fb` `fg` `fG` | recent files, buffers, live grep of this buffer, live grep of the project |
+| `<Space>,` / `<Space>/` / `<Space>:` / `<Space>?` | buffers, live grep, command palette, keymap help |
+| `<Space>s` | search group: `sg` grep, `sw` word, `sb` lines, `sh` keys, `sk` keymaps, `sC` commands, `so` options, `sm` marks, `sd` diagnostics, `ss` symbols, `sq` quickfix, `sp` plugins, `st` TODOs |
+| `<Space>e` / `<Space>fe` | file tree (the current file revealed) / explorer picker |
+| `<Space>b` | buffers: `bb` alternate, `bn` `bp`, `bd` delete, `bl` list, `br` reload |
+| `<Space>w` | windows: `ws` split below, `wv` split right, `wd` close, `wo` only, `w=` equalise (also `<Space>-` and `<Space>\|`) |
+| `<Space>g` | git: `gg gs gf` changed files, `gb` branches, `gl` log, `gL` log of this file, `gd` diff, `gn` `gR` new / rename branch, `gh` hunks (`ghs ghr ghp ghu ghb ghB`) |
+| `<Space>c` `D` `x` `u` | code (`cr ca cf cd`), diagnostics (`Dd Db Dl Ds`), lists (`xx xX xQ xL`), toggles (`uh uC uG`) |
+| `<Space>qq` / `<Space>qa` | quit, quit all |
+| `<C-s>` | write; `<C-h/j/k/l>` move between windows, `<C-arrows>` resize; `gK` signature help |
+| Visual `<` `>` | shift and keep the selection |
 | `<C-w>` `s v n c q o w W p t b h j k l x r R H J K L = + - < > _ \| T` | window commands |
 | `gt` `gT` `:tabnew` | next / previous tab page, new tab page |
 | `<C-^>` | alternate buffer |
@@ -246,13 +252,13 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 | finder | `<Space>ff fg fr fb fd fq fh fc fk fo fm fx fs ft fw` | files, live grep, recent, buffers, lines of the buffer, quickfix, keys, commands, options, marks, diagnostics, symbols, TODOs, word under cursor; `<C-t>` marks, `<C-q>` sends to quickfix |
 | whichkey (core; `:set nowhichkey` or the plugin name `whichkey` turn it off) | after 400 ms of any pending prefix | `<Space>`, `g`, `z`, `[`, `]`, `<C-w>`, `"`, `'`, operators |
 | explorer | `<Space>e` | file tree sidebar (see below) |
-| git | `<Space>gg gf gb gc gC gs gr gp gu gB gl gd gm gt`, `]c [c ]h [h`, `ih ah`, `:Git`, `:Hunk` | changed files, branch checkout, remote branches, commit log with preview, hunk stage / unstage / reset / preview, blame line and list, file log, diff, signs; the reads and the staging run in process (see below) |
+| git | `<Space>gg gf gb gl gL gd`, `<Space>gh` hunks, `]h [h`, `ih ah`, `:Git`, `:Hunk` (the `legacy` profile: `gc gC gs gr gp gu gB gm gt`, `]c [c`) | changed files, branch checkout, remote branches, commit log with preview, hunk stage / unstage / reset / preview, blame line and list, file log, diff, signs; the reads and the staging run in process (see below) |
 | surround | `ys ds cs`, Visual `S`, `<Space>sa sd sr` | vim-surround |
 | comment | `gc` `gcc` | language-aware toggle |
 | autopairs | insert mode | bracket and quote pairing |
 | statusline | | mode, file, git branch and hunk counts, E/W counts, filetype, position; bufferline with two or more buffers |
 | bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` | buffers, quickfix, diagnostics, hunks, TODO comments |
-| harpoon | `<Space>ha he hn hp hd`, `<Space>1`..`9` | pinned files per project (`~/.local/state/m3`) |
+| harpoon | `<Space>ha he hn hp hx` (`hd` in `nvim` and `legacy`), `<Space>1`..`9` | pinned files per project (`~/.local/state/m3`) |
 | move | `<A-j> <A-k> <A-h> <A-l>` | move or shift the line or the Visual selection |
 | notify | `:Notify`, `:Notifications` | toast notifications (language server messages, plugins), history in the finder |
 | jump | `<Space>j` | type a character, then a label |

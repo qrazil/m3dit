@@ -10,7 +10,7 @@ import ui.MED_keymap;
 import ui.MED_plugin;
 
 MED_check.Check check = MED_check.Check();
-List<MED_keymap.Binding> table = MED_keymap.defaults();
+List<MED_keymap.Binding> table = MED_keymap.defaults("legacy");
 // the owner's maps
 check.eq_str("w", MED_keymap.leaf(table, "w").action, "ex:write");
 check.eq_str("z", MED_keymap.leaf(table, "z").action, "ex:close");
@@ -90,7 +90,7 @@ check.ok("harpoon 3 is a plugin row", is_harpoon_three);
 // the document is the generated table
 match (io.read("docs/KEYMAP.md")) {
     case Ok(str text): {
-        check.ok("docs/KEYMAP.md is current (run scripts/gen_keymap.sh)", text == MED_keymap.markdown(MED_keymap.plugin_rows(registry)) + "\n");
+        check.ok("docs/KEYMAP.md is current (run scripts/gen_keymap.sh)", text == MED_keymap.markdown(registry) + "\n");
     }
     case Err(io.Error error): {
         check.ok("docs/KEYMAP.md exists", false);

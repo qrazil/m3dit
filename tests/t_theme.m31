@@ -602,7 +602,7 @@ match (MED_app.open_all([""])) {
         app.is_sixteen_colours = false;
         // the picker: live preview, Esc puts the theme back, Enter keeps one
         type_text(app, ":theme default\n");
-        type_text(app, " fC");
+        type_text(app, " uC");
         check.ok("<Space>fC opens the theme picker", app.has_picker && app.picker.title == "Themes");
         MED_picker.Entry first = app.picker.current().or(MED_picker.Entry(""));
         check.ok("it starts on the current theme", first.text.contains("(current)") && first.action == "ex:theme default");
@@ -615,13 +615,13 @@ match (MED_app.open_all([""])) {
         app.handle(named(term.Code.Escape));
         check.ok("Esc closes it", !app.has_picker);
         check.eq_str("and reverts the theme", app.theme.name, "default");
-        type_text(app, " fC");
+        type_text(app, " uC");
         app.handle(named(term.Code.Down));
         str chosen = app.theme.name;
         app.handle(named(term.Code.Enter));
         check.ok("Enter closes it", !app.has_picker);
         check.eq_str("and keeps the theme", app.theme.name, chosen);
-        type_text(app, " fCmine");
+        type_text(app, " uCmine");
         check.eq_str("typing filters, and previews the match", app.theme.name, "mine");
         app.handle(named(term.Code.Escape));
         check.eq_str("cancelling that too", app.theme.name, chosen);

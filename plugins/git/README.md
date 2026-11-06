@@ -2,6 +2,7 @@
 
 Default plugin (0.21.0). It was the git half of `ui/MED_app.m31` and `ui/MED_git*.m31`.
 
+* **Keys** (profile `default`): `<Space>gh` hunks (`ghs ghr ghp ghu ghb ghB`), `gL` log of this file, `gd` diff, `uG` toggle signs, `]h [h`; the `nvim` and `legacy` profiles keep `gs gr gp gu gl gd gm gB gt` and `]c [c`.
 * **Signs** in the gutter: `+` added, `~` changed, `_` removed rows against the index (marks and diagnostics have the column first);
   `:SignsGit` (`<Space>gt`) toggles them, `:set nogitsigns` turns them off.
 * **Hunks**: `:Hunk stage|reset|undo|preview|next|prev` (`<Space>gs gr gu gp`, `]h [h`, `]c [c`), the `ih` / `ah` text objects.

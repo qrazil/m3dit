@@ -434,18 +434,30 @@ Result<bool, str> git_command_or_line(State state, MED_ext.Ctx context, str argu
 
 pub void register(MED_ext.Registry api) {
     MED_ext.Spec spec = MED_ext.Spec("git", summary: "gutter signs, hunk keys, :Git log show diff blame");
-    key(spec, "<Space>gs", "Hunk stage", "Stage hunk");
-    key(spec, "<Space>gr", "Hunk reset", "Reset hunk");
-    key(spec, "<Space>gp", "Hunk preview", "Preview hunk");
-    key(spec, "<Space>gu", "Hunk undo", "Unstage hunk");
-    key(spec, "<Space>gl", "Git log %", "Git log of this file");
-    key(spec, "<Space>gd", "Git diff", "Git diff (working tree)");
-    key(spec, "<Space>gm", "Git blame", "Git blame list");
-    key(spec, "<Space>gB", "Git line", "Blame line");
-    key(spec, "<Space>gt", "SignsGit", "Toggle git signs");
+    // nvim and legacy: the keys of 0.21.0 (his gitsigns maps are in `:Profile nvim`)
+    key(spec, "<Space>gs", "Hunk stage", "Stage hunk", "nvim legacy");
+    key(spec, "<Space>gr", "Hunk reset", "Reset hunk", "nvim legacy");
+    key(spec, "<Space>gp", "Hunk preview", "Preview hunk", "nvim legacy");
+    key(spec, "<Space>gu", "Hunk undo", "Unstage hunk", "nvim legacy");
+    key(spec, "<Space>gl", "Git log %", "Git log of this file", "nvim legacy");
+    key(spec, "<Space>gd", "Git diff", "Git diff (working tree)", "nvim legacy");
+    key(spec, "<Space>gm", "Git blame", "Git blame list", "nvim legacy");
+    key(spec, "<Space>gB", "Git line", "Blame line", "nvim legacy");
+    key(spec, "<Space>gt", "SignsGit", "Toggle git signs", "nvim legacy");
+    // default: the group of docs/KEYMAP-REVIEW.md 3.1 and 13.2 (hunks under `gh`, toggles under `u`)
+    spec.groups.push(MED_ext.GroupSpec("<Space>gh", "hunks"));
+    key(spec, "<Space>ghs", "Hunk stage", "Stage hunk", "default");
+    key(spec, "<Space>ghr", "Hunk reset", "Reset hunk", "default");
+    key(spec, "<Space>ghp", "Hunk preview", "Preview hunk", "default");
+    key(spec, "<Space>ghu", "Hunk undo", "Unstage hunk", "default");
+    key(spec, "<Space>ghb", "Git line", "Blame line", "default");
+    key(spec, "<Space>ghB", "Git blame", "Git blame list (buffer)", "default");
+    key(spec, "<Space>gL", "Git log %", "Log of this file", "default");
+    key(spec, "<Space>gd", "Git diff", "Diff, working tree", "default");
+    key(spec, "<Space>uG", "SignsGit", "Toggle git signs", "default");
     api.did_plugin(spec, Git());
 }
 
-void key(MED_ext.Spec spec, str keys, str command, str desc) {
-    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, keys, command, desc));
+void key(MED_ext.Spec spec, str keys, str command, str desc, str profiles) {
+    spec.maps.push(MED_ext.map_in(MED_ext.MapMode.Normal, keys, command, desc, profiles));
 }

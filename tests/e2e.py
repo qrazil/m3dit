@@ -116,7 +116,7 @@ def leader_which_key(binary, root):
         assert s.wait_for("hello world"), s.text()
         s.send(" ", settle=0.8)
         assert s.wait_for("find"), "leader which-key missing:\n" + s.text()
-        assert "Write file" in s.text(), s.text()
+        assert "windows" in s.text(), s.text()
     finally:
         s.close()
 
@@ -199,7 +199,7 @@ def finder_grep_and_quickfix(binary, root):
     s = Session(binary, root, ["hello.txt"])
     try:
         assert s.wait_for("hello world")
-        s.send(" fg", settle=0.4)
+        s.send(" sg", settle=0.4)
         s.send("line", settle=0.8)
         assert s.wait_for("hello.txt:3"), "grep hit:\n" + s.text()
         s.send("\x11", settle=0.5)  # ctrl-q: to the quickfix list
@@ -217,7 +217,7 @@ def finder_lines_and_marks(binary, root):
     s = Session(binary, root, ["hello.txt"])
     try:
         assert s.wait_for("hello world")
-        s.send(" fd", settle=0.4)
+        s.send(" sb", settle=0.4)
         s.send("third", settle=0.4)
         s.send("\r", settle=0.4)
         assert "NORMAL" in s.text() and re.search(r" 3:\d+ ", s.text()), s.text()
@@ -252,14 +252,14 @@ def git_signs_and_pickers(binary, root):
     try:
         assert s.wait_for("hello world")
         s.send("ggOnew line\x1b", settle=0.3)
-        s.send(" gs", settle=0.5)   # stage hunk
+        s.send(" ghs", settle=0.5)   # stage hunk
         assert s.wait_for("Hunk staged"), s.text()
         out = subprocess.run(["git", "-C", root, "diff", "--cached", "--stat"], capture_output=True, text=True).stdout
         assert "hello.txt" in out, out
         s.send(" gb", settle=0.6)
         assert s.wait_for("main") and s.wait_for("feature"), s.text()
         s.send("\x1b", settle=0.2)
-        s.send(" gC", settle=0.6)
+        s.send(" gl", settle=0.6)
         assert s.wait_for("first"), s.text()
     finally:
         s.close()
@@ -477,7 +477,7 @@ def lsp_client(binary, root):
         assert re.search(r"^E ", s.text(), re.M) or " E " in s.text().split("\n")[0], "sign missing:\n" + s.text()
         s.send("]d", settle=0.4)
         assert s.wait_for("found BUG on line 1"), s.text()
-        s.send(" ll", settle=0.4)
+        s.send(" Dl", settle=0.4)
         assert s.wait_for("error: found BUG"), s.text()
         s.send("K", settle=0.6)
         assert s.wait_for("hover 0:"), "hover:\n" + s.text()
@@ -802,7 +802,7 @@ def themes(binary, root):
         assert ":theme gruvbox-material" in s.text(), "Tab completion:\n" + s.text()
         s.send("\x1b", settle=0.3)
         # the picker previews while moving, and Esc puts the theme back
-        s.send(" fC", settle=0.6)
+        s.send(" uC", settle=0.6)
         assert "Themes" in s.text(), s.text()
         s.send("\x0e", settle=0.5)
         assert s.screen.buffer[2][60].bg != "2e3440", "moving the selection did not preview a theme"

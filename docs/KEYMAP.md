@@ -10,7 +10,154 @@ Your own maps (the keymap file, `:map`) are tried before these rows and may use 
 without leaving the mode) and `<buffer>` (this buffer only). A plugin compiled into the build adds its rows
 through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their command with `<Cmd>`.
 
-## Leader (`<Space>`)
+## Profiles
+
+A profile is a whole key tree (`:Profile NAME`, `--profile NAME`, or the line `Profile NAME` first in the keymap file); choosing one
+replaces the leader tree and the plugins' keys, it does not add to them.
+
+| profile | what it is |
+|---|---|
+| `default` | batteries included, sane IDE keys (docs/KEYMAP-REVIEW.md); what a normal build starts in |
+| `minimal` | bare vi: no leader tree, no plugin keys, `<Space>` moves right; what a `--no-plugins` build starts in |
+| `nvim` | the owner's Neovim keys: the `legacy` tree plus his own maps and options (`engine/MED_profile.m31`) |
+| `legacy` | the tree of m3 0.21.0 and before, for people who want their old keys back |
+
+## Leader (`<Space>`), `default` profile
+
+| keys | mode | action | plugin | source |
+|---|---|---|---|---|
+| `<Space><Space>` | Normal | Find files | finder | m3 |
+| `<Space>,` | Normal | Switch buffer | finder | m3 |
+| `<Space>/` | Normal | Live grep (project) | finder | m3 |
+| `<Space>:` | Normal | Commands | finder | m3 |
+| `<Space>?` | Normal | All keys | core | m3 |
+| `<Space>-` | Normal | Split below | core | m3 |
+| `<Space>\|` | Normal | Split right | core | m3 |
+| `<Space>j` | Normal | Jump to a label | jump | m3 |
+| `<Space>e` | Normal | File tree (the current file revealed) | explorer | m3 |
+| `<Space>n` | Normal | Notification history | notify | m3 |
+| `<Space>f` | Normal | +files | finder | m3 |
+| `<Space>ff` | Normal | Find files | finder | m3 |
+| `<Space>fr` | Normal | Recent files | finder | m3 |
+| `<Space>fb` | Normal | Buffers | finder | m3 |
+| `<Space>fg` | Normal | Live grep (this buffer) | finder | m3 |
+| `<Space>fG` | Normal | Live grep (project) | finder | m3 |
+| `<Space>fe` | Normal | File explorer (picker) | finder | m3 |
+| `<Space>fn` | Normal | New file | core | m3 |
+| `<Space>s` | Normal | +search | finder | m3 |
+| `<Space>sg` | Normal | Live grep (project) | finder | m3 |
+| `<Space>sw` | Normal | Grep the word under the cursor | finder | m3 |
+| `<Space>sb` | Normal | Lines of this buffer | finder | m3 |
+| `<Space>sh` | Normal | Help: all keys | finder | m3 |
+| `<Space>sk` | Normal | Keymaps | finder | m3 |
+| `<Space>sC` | Normal | Commands | finder | m3 |
+| `<Space>so` | Normal | Options | finder | m3 |
+| `<Space>sm` | Normal | Marks | finder | m3 |
+| `<Space>sd` | Normal | Diagnostics | finder | m3 |
+| `<Space>ss` | Normal | Symbols in this file | finder | m3 |
+| `<Space>sq` | Normal | Quickfix list | finder | m3 |
+| `<Space>sp` | Normal | Plugins | finder | m3 |
+| `<Space>sn` | Normal | Clear search highlight | core | m3 |
+| `<Space>b` | Normal | +buffers | core | m3 |
+| `<Space>bb` | Normal | Alternate buffer | core | m3 |
+| `<Space>bn` | Normal | Next buffer | core | m3 |
+| `<Space>bp` | Normal | Previous buffer | core | m3 |
+| `<Space>bd` | Normal | Delete buffer | core | m3 |
+| `<Space>bl` | Normal | List buffers | core | m3 |
+| `<Space>br` | Normal | Reload the file from disk | core | m3 |
+| `<Space>w` | Normal | +windows | core | m3 |
+| `<Space>ws` | Normal | Split below | core | m3 |
+| `<Space>wv` | Normal | Split right | core | m3 |
+| `<Space>wd` | Normal | Close window | core | m3 |
+| `<Space>wo` | Normal | Only this window | core | m3 |
+| `<Space>w=` | Normal | Equalize windows | core | m3 |
+| `<Space>g` | Normal | +git | finder | m3 |
+| `<Space>gg` | Normal | Changed files | finder | m3 |
+| `<Space>gs` | Normal | Status (changed files) | finder | m3 |
+| `<Space>gf` | Normal | Modified git files | finder | m3 |
+| `<Space>gb` | Normal | Branches (checkout) | finder | m3 |
+| `<Space>gl` | Normal | Commit log | finder | m3 |
+| `<Space>gn` | Normal | New branch (type the name) | finder | m3 |
+| `<Space>gR` | Normal | Rename the branch (type the name) | finder | m3 |
+| `<Space>c` | Normal | +code | lsp | m3 |
+| `<Space>cr` | Normal | Rename symbol | lsp | m3 |
+| `<Space>ca` | Normal | Code action | lsp | m3 |
+| `<Space>cf` | Normal | Format buffer | lsp | m3 |
+| `<Space>cd` | Normal | Show diagnostics at the cursor | lsp | m3 |
+| `<Space>cs` | Normal | Symbols | finder | m3 |
+| `<Space>D` | Normal | +diagnostics | lsp | m3 |
+| `<Space>Dd` | Normal | Diagnostics (workspace) | lsp | m3 |
+| `<Space>Db` | Normal | Diagnostics of this buffer | lsp | m3 |
+| `<Space>Dl` | Normal | Show diagnostics at the cursor | lsp | m3 |
+| `<Space>Ds` | Normal | Symbols in this file | finder | m3 |
+| `<Space>x` | Normal | +lists | lsp | m3 |
+| `<Space>xx` | Normal | Diagnostics | lsp | m3 |
+| `<Space>xX` | Normal | Diagnostics of this buffer | lsp | m3 |
+| `<Space>xQ` | Normal | Quickfix list | finder | m3 |
+| `<Space>xL` | Normal | Location list | finder | m3 |
+| `<Space>t` | Normal | +terminal | terminal | m3 |
+| `<Space>tt` | Normal | Terminal | terminal | m3 |
+| `<Space>u` | Normal | +ui toggles | core | m3 |
+| `<Space>uh` | Normal | Toggle inlay hints | lsp | m3 |
+| `<Space>uC` | Normal | Colour schemes (themes) | finder | m3 |
+| `<Space>q` | Normal | +quit | core | m3 |
+| `<Space>qq` | Normal | Quit | core | m3 |
+| `<Space>qa` | Normal | Quit all | core | m3 |
+| `<Space>h` | Normal | +harpoon | harpoon | m3 |
+| `<Space>gh` | Normal | +hunks | git | m3 |
+| `<Space>ha` | Normal | Harpoon: add this file | harpoon | m3 |
+| `<Space>he` | Normal | Harpoon: menu | harpoon | m3 |
+| `<Space>hn` | Normal | Harpoon: next | harpoon | m3 |
+| `<Space>hp` | Normal | Harpoon: previous | harpoon | m3 |
+| `<Space>hx` | Normal | Harpoon: remove this file | harpoon | m3 |
+| `<Space>1` | Normal | Harpoon: file 1 | harpoon | m3 |
+| `<Space>2` | Normal | Harpoon: file 2 | harpoon | m3 |
+| `<Space>3` | Normal | Harpoon: file 3 | harpoon | m3 |
+| `<Space>4` | Normal | Harpoon: file 4 | harpoon | m3 |
+| `<Space>5` | Normal | Harpoon: file 5 | harpoon | m3 |
+| `<Space>6` | Normal | Harpoon: file 6 | harpoon | m3 |
+| `<Space>7` | Normal | Harpoon: file 7 | harpoon | m3 |
+| `<Space>8` | Normal | Harpoon: file 8 | harpoon | m3 |
+| `<Space>9` | Normal | Harpoon: file 9 | harpoon | m3 |
+| `<Space>st` | Normal | TODO comments | todo | m3 |
+| `<Space>ghs` | Normal | Stage hunk | git | m3 |
+| `<Space>ghr` | Normal | Reset hunk | git | m3 |
+| `<Space>ghp` | Normal | Preview hunk | git | m3 |
+| `<Space>ghu` | Normal | Unstage hunk | git | m3 |
+| `<Space>ghb` | Normal | Blame line | git | m3 |
+| `<Space>ghB` | Normal | Git blame list (buffer) | git | m3 |
+| `<Space>gL` | Normal | Log of this file | git | m3 |
+| `<Space>gd` | Normal | Diff, working tree | git | m3 |
+| `<Space>uG` | Normal | Toggle git signs | git | m3 |
+
+## Other keys of the default plugins, `default` profile (from their `MapSpec`s)
+
+| keys | mode | action | plugin | source |
+|---|---|---|---|---|
+| `<M-j>` | Normal | move the line down | move | m3 |
+| `<M-j>` | Visual | move the selection down | move | m3 |
+| `<M-k>` | Normal | move the line up | move | m3 |
+| `<M-k>` | Visual | move the selection up | move | m3 |
+| `<M-h>` | Normal | shift the line left | move | m3 |
+| `<M-h>` | Visual | shift the selection left | move | m3 |
+| `<M-l>` | Normal | shift the line right | move | m3 |
+| `<M-l>` | Visual | shift the selection right | move | m3 |
+| `[b` | Normal | previous buffer | bracketed | m3 |
+| `]b` | Normal | next buffer | bracketed | m3 |
+| `[B` | Normal | first buffer | bracketed | m3 |
+| `]B` | Normal | last buffer | bracketed | m3 |
+| `[q` | Normal | previous quickfix entry | bracketed | m3 |
+| `]q` | Normal | next quickfix entry | bracketed | m3 |
+| `[Q` | Normal | first quickfix entry | bracketed | m3 |
+| `]Q` | Normal | last quickfix entry | bracketed | m3 |
+| `[t` | Normal | previous TODO comment | bracketed | m3 |
+| `]t` | Normal | next TODO comment | bracketed | m3 |
+| `[h` | Normal | previous git hunk | bracketed | m3 |
+| `]h` | Normal | next git hunk | bracketed | m3 |
+| `[d` | Normal | previous diagnostic | bracketed | m3 |
+| `]d` | Normal | next diagnostic | bracketed | m3 |
+
+## Leader (`<Space>`), `nvim` and `legacy` profiles
 
 | keys | mode | action | plugin | source |
 |---|---|---|---|---|
@@ -88,6 +235,60 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `<Space>ck` | Normal | Signature help | lsp | m3 |
 | `<Space>ch` | Normal | Toggle inlay hints | lsp | m3 |
 | `<Space>t` | Normal | Terminal | terminal | config |
+| `<Space>h` | Normal | +harpoon | harpoon | m3 |
+| `<Space>ha` | Normal | Harpoon: add this file | harpoon | m3 |
+| `<Space>he` | Normal | Harpoon: menu | harpoon | m3 |
+| `<Space>hn` | Normal | Harpoon: next | harpoon | m3 |
+| `<Space>hp` | Normal | Harpoon: previous | harpoon | m3 |
+| `<Space>hd` | Normal | Harpoon: remove this file | harpoon | m3 |
+| `<Space>1` | Normal | Harpoon: file 1 | harpoon | m3 |
+| `<Space>2` | Normal | Harpoon: file 2 | harpoon | m3 |
+| `<Space>3` | Normal | Harpoon: file 3 | harpoon | m3 |
+| `<Space>4` | Normal | Harpoon: file 4 | harpoon | m3 |
+| `<Space>5` | Normal | Harpoon: file 5 | harpoon | m3 |
+| `<Space>6` | Normal | Harpoon: file 6 | harpoon | m3 |
+| `<Space>7` | Normal | Harpoon: file 7 | harpoon | m3 |
+| `<Space>8` | Normal | Harpoon: file 8 | harpoon | m3 |
+| `<Space>9` | Normal | Harpoon: file 9 | harpoon | m3 |
+| `<Space>ft` | Normal | TODO comments | todo | m3 |
+| `<Space>gs` | Normal | Stage hunk | git | m3 |
+| `<Space>gr` | Normal | Reset hunk | git | m3 |
+| `<Space>gp` | Normal | Preview hunk | git | m3 |
+| `<Space>gu` | Normal | Unstage hunk | git | m3 |
+| `<Space>gl` | Normal | Git log of this file | git | m3 |
+| `<Space>gd` | Normal | Git diff (working tree) | git | m3 |
+| `<Space>gm` | Normal | Git blame list | git | m3 |
+| `<Space>gB` | Normal | Blame line | git | m3 |
+| `<Space>gt` | Normal | Toggle git signs | git | m3 |
+
+## Other keys of the default plugins, `nvim` and `legacy` profiles
+
+| keys | mode | action | plugin | source |
+|---|---|---|---|---|
+| `<M-j>` | Normal | move the line down | move | m3 |
+| `<M-j>` | Visual | move the selection down | move | m3 |
+| `<M-k>` | Normal | move the line up | move | m3 |
+| `<M-k>` | Visual | move the selection up | move | m3 |
+| `<M-h>` | Normal | shift the line left | move | m3 |
+| `<M-h>` | Visual | shift the selection left | move | m3 |
+| `<M-l>` | Normal | shift the line right | move | m3 |
+| `<M-l>` | Visual | shift the selection right | move | m3 |
+| `[b` | Normal | previous buffer | bracketed | m3 |
+| `]b` | Normal | next buffer | bracketed | m3 |
+| `[B` | Normal | first buffer | bracketed | m3 |
+| `]B` | Normal | last buffer | bracketed | m3 |
+| `[q` | Normal | previous quickfix entry | bracketed | m3 |
+| `]q` | Normal | next quickfix entry | bracketed | m3 |
+| `[Q` | Normal | first quickfix entry | bracketed | m3 |
+| `]Q` | Normal | last quickfix entry | bracketed | m3 |
+| `[t` | Normal | previous TODO comment | bracketed | m3 |
+| `]t` | Normal | next TODO comment | bracketed | m3 |
+| `[h` | Normal | previous git hunk | bracketed | m3 |
+| `]h` | Normal | next git hunk | bracketed | m3 |
+| `[c` | Normal | previous git change | bracketed | m3 |
+| `]c` | Normal | next git change | bracketed | m3 |
+| `[d` | Normal | previous diagnostic | bracketed | m3 |
+| `]d` | Normal | next diagnostic | bracketed | m3 |
 
 ## Prefixes (g, z, [, ], CTRL-W, registers, marks, operators)
 
@@ -261,60 +462,6 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `ds` | Normal | surround delete (ds{char}) | surround | vim |
 | `cs` | Normal | surround change (cs{old}{new}) | surround | vim |
 | `yS` | Normal | surround add, on own lines | surround | vim |
-
-## Keys of the default plugins (from their `MapSpec`s)
-
-| keys | mode | action | plugin | source |
-|---|---|---|---|---|
-| `<Space>h` | Normal | +harpoon | harpoon | m3 |
-| `<M-j>` | Normal | move the line down | move | m3 |
-| `<M-j>` | Visual | move the selection down | move | m3 |
-| `<M-k>` | Normal | move the line up | move | m3 |
-| `<M-k>` | Visual | move the selection up | move | m3 |
-| `<M-h>` | Normal | shift the line left | move | m3 |
-| `<M-h>` | Visual | shift the selection left | move | m3 |
-| `<M-l>` | Normal | shift the line right | move | m3 |
-| `<M-l>` | Visual | shift the selection right | move | m3 |
-| `<Space>ha` | Normal | Harpoon: add this file | harpoon | m3 |
-| `<Space>he` | Normal | Harpoon: menu | harpoon | m3 |
-| `<Space>hn` | Normal | Harpoon: next | harpoon | m3 |
-| `<Space>hp` | Normal | Harpoon: previous | harpoon | m3 |
-| `<Space>hd` | Normal | Harpoon: remove this file | harpoon | m3 |
-| `<Space>1` | Normal | Harpoon: file 1 | harpoon | m3 |
-| `<Space>2` | Normal | Harpoon: file 2 | harpoon | m3 |
-| `<Space>3` | Normal | Harpoon: file 3 | harpoon | m3 |
-| `<Space>4` | Normal | Harpoon: file 4 | harpoon | m3 |
-| `<Space>5` | Normal | Harpoon: file 5 | harpoon | m3 |
-| `<Space>6` | Normal | Harpoon: file 6 | harpoon | m3 |
-| `<Space>7` | Normal | Harpoon: file 7 | harpoon | m3 |
-| `<Space>8` | Normal | Harpoon: file 8 | harpoon | m3 |
-| `<Space>9` | Normal | Harpoon: file 9 | harpoon | m3 |
-| `<Space>ft` | Normal | TODO comments | todo | m3 |
-| `<Space>gs` | Normal | Stage hunk | git | m3 |
-| `<Space>gr` | Normal | Reset hunk | git | m3 |
-| `<Space>gp` | Normal | Preview hunk | git | m3 |
-| `<Space>gu` | Normal | Unstage hunk | git | m3 |
-| `<Space>gl` | Normal | Git log of this file | git | m3 |
-| `<Space>gd` | Normal | Git diff (working tree) | git | m3 |
-| `<Space>gm` | Normal | Git blame list | git | m3 |
-| `<Space>gB` | Normal | Blame line | git | m3 |
-| `<Space>gt` | Normal | Toggle git signs | git | m3 |
-| `[b` | Normal | previous buffer | bracketed | m3 |
-| `]b` | Normal | next buffer | bracketed | m3 |
-| `[B` | Normal | first buffer | bracketed | m3 |
-| `]B` | Normal | last buffer | bracketed | m3 |
-| `[q` | Normal | previous quickfix entry | bracketed | m3 |
-| `]q` | Normal | next quickfix entry | bracketed | m3 |
-| `[Q` | Normal | first quickfix entry | bracketed | m3 |
-| `]Q` | Normal | last quickfix entry | bracketed | m3 |
-| `[t` | Normal | previous TODO comment | bracketed | m3 |
-| `]t` | Normal | next TODO comment | bracketed | m3 |
-| `[h` | Normal | previous git hunk | bracketed | m3 |
-| `]h` | Normal | next git hunk | bracketed | m3 |
-| `[c` | Normal | previous git change | bracketed | m3 |
-| `]c` | Normal | next git change | bracketed | m3 |
-| `[d` | Normal | previous diagnostic | bracketed | m3 |
-| `]d` | Normal | next diagnostic | bracketed | m3 |
 
 ## Other
 

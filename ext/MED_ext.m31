@@ -470,6 +470,9 @@ pub type MapSpec {
     /// 0: global; else the buffer number (`:ls`) the mapping belongs to. Only `Ctx.did_map` sets buffer-local maps.
     pub int buffer = 0;
     pub bool is_silent = true;
+    /// The profiles the map belongs to, space separated (`default`, `nvim`, `legacy`); "" for every profile but `minimal`
+    /// (0.5.0 patch 1: a profile is a whole key tree, docs/KEYMAP-REVIEW.md B1). `:Profile NAME` unmaps the old set and maps the new.
+    pub str profiles = "";
 }
 
 /// One ex command of a plugin, as data. The handler is registered by `activate` with `did_command`; until then
@@ -534,6 +537,11 @@ pub Trigger on_filetype(str language) {
 /// A mapping that runs the ex command `command`.
 pub MapSpec map(MapMode mode, str keys, str command, str desc) {
     return MapSpec(mode, keys, Action.Command(command), desc: desc);
+}
+
+/// A mapping that runs `command` in the profiles `profiles` (space separated; docs/KEYMAP-REVIEW.md B1).
+pub MapSpec map_in(MapMode mode, str keys, str command, str desc, str profiles) {
+    return MapSpec(mode, keys, Action.Command(command), desc: desc, profiles: profiles);
 }
 
 /// A mapping that calls `run`.
@@ -718,6 +726,8 @@ pub type Registry {
     /// providers (`did_preview`), all 0.5.0.
     Map<str, SignSet> sign_sets = {};
     pub Map<str, GitSummary> git_summaries = {};
+    /// The key profile (`minimal`, `default`, `nvim`, `legacy`); the maps of other profiles are not installed.
+    pub str profile = "default";
     List<PreviewEntry> previewers = [];
 }
 
@@ -985,7 +995,7 @@ int Registry.find_group(str prefix) {
 /// `<Space>`); "" when no plugin has that mapping. which-key shows it instead of the raw right-hand side.
 pub str Registry.desc_of_keys(str mode, str lhs) {
     for (MapEntry entry in maps) {
-        if (mode_letter(entry.spec.mode) != mode || extensions[entry.owner].is_off) {
+        if (mode_letter(entry.spec.mode) != mode || extensions[entry.owner].is_off || !is_in_profile(entry.spec)) {
             continue;
         }
         if (entry.spec.keys.split("<Space>").join(" ").split("<lt>").join("<") == lhs) {
@@ -1009,10 +1019,23 @@ void Registry.add_stub(int owner, CommandSpec one) {
     commands.push(CommandEntry(owner, one.name, one.summary, NoCommand(), is_stub: true, is_bang: one.is_bang, arguments_min: one.arguments_min, arguments_max: one.arguments_max));
 }
 
+/// Whether two `MapSpec.profiles` lists name a profile in common ("" is every profile but `minimal`).
+bool are_profiles_shared(str left, str right) {
+    if (left.size() == 0 || right.size() == 0) {
+        return true;
+    }
+    for (str one in left.split(" ")) {
+        if (one.size() > 0 && (" " + right + " ").contains(" " + one + " ")) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // A mapping of plugin `owner`: validated at registration, kept for `map_lines`.
 bool Registry.did_install_map(int owner, MapSpec spec) {
     for (MapEntry known in maps) {
-        if (mode_letter(known.spec.mode) == mode_letter(spec.mode) && known.spec.keys == spec.keys && known.spec.buffer == spec.buffer) {
+        if (mode_letter(known.spec.mode) == mode_letter(spec.mode) && known.spec.keys == spec.keys && known.spec.buffer == spec.buffer && are_profiles_shared(known.spec.profiles, spec.profiles)) {
             problem(extensions[owner].name + ": " + mode_letter(spec.mode) + " " + spec.keys + " is already mapped by " + owner_name(known.owner));
             return false;
         }
@@ -1669,14 +1692,34 @@ pub bool Registry.did_run_command(str name, Ctx context, str arguments, bool is_
     return false;
 }
 
-/// The ex lines that install the plugins' key mappings (the same `:nnoremap` a keymap file holds).
+/// Whether the map belongs to the profile in force.
+pub bool Registry.is_in_profile(MapSpec spec) {
+    if (spec.profiles.size() == 0) {
+        return profile != "minimal";
+    }
+    return (" " + spec.profiles + " ").contains(" " + profile + " ");
+}
+
+/// The ex lines that install the plugins' key mappings (the same `:nnoremap` a keymap file holds) of the profile in force.
 pub List<str> Registry.map_lines() {
     List<str> lines = [];
     for (MapEntry entry in maps) {
-        if (extensions[entry.owner].is_off || extensions[entry.owner].state == STATE_REFUSED) {
+        if (extensions[entry.owner].is_off || extensions[entry.owner].state == STATE_REFUSED || !is_in_profile(entry.spec)) {
             continue;
         }
         lines.push(map_line(entry));
+    }
+    return lines;
+}
+
+/// The unmap lines of every live plugin map of the profile in force (before another profile is mapped).
+pub List<str> Registry.unmap_lines() {
+    List<str> lines = [];
+    for (MapEntry entry in maps) {
+        if (extensions[entry.owner].is_off || extensions[entry.owner].state == STATE_REFUSED || !is_in_profile(entry.spec)) {
+            continue;
+        }
+        lines.push(mode_letter(entry.spec.mode) + "unmap " + entry.spec.keys);
     }
     return lines;
 }
@@ -1685,7 +1728,7 @@ pub List<str> Registry.map_lines() {
 pub List<str> Registry.map_lines_of(int owner) {
     List<str> lines = [];
     for (MapEntry entry in maps) {
-        if (entry.owner == owner) {
+        if (entry.owner == owner && is_in_profile(entry.spec)) {
             lines.push(map_line(entry));
         }
     }
@@ -1696,7 +1739,7 @@ pub List<str> Registry.map_lines_of(int owner) {
 pub List<str> Registry.unmap_lines_of(int owner) {
     List<str> lines = [];
     for (MapEntry entry in maps) {
-        if (entry.owner == owner) {
+        if (entry.owner == owner && is_in_profile(entry.spec)) {
             lines.push(mode_letter(entry.spec.mode) + "unmap " + entry.spec.keys);
         }
     }

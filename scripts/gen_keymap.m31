@@ -6,4 +6,4 @@ import ui.MED_keymap;
 MED_ext.Registry registry = MED_ext.Registry();
 MED_ext_enabled.install(registry);
 registry.finish_install();
-print(MED_keymap.markdown(MED_keymap.plugin_rows(registry)));
+print(MED_keymap.markdown(registry));

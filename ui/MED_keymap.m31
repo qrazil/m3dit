@@ -49,8 +49,118 @@ Binding visual_row(str source, str plugin, str keys, str label, str action) {
     return Binding(keys, label, action, plugin: plugin, mode: "x", source: source);
 }
 
-/// The leader tree (keys after <Space>).
-pub List<Binding> defaults() {
+/// The leader tree (keys after <Space>) of a profile (docs/KEYMAP-REVIEW.md B1): `minimal` has none (bare vi, `<Space>`
+/// moves right), `default` is the tree of sane IDE keys, `nvim` and `legacy` are the tree of 0.21.0 (the `nvim` profile adds
+/// the owner's own maps on top, `engine/MED_profile.m31`).
+pub List<Binding> defaults(str profile) {
+    if (profile == "minimal") {
+        return [];
+    }
+    if (profile == "default") {
+        return default_rows();
+    }
+    return legacy_rows();
+}
+
+void tree(List<Binding> rows, str plugin, str keys, str label, str action) {
+    rows.push(Binding(keys, label, action, plugin: plugin, source: "m3"));
+}
+
+/// The `default` profile: docs/KEYMAP-REVIEW.md section 3.1 for the features m3 has (a key for a feature that is only planned
+/// is not listed). Plugin keys (harpoon, git hunks, todo) come from the plugins' `MapSpec`s.
+List<Binding> default_rows() {
+    List<Binding> rows = [];
+    tree(rows, "finder", " ", "Find files", "picker:files");
+    tree(rows, "finder", ",", "Switch buffer", "picker:buffers");
+    tree(rows, "finder", "/", "Live grep (project)", "picker:grep");
+    tree(rows, "finder", ":", "Commands", "picker:commands");
+    tree(rows, "core", "?", "All keys", "picker:help");
+    tree(rows, "core", "-", "Split below", "ex:split");
+    tree(rows, "core", "|", "Split right", "ex:vsplit");
+    tree(rows, "jump", "j", "Jump to a label", "app:jump");
+    tree(rows, "explorer", "e", "File tree (the current file revealed)", "ex:Neotree reveal");
+    tree(rows, "notify", "n", "Notification history", "ex:Notifications");
+    // f: find files
+    tree(rows, "finder", "f", "+files", "");
+    tree(rows, "finder", "ff", "Find files", "picker:files");
+    tree(rows, "finder", "fr", "Recent files", "picker:recent");
+    tree(rows, "finder", "fb", "Buffers", "picker:buffers");
+    tree(rows, "finder", "fg", "Live grep (this buffer)", "picker:lines");
+    tree(rows, "finder", "fG", "Live grep (project)", "picker:grep");
+    tree(rows, "finder", "fe", "File explorer (picker)", "picker:explore");
+    tree(rows, "core", "fn", "New file", "ex:enew");
+    // s: search
+    tree(rows, "finder", "s", "+search", "");
+    tree(rows, "finder", "sg", "Live grep (project)", "picker:grep");
+    tree(rows, "finder", "sw", "Grep the word under the cursor", "picker:word");
+    tree(rows, "finder", "sb", "Lines of this buffer", "picker:lines");
+    tree(rows, "finder", "sh", "Help: all keys", "picker:help");
+    tree(rows, "finder", "sk", "Keymaps", "picker:help");
+    tree(rows, "finder", "sC", "Commands", "picker:commands");
+    tree(rows, "finder", "so", "Options", "picker:options");
+    tree(rows, "finder", "sm", "Marks", "picker:marks");
+    tree(rows, "finder", "sd", "Diagnostics", "picker:diagnostics");
+    tree(rows, "finder", "ss", "Symbols in this file", "picker:symbols");
+    tree(rows, "finder", "sq", "Quickfix list", "picker:quickfix");
+    tree(rows, "finder", "sp", "Plugins", "picker:plugins");
+    tree(rows, "core", "sn", "Clear search highlight", "ex:nohlsearch");
+    // b: buffers
+    tree(rows, "core", "b", "+buffers", "");
+    tree(rows, "core", "bb", "Alternate buffer", "ex:buffer #");
+    tree(rows, "core", "bn", "Next buffer", "ex:bnext");
+    tree(rows, "core", "bp", "Previous buffer", "ex:bprevious");
+    tree(rows, "core", "bd", "Delete buffer", "ex:bdelete");
+    tree(rows, "core", "bl", "List buffers", "ex:ls");
+    tree(rows, "core", "br", "Reload the file from disk", "ex:edit!");
+    // w: windows
+    tree(rows, "core", "w", "+windows", "");
+    tree(rows, "core", "ws", "Split below", "ex:split");
+    tree(rows, "core", "wv", "Split right", "ex:vsplit");
+    tree(rows, "core", "wd", "Close window", "ex:close");
+    tree(rows, "core", "wo", "Only this window", "ex:only");
+    tree(rows, "core", "w=", "Equalize windows", "ex:wincmd =");
+    // g: git (the hunk and log keys come from the git plugin)
+    tree(rows, "finder", "g", "+git", "");
+    tree(rows, "finder", "gg", "Changed files", "picker:changed");
+    tree(rows, "finder", "gs", "Status (changed files)", "picker:changed");
+    tree(rows, "finder", "gf", "Modified git files", "picker:changed");
+    tree(rows, "finder", "gb", "Branches (checkout)", "picker:branches");
+    tree(rows, "finder", "gl", "Commit log", "picker:commits");
+    tree(rows, "finder", "gn", "New branch (type the name)", "keys::!git checkout -b ");
+    tree(rows, "finder", "gR", "Rename the branch (type the name)", "keys::!git branch -m ");
+    // c: code
+    tree(rows, "lsp", "c", "+code", "");
+    tree(rows, "lsp", "cr", "Rename symbol", "app:lsp_rename");
+    tree(rows, "lsp", "ca", "Code action", "app:lsp_action");
+    tree(rows, "lsp", "cf", "Format buffer", "app:lsp_format");
+    tree(rows, "lsp", "cd", "Show diagnostics at the cursor", "app:diag_float");
+    tree(rows, "finder", "cs", "Symbols", "picker:symbols");
+    // D: diagnostics (d is reserved for debug)
+    tree(rows, "lsp", "D", "+diagnostics", "");
+    tree(rows, "lsp", "Dd", "Diagnostics (workspace)", "picker:diagnostics");
+    tree(rows, "lsp", "Db", "Diagnostics of this buffer", "picker:buffer_diagnostics");
+    tree(rows, "lsp", "Dl", "Show diagnostics at the cursor", "app:diag_float");
+    tree(rows, "finder", "Ds", "Symbols in this file", "picker:symbols");
+    // x: lists
+    tree(rows, "lsp", "x", "+lists", "");
+    tree(rows, "lsp", "xx", "Diagnostics", "picker:diagnostics");
+    tree(rows, "lsp", "xX", "Diagnostics of this buffer", "picker:buffer_diagnostics");
+    tree(rows, "finder", "xQ", "Quickfix list", "picker:quickfix");
+    tree(rows, "finder", "xL", "Location list", "picker:quickfix");
+    // t: terminal, u: ui toggles, q: quit
+    tree(rows, "terminal", "t", "+terminal", "");
+    tree(rows, "terminal", "tt", "Terminal", "ex:terminal");
+    tree(rows, "core", "u", "+ui toggles", "");
+    tree(rows, "lsp", "uh", "Toggle inlay hints", "app:lsp_hints");
+    tree(rows, "finder", "uC", "Colour schemes (themes)", "picker:themes");
+    tree(rows, "core", "q", "+quit", "");
+    tree(rows, "core", "qq", "Quit", "ex:quit");
+    tree(rows, "core", "qa", "Quit all", "ex:qall");
+    return rows;
+}
+
+/// The tree of 0.21.0: the owner's keymaps.lua and plugins, plus m3's own extras (`nvim` and `legacy`).
+List<Binding> legacy_rows() {
     List<Binding> rows = [];
     // the owner's nvim keymaps.lua
     rows.push(leaf_row("config", "core", "w", "Write file", "ex:write"));
@@ -321,18 +431,28 @@ pub str full_keys(Binding row) {
     return "<Space>" + shown_keys(row.keys);
 }
 
+/// Whether a live plugin map of the profile in force starts with `prefix` (a group with no key in this profile is not shown).
+bool has_group_member(MED_ext.Registry registry, str prefix) {
+    for (MED_ext.MapEntry entry in registry.maps) {
+        if (entry.spec.keys.starts_with(prefix) && entry.spec.keys.size() > prefix.size() && registry.is_in_profile(entry.spec) && !registry.extensions[entry.owner].is_off) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// The keys of the compiled plugins as rows, from their `MapSpec`s and group labels (so `:Keys`, the command palette
 /// and docs/KEYMAP.md list them like the core's own). A leader key (`<Space>ha`) is relative to `<Space>` as the core's
 /// rows are; the others are whole sequences. A plugin that is off leaves its rows out.
 pub List<Binding> plugin_rows(MED_ext.Registry registry) {
     List<Binding> rows = [];
     for (MED_ext.GroupEntry group in registry.groups) {
-        if (group.prefix.starts_with("<Space>") && !registry.extensions[group.owner].is_off) {
+        if (group.prefix.starts_with("<Space>") && !registry.extensions[group.owner].is_off && has_group_member(registry, group.prefix)) {
             rows.push(Binding(group.prefix.substr(7, group.prefix.size()), "+" + group.label, "", plugin: registry.owner_name(group.owner), source: "m3"));
         }
     }
     for (MED_ext.MapEntry entry in registry.maps) {
-        if (registry.extensions[entry.owner].is_off) {
+        if (registry.extensions[entry.owner].is_off || !registry.is_in_profile(entry.spec)) {
             continue;
         }
         str action = "";
@@ -359,9 +479,9 @@ pub List<Binding> plugin_rows(MED_ext.Registry registry) {
 }
 
 /// Every key of a mode, one text line each, for `:Keys` and the help picker.
-pub List<Binding> all_rows(List<str> disabled) {
+pub List<Binding> all_rows(List<str> disabled, str profile) {
     List<Binding> rows = [];
-    for (Binding row in enabled(defaults(), disabled)) {
+    for (Binding row in enabled(defaults(profile), disabled)) {
         rows.push(row);
     }
     for (Binding row in enabled(prefixes(), disabled)) {
@@ -373,8 +493,8 @@ pub List<Binding> all_rows(List<str> disabled) {
     return rows;
 }
 
-/// docs/KEYMAP.md, generated from the tables above.
-pub str markdown(List<Binding> plugin_keys) {
+/// docs/KEYMAP.md, generated from the tables above. `registry` is switched to each profile in turn.
+pub str markdown(MED_ext.Registry registry) {
     List<str> lines = [];
     lines.push("# Keymap");
     lines.push("");
@@ -388,27 +508,72 @@ pub str markdown(List<Binding> plugin_keys) {
     lines.push("without leaving the mode) and `<buffer>` (this buffer only). A plugin compiled into the build adds its rows");
     lines.push("through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their command with `<Cmd>`.");
     lines.push("");
-    lines.push("## Leader (`<Space>`)");
+    lines.push("## Profiles");
+    lines.push("");
+    lines.push("A profile is a whole key tree (`:Profile NAME`, `--profile NAME`, or the line `Profile NAME` first in the keymap file); choosing one");
+    lines.push("replaces the leader tree and the plugins' keys, it does not add to them.");
+    lines.push("");
+    lines.push("| profile | what it is |");
+    lines.push("|---|---|");
+    lines.push("| `default` | batteries included, sane IDE keys (docs/KEYMAP-REVIEW.md); what a normal build starts in |");
+    lines.push("| `minimal` | bare vi: no leader tree, no plugin keys, `<Space>` moves right; what a `--no-plugins` build starts in |");
+    lines.push("| `nvim` | the owner's Neovim keys: the `legacy` tree plus his own maps and options (`engine/MED_profile.m31`) |");
+    lines.push("| `legacy` | the tree of m3 0.21.0 and before, for people who want their old keys back |");
+    lines.push("");
+    lines.push("## Leader (`<Space>`), `default` profile");
     lines.push("");
     lines.push("| keys | mode | action | plugin | source |");
     lines.push("|---|---|---|---|---|");
-    for (Binding row in defaults()) {
+    registry.profile = "default";
+    for (Binding row in defaults("default")) {
         lines.push(table_line(row));
     }
+    for (Binding row in plugin_rows(registry)) {
+        if (!row.is_full) {
+            lines.push(table_line(row));
+        }
+    }
+    lines.push("");
+    lines.push("## Other keys of the default plugins, `default` profile (from their `MapSpec`s)");
+    lines.push("");
+    lines.push("| keys | mode | action | plugin | source |");
+    lines.push("|---|---|---|---|---|");
+    for (Binding row in plugin_rows(registry)) {
+        if (row.is_full) {
+            lines.push(table_line(row));
+        }
+    }
+    lines.push("");
+    lines.push("## Leader (`<Space>`), `nvim` and `legacy` profiles");
+    lines.push("");
+    lines.push("| keys | mode | action | plugin | source |");
+    lines.push("|---|---|---|---|---|");
+    registry.profile = "legacy";
+    for (Binding row in defaults("legacy")) {
+        lines.push(table_line(row));
+    }
+    for (Binding row in plugin_rows(registry)) {
+        if (!row.is_full) {
+            lines.push(table_line(row));
+        }
+    }
+    lines.push("");
+    lines.push("## Other keys of the default plugins, `nvim` and `legacy` profiles");
+    lines.push("");
+    lines.push("| keys | mode | action | plugin | source |");
+    lines.push("|---|---|---|---|---|");
+    for (Binding row in plugin_rows(registry)) {
+        if (row.is_full) {
+            lines.push(table_line(row));
+        }
+    }
+    registry.profile = "default";
     lines.push("");
     lines.push("## Prefixes (g, z, [, ], CTRL-W, registers, marks, operators)");
     lines.push("");
     lines.push("| keys | mode | action | plugin | source |");
     lines.push("|---|---|---|---|---|");
     for (Binding row in prefixes()) {
-        lines.push(table_line(row));
-    }
-    lines.push("");
-    lines.push("## Keys of the default plugins (from their `MapSpec`s)");
-    lines.push("");
-    lines.push("| keys | mode | action | plugin | source |");
-    lines.push("|---|---|---|---|---|");
-    for (Binding row in plugin_keys) {
         lines.push(table_line(row));
     }
     lines.push("");

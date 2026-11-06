@@ -117,7 +117,7 @@ SCENARIOS = [
     ("explore_directory", [], ROWS, COLS, False, [":Explore\r"]),
     ("finder_files", [], ROWS, COLS, False, [LEADER + "ff", "numb"]),
     ("finder_query", [], ROWS, COLS, False, [LEADER + "ff", "alp"]),
-    ("finder_grep", [], ROWS, COLS, False, [LEADER + "fg", "return"]),
+    ("finder_grep", [], ROWS, COLS, False, [LEADER + "sg", "return"]),
     ("finder_buffers", ["main.py", "notes.md"], ROWS, COLS, False, [":Buffers\r"]),
     ("command_palette", [], ROWS, COLS, False, [":Commands\r"]),
     ("which_key_leader", [], ROWS, COLS, False, [LEADER, (WAIT, 0.9)]),
@@ -149,7 +149,7 @@ SCENARIOS = [
     ("wide_200", ["main.py", "notes.md"], 30, 200, False, [":vsplit notes.md\r"]),
     ("resize_while_split", ["main.py"], ROWS, COLS, False, [":vsplit notes.md\r", ("resize", 20, 70)]),
     ("git_gutter_status", ["main.py", "numbers.txt"], ROWS, COLS, True, [":e numbers.txt\r"]),
-    ("git_hunk_jump", ["numbers.txt"], ROWS, COLS, True, ["]c"]),
+    ("git_hunk_jump", ["numbers.txt"], ROWS, COLS, True, ["]h"]),
     ("git_branches", [], ROWS, COLS, True, [":Branches\r"]),
     ("git_tree_letters", ["main.py"], ROWS, COLS, True, [LEADER + "e"]),
 ]

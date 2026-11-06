@@ -8,14 +8,58 @@
 //   MED_profile.lines_of(name) the ex lines of a profile ([] when unknown)
 
 pub List<str> names() {
-    return ["nvim"];
+    return ["minimal", "default", "nvim", "legacy"];
 }
 
+pub bool is_known(str name) {
+    return names().contains(name);
+}
+
+/// The ex lines of a profile, run after its leader tree and the plugins' keys were swapped in (`MED_keymap.defaults`,
+/// the `MapSpec.profiles` of the plugins): the non-leader keys and options.
 pub List<str> lines_of(str name) {
     if (name == "nvim") {
         return nvim();
     }
-    return [];
+    if (name == "default") {
+        return controls();
+    }
+    if (name == "minimal") {
+        return ["set nojk_escape"];
+    }
+    return ["set jk_escape"];
+}
+
+/// The lines that undo the maps of a profile (an `nnoremap LHS RHS` line becomes `nunmap LHS`); options stay.
+pub List<str> undo_lines_of(str name) {
+    List<str> out = [];
+    for (str line in lines_of(name)) {
+        List<str> words = line.split(" ");
+        if (words.size() >= 3 && (words[0] == "nnoremap" || words[0] == "xnoremap" || words[0] == "inoremap")) {
+            out.push(words[0].substr(0, 1) + "unmap " + words[1]);
+        }
+    }
+    return out;
+}
+
+/// The non-leader keys of the `default` profile (docs/KEYMAP-REVIEW.md 3.2): window focus and resize, save, Visual shift
+/// that keeps the selection, and `jk` in Insert mode (`gK`, signature help, is the front end's, next to `K`).
+List<str> controls() {
+    return [
+        "set jk_escape",
+        "nnoremap <C-h> <C-w>h",
+        "nnoremap <C-j> <C-w>j",
+        "nnoremap <C-k> <C-w>k",
+        "nnoremap <C-l> <C-w>l",
+        "nnoremap <C-Up> <Cmd>resize +2<CR>",
+        "nnoremap <C-Down> <Cmd>resize -2<CR>",
+        "nnoremap <C-Left> <Cmd>vertical resize -2<CR>",
+        "nnoremap <C-Right> <Cmd>vertical resize +2<CR>",
+        "nnoremap <C-s> <Cmd>write<CR>",
+        "xnoremap <C-s> <Esc><Cmd>write<CR>",
+        "xnoremap <lt> <lt>gv",
+        "xnoremap > >gv"
+    ];
 }
 
 List<str> nvim() {

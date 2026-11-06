@@ -7,7 +7,7 @@ Leader is `<Space>`, local leader `\`.
 Status: **done** (works the same, tested), **partial** (works, what is missing is named), **missing** (m3 could have it, not built yet; the
 seam is named), **out** (out of scope on purpose). The counts are at the end. A `profile` row means `:Profile nvim` (or the line `Profile nvim` in
 `~/.config/m3/keymap.vim`) turns it on: `engine/MED_profile.m31` lists every line, so the keymaps that are editor behaviour are reproduced
-while m3's own defaults stay available (the profile is opt-in; `:mapclear` undoes its maps).
+and since 0.22.0 the profile REPLACES the leader tree (it is the `legacy` tree plus his own maps; the `default` tree is different; `:Profile default` takes his maps away again).
 
 ## Options (`init.lua`)
 

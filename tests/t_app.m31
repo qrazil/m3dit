@@ -444,14 +444,14 @@ match (MED_app.open_all([lead_path])) {
         check.ok("space f f opens the files picker", app.has_picker);
         type_text(app, "\x1b");
         check.ok("escape closes the picker", !app.has_picker);
-        type_text(app, " bb");
-        check.ok("space b b opens the buffers picker", app.has_picker);
+        type_text(app, " ,");
+        check.ok("space comma opens the buffers picker", app.has_picker);
         type_text(app, "\n");
         check.ok("enter accepts and closes", !app.has_picker);
-        type_text(app, " bb\x16");
+        type_text(app, " ,\x16");
         check.ok("ctrl-v in the buffers picker closes it", !app.has_picker);
         check.eq_int("and opens a window beside", app.wins.size(), 2);
-        type_text(app, " bb\x13");
+        type_text(app, " ,\x13");
         check.eq_int("ctrl-s opens another below", app.wins.size(), 3);
         type_text(app, "\x17c\x17c");
         check.eq_int("closed again", app.wins.size(), 1);
@@ -772,6 +772,7 @@ match (MED_app.open_all([plug_path])) {
         check.ok("open for the plugin tests: " + message, false);
     }
     case Ok(MED_app.App app): {
+        type_text(app, ":Profile legacy\n");
         type_text(app, ":set whichkey?\n");
         // <Space>sa is the surround alias: ys{motion}{char}
         type_text(app, " saiw\"");

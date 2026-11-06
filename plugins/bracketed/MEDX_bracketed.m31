@@ -27,7 +27,9 @@ pub void register(MED_ext.Registry api) {
     pair(spec, "[Q", "]Q", "cfirst", "clast", "first quickfix entry", "last quickfix entry");
     pair(spec, "[t", "]t", "Todo prev", "Todo next", "previous TODO comment", "next TODO comment");
     pair(spec, "[h", "]h", "Hunk prev", "Hunk next", "previous git hunk", "next git hunk");
-    pair(spec, "[c", "]c", "Hunk prev", "Hunk next", "previous git change", "next git change");
+    // `[c ]c` jump between changes in diff mode (:diffthis, planned): the `default` profile leaves them to vim
+    spec.maps.push(MED_ext.map_in(MED_ext.MapMode.Normal, "[c", "Hunk prev", "previous git change", "nvim legacy"));
+    spec.maps.push(MED_ext.map_in(MED_ext.MapMode.Normal, "]c", "Hunk next", "next git change", "nvim legacy"));
     pair(spec, "[d", "]d", "Lsp prev_diag", "Lsp next_diag", "previous diagnostic", "next diagnostic");
     api.did_plugin(spec, Bracketed());
 }

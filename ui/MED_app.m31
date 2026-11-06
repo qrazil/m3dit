@@ -183,6 +183,9 @@ pub type App {
     pub str leader_mode = "n";
     /// Built-in plugins switched off (`:PluginDisable`).
     pub List<str> disabled_plugins = [];
+    /// The key profile in force (`minimal`, `default`, `nvim`, `legacy`; docs/KEYMAP-REVIEW.md B1): it picks the leader tree
+    /// and which of the plugins' keys are mapped. A bare build (no plugin) starts in `minimal`.
+    pub str profile = "default";
     /// How long (ms) a pending prefix (g, z, [, CTRL-W, an operator) has waited.
     pub int prefix_ms = 0;
     pub bool is_prefix_help = false;
@@ -3380,7 +3383,7 @@ void App.load_commands(bool is_help) {
     List<MED_picker.Entry> entries = [];
     List<str> seen = [];
     List<MED_keymap.Binding> rows = [];
-    for (MED_keymap.Binding row in MED_keymap.enabled(MED_keymap.defaults(), disabled_plugins)) {
+    for (MED_keymap.Binding row in MED_keymap.enabled(MED_keymap.defaults(profile), disabled_plugins)) {
         if (row.action.size() > 0) {
             rows.push(row);
         }
@@ -3699,7 +3702,7 @@ void App.cancel_leader() {
 /// The leader tree with the plugins that are off left out, and the user's own
 /// maps under <Space> added (their right-hand side is the label).
 List<MED_keymap.Binding> App.leader_table() {
-    List<MED_keymap.Binding> table = MED_keymap.enabled(MED_keymap.defaults(), disabled_plugins);
+    List<MED_keymap.Binding> table = MED_keymap.enabled(MED_keymap.defaults(profile), disabled_plugins);
     List<MED_keymap.Binding> from_plugins = [];
     for (MED_map.Mapping one in editor.maps.table_with(editor.local_maps, leader_mode)) {
         if (one.lhs.size() > 1 && one.lhs[0] == MED_key.SPACE) {
@@ -4225,6 +4228,12 @@ bool App.should_quit_after(int key) {
             run_lsp_command("definition", "");
             return did_finish();
         }
+        if (key == 75 && editor.pending.size() == 1 && editor.pending[0] == 103) {
+            // gK: signature help (the `default` profile's key; Insert mode has <C-s>)
+            editor.pending = [];
+            run_lsp_command("signature", "");
+            return did_finish();
+        }
     }
     if (is_lsp_gr) {
         // `gr` was held back: grr references, grn rename, gra code action
@@ -4248,7 +4257,7 @@ bool App.should_quit_after(int key) {
         is_lsp_gr = true;
         return false;
     }
-    if ((editor.mode == MED_editor.NORMAL || editor.mode == MED_editor.VISUAL) && key == MED_key.SPACE && editor.pending.size() == 0 && editor.ta_keys.size() == 0) {
+    if ((editor.mode == MED_editor.NORMAL || editor.mode == MED_editor.VISUAL) && key == MED_key.SPACE && editor.pending.size() == 0 && editor.ta_keys.size() == 0 && profile != "minimal") {
         is_leader = true;
         is_which_key = false;
         leader = "";
@@ -8431,14 +8440,36 @@ str App.apply_workspace_edit(json.Value edit) {
 
 /// `:Profile NAME`: the ex lines of a built-in profile (MED_profile) run as a keymap file would.
 void App.run_profile(str name) {
-    List<str> lines = MED_profile.lines_of(name);
-    if (lines.size() == 0) {
-        notice = "E474: Invalid argument: Profile " + MED_profile.names().join(" or ") + " (not '" + name + "')";
+    if (!MED_profile.is_known(name)) {
+        notice = "E474: Invalid argument: Profile " + MED_profile.names().join(", ") + " (not '" + name + "')";
         return;
     }
-    str failure = run_script(lines.join("\n"), "profile " + name);
+    use_profile(name);
+}
+
+/// Swap the key profile: the old profile's own maps and the plugins' maps go, the leader tree changes, the new profile's
+/// plugin maps and lines come in. A map of the user's own keymap file stays where it is (put `Profile NAME` first in the file).
+pub void App.use_profile(str name) {
+    for (str line in MED_profile.undo_lines_of(profile)) {
+        MED_ex.did_run_line(editor, line);
+    }
+    if (!ext.is_empty()) {
+        for (str line in ext.unmap_lines()) {
+            MED_ex.did_run_line(editor, line);
+        }
+    }
+    profile = name;
+    ext.profile = name;
+    if (!ext.is_empty()) {
+        for (str line in ext.map_lines()) {
+            MED_ex.did_run_line(editor, line);
+        }
+    }
+    str failure = run_script(MED_profile.lines_of(name).join("\n"), "profile " + name);
     editor.message = "";
     notice = failure;
+    is_leader = false;
+    is_which_key = false;
 }
 
 /// `:Formatter LANGUAGE COMMAND...`: a filter (text in on standard input, formatted text out) for buffers of that
@@ -9123,6 +9154,12 @@ pub void App.ext_install() {
             disabled_plugins.push(one.name);
         }
     }
+    // a bare build is vi: no leader tree
+    profile = "default";
+    if (ext.is_empty()) {
+        profile = "minimal";
+    }
+    ext.profile = profile;
     if (ext.is_empty()) {
         return;
     }
@@ -9134,6 +9171,7 @@ pub void App.ext_install() {
     for (str line in ext.map_lines()) {
         MED_ex.did_run_line(editor, line);
     }
+    run_script(MED_profile.lines_of(profile).join("\n"), "profile " + profile);
     editor.message = "";
 }
 

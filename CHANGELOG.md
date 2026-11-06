@@ -1,6 +1,37 @@
 # Changelog
 
-## Unreleased (0.22.0 in progress)
+## 0.22.0
+
+**Key profiles are whole trees, and `default` has new sane IDE keys** (docs/KEYMAP-REVIEW.md B1, B2, B3, B5; the owner's decisions K1 to K12).
+`:Profile minimal|default|nvim|legacy` (also `--profile NAME`, or the line `Profile NAME` first in the keymap file) replaces the leader tree and the
+plugins' keys; it does not add to them. `default` is what a normal build starts in, `minimal` is bare vi (no leader, no plugin keys; a `--no-plugins` build
+starts in it), `nvim` is the owner's keys (the `legacy` tree plus his maps; `:Profile default` takes them away), `legacy` is the tree of 0.21.0 and before.
+
+Changed in `default` (use `:Profile legacy` to get the old key back; `docs/KEYMAP.md` lists every profile):
+
+| was | now |
+|---|---|
+| `<Space>w` write | `<C-s>` writes; `<Space>w` is the windows group (`ws wv wd wo w=`) |
+| `<Space>z` `o` `sc` `sv` `sh` `se` | `wd` `wo` `wd` `wv` `ws` `w=` (and `<Space>-` `<Space>\|` split) |
+| `<Space>s` split / surround | search group (`sg sw sb sh sk sC so sm sd ss sq sp st`); surround rows `sa sd sr` are gone (`ys ds cs S` stay) |
+| `<Space>n` new buffer, `R` reload | `<Space>fn`, `<Space>br`; `<Space>n` is the notification history |
+| `<Space>bb` buffer picker, `ba` alternate | `bb` alternate; the picker is `<Space>,` and `fb` |
+| `<Space>fg` live grep (project) | `fg` greps this buffer (the owner's meaning); the project is `fG`, `sg`, `/` |
+| `fd fh fc fk fo fm fx fs fl fC ft fw fq` | `sb sh sC sk so sm sd ss sp uC st sw sq` |
+| `<Space>gs gr gp gu` | hunks under `<Space>gh`: `ghs ghr ghp ghu`; `gB` blame line is `ghb`, `gm` is `ghB`, `gt` is `uG`; `gl` file log is `gL`, `gC` commit history is `gl`, `gc` remote branches fold into `gb`; new `gs` status, `gn` new branch, `gR` rename branch |
+| `<Space>l ll ]] [[`, `<Space>x...` | `<Space>D` diagnostics (`Dd Db Dl Ds`), `cd`, and `]d [d`; `xx xX xQ xL` stay; `<Space>d` is kept free for debug |
+| `<Space>ck` `ch` | `gK`, `uh` |
+| `<Space>t` terminal | `<Space>tt` |
+| `<Space>hd` harpoon remove | `<Space>hx` |
+| `<Space>E` reveal in the tree | `<Space>e` reveals the current file |
+| `[c ]c` hunks | `[h ]h` only (`[c ]c` belong to diff mode) |
+| Visual `<` `>` | keep the selection |
+| new | `<C-s>` write, `<C-h/j/k/l>` window focus, `<C-arrows>` resize, `gK` signature help |
+
+Not done in this slice: `<Esc>` clearing the search highlight (`<Space>sn` does it), the toggles group `<Space>u` beyond `uh uC uG`, which-key hints
+for the new home of an old key, and the planned features' keys (`gc` commit, `gp` pull, `gP` push, miller columns `<Space>E`, `gh{motion}` / `gH{motion}`).
+
+### Which-key (also 0.22.0)
 
 - **Which-key is core** (owner decision): `plugins/whichkey` is gone, the popup is part of the editor, `:set whichkey` / `:set nowhichkey` switch both the leader
   menu and the prefix help (before: the option switched only the prefix help), it is on in the `default` and `nvim` profiles and off in a bare

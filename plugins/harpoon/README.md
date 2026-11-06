@@ -5,7 +5,7 @@ Pin the files you keep returning to and jump to them by number.
 | keys | command | does |
 |---|---|---|
 | `<Space>ha` | `:HarpoonAdd` | pin this file (the next number) |
-| `<Space>hd` | `:HarpoonRemove` | unpin this file |
+| `<Space>hx` (`hd` in the `nvim` and `legacy` profiles) | `:HarpoonRemove` | unpin this file |
 | `<Space>he` | `:HarpoonMenu` | the pinned files in the finder (Enter opens one) |
 | `<Space>hn` `<Space>hp` | `:HarpoonNext` `:HarpoonPrev` | next, previous pinned file (wraps) |
 | `<Space>1` .. `<Space>9` | `:Harpoon N` | pinned file N (`:Harpoon` alone is the menu) |

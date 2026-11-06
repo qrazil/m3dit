@@ -138,7 +138,8 @@ pub void register(MED_ext.Registry api) {
     spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>he", "HarpoonMenu", "Harpoon: menu"));
     spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>hn", "HarpoonNext", "Harpoon: next"));
     spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>hp", "HarpoonPrev", "Harpoon: previous"));
-    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>hd", "HarpoonRemove", "Harpoon: remove this file"));
+    spec.maps.push(MED_ext.map_in(MED_ext.MapMode.Normal, "<Space>hd", "HarpoonRemove", "Harpoon: remove this file", "nvim legacy"));
+    spec.maps.push(MED_ext.map_in(MED_ext.MapMode.Normal, "<Space>hx", "HarpoonRemove", "Harpoon: remove this file", "default"));
     for (int slot in 1 .. 10) {
         spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>" + slot.to_str(), "Harpoon " + slot.to_str(), "Harpoon: file " + slot.to_str()));
     }

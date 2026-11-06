@@ -109,6 +109,7 @@ Result<bool, str> Todo.activate(MED_ext.Registry api) {
 pub void register(MED_ext.Registry api) {
     MED_ext.Spec spec = MED_ext.Spec("todo", summary: "highlight TODO FIXME HACK NOTE WARN");
     spec.commands.push(MED_ext.command("Todo", "TODO comments of the project; next and prev move in the buffer"));
-    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, "<Space>ft", "Todo", "TODO comments"));
+    spec.maps.push(MED_ext.map_in(MED_ext.MapMode.Normal, "<Space>ft", "Todo", "TODO comments", "nvim legacy"));
+    spec.maps.push(MED_ext.map_in(MED_ext.MapMode.Normal, "<Space>st", "Todo", "TODO comments", "default"));
     api.did_plugin(spec, Todo());
 }

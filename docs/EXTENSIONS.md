@@ -116,7 +116,7 @@ keep its own data per buffer.
 | `Ctx.run_in(argv, cwd, input, timeout_ms)` | `Ctx.run` with a directory and standard input | git |
 | `MODE_NORMAL` | `Ctx.mode()` of Normal mode | git |
 
-The git plugin imports only `ext.*` and m31git (`scripts/check_plugins.sh`); where the library cannot read a repository it runs `git`
+`MapSpec.profiles` (0.5.0, additive) names the key profiles a map belongs to (space separated; "" means every profile but `minimal`); `:Profile NAME` unmaps the maps of the old profile and maps those of the new one, `MapSpec` duplicates for different profiles are allowed (`map_in` builds one). The git plugin imports only `ext.*` and m31git (`scripts/check_plugins.sh`); where the library cannot read a repository it runs `git`
 through `Ctx.run_in`.
 
 ## 1. What an extension is

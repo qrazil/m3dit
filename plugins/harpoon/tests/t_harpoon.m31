@@ -69,8 +69,8 @@ match (MED_app.open(base + "/a.txt")) {
         check.ok("<Space>hp wraps to the last", app.path.ends_with("/c.txt"));
         type_text(app, " 7");
         check.eq_str("a number that is not pinned", app.notice, "Harpoon: no file 7");
-        type_text(app, " hd");
-        check.eq_str("<Space>hd unpins the current file", app.notice, "Harpoon: removed");
+        type_text(app, " hx");
+        check.eq_str("<Space>hx unpins the current file", app.notice, "Harpoon: removed");
         type_text(app, " he");
         check.ok("the menu is the finder", app.has_picker);
         type_text(app, "\x1b");
