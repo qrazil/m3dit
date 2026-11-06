@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.0
+
+The `explorer` plugin, and extension API 0.6.0. The file tree sidebar left the core: `ui/MED_tree.m31` and about 600 lines of `ui/MED_app.m31` (layout, keys, mouse,
+drawing, timer) are `plugins/explorer/`, over a docked-panel API (`Registry.did_panel`, `Canvas`, docs/PANEL-API.md). Nothing visible changed: the golden screens
+`file_tree` and `git_tree_letters` are byte-identical. `:Neotree` / `:NeoTree` and `<Space>e` belong to the plugin; a `--no-plugins` build has none of them.
+Also in this release: the toolchain moved to **m31 v0.14.2** (CI pin, block comments by `lint --fix`, the new `-emit-c` / `--out` / `-fmt` / `-lint` spellings),
+tui 0.16.1, syntax 0.5.1 and m31git 0.30.1 (the m31git pin is a commit that has to be published: see docs/CORE-AND-PLUGINS.md).
+
 ## 0.23.0
 
 Hunks, and committing from the editor (the git plugin; docs/KEYMAP-REVIEW.md section 13.2).
