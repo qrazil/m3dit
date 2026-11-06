@@ -45,21 +45,7 @@ pub List<str> undo_lines_of(str name) {
 /// The non-leader keys of the `default` profile (docs/KEYMAP-REVIEW.md 3.2): window focus and resize, save, Visual shift
 /// that keeps the selection, and `jk` in Insert mode (`gK`, signature help, is the front end's, next to `K`).
 List<str> controls() {
-    return [
-        "set jk_escape",
-        "nnoremap <C-h> <C-w>h",
-        "nnoremap <C-j> <C-w>j",
-        "nnoremap <C-k> <C-w>k",
-        "nnoremap <C-l> <C-w>l",
-        "nnoremap <C-Up> <Cmd>resize +2<CR>",
-        "nnoremap <C-Down> <Cmd>resize -2<CR>",
-        "nnoremap <C-Left> <Cmd>vertical resize -2<CR>",
-        "nnoremap <C-Right> <Cmd>vertical resize +2<CR>",
-        "nnoremap <C-s> <Cmd>write<CR>",
-        "xnoremap <C-s> <Esc><Cmd>write<CR>",
-        "xnoremap <lt> <lt>gv",
-        "xnoremap > >gv"
-    ];
+    return ["set jk_escape", "nnoremap <C-h> <C-w>h", "nnoremap <C-j> <C-w>j", "nnoremap <C-k> <C-w>k", "nnoremap <C-l> <C-w>l", "nnoremap <C-Up> <Cmd>resize +2<CR>", "nnoremap <C-Down> <Cmd>resize -2<CR>", "nnoremap <C-Left> <Cmd>vertical resize -2<CR>", "nnoremap <C-Right> <Cmd>vertical resize +2<CR>", "nnoremap <C-s> <Cmd>write<CR>", "xnoremap <C-s> <Esc><Cmd>write<CR>", "xnoremap <lt> <lt>gv", "xnoremap > >gv"];
 }
 
 List<str> nvim() {

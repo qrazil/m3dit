@@ -1019,23 +1019,10 @@ void Registry.add_stub(int owner, CommandSpec one) {
     commands.push(CommandEntry(owner, one.name, one.summary, NoCommand(), is_stub: true, is_bang: one.is_bang, arguments_min: one.arguments_min, arguments_max: one.arguments_max));
 }
 
-/// Whether two `MapSpec.profiles` lists name a profile in common ("" is every profile but `minimal`).
-bool are_profiles_shared(str left, str right) {
-    if (left.size() == 0 || right.size() == 0) {
-        return true;
-    }
-    for (str one in left.split(" ")) {
-        if (one.size() > 0 && (" " + right + " ").contains(" " + one + " ")) {
-            return true;
-        }
-    }
-    return false;
-}
-
 // A mapping of plugin `owner`: validated at registration, kept for `map_lines`.
 bool Registry.did_install_map(int owner, MapSpec spec) {
     for (MapEntry known in maps) {
-        if (mode_letter(known.spec.mode) == mode_letter(spec.mode) && known.spec.keys == spec.keys && known.spec.buffer == spec.buffer && are_profiles_shared(known.spec.profiles, spec.profiles)) {
+        if (mode_letter(known.spec.mode) == mode_letter(spec.mode) && known.spec.keys == spec.keys && known.spec.buffer == spec.buffer && is_profile_shared(known.spec.profiles, spec.profiles)) {
             problem(extensions[owner].name + ": " + mode_letter(spec.mode) + " " + spec.keys + " is already mapped by " + owner_name(known.owner));
             return false;
         }
@@ -1838,6 +1825,19 @@ pub List<str> Registry.take_problems() {
     List<str> taken = problems;
     problems = [];
     return taken;
+}
+
+/// Whether two `MapSpec.profiles` lists name a profile in common ("" is every profile but `minimal`).
+bool is_profile_shared(str left, str right) {
+    if (left.size() == 0 || right.size() == 0) {
+        return true;
+    }
+    for (str one in left.split(" ")) {
+        if (one.size() > 0 && (" " + right + " ").contains(" " + one + " ")) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // What is wrong with the data of `spec` ("" when nothing).

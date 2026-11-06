@@ -379,6 +379,40 @@ def vi_command_line_and_ex_mode(binary, root):
         s.close()
 
 
+@scenario
+def key_profiles(binary, root):
+    # default: <Space>w is the windows group and <C-s> writes
+    s = Session(binary, root, ["a.txt"])
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send("x", settle=0.3)
+        s.send(" w", settle=0.9)
+        assert "Split below" in s.text(), "the windows group lists its keys:\n" + s.text()
+        s.send("\x1b", settle=0.3)
+        s.send("\x13", settle=0.6)
+        with open(os.path.join(root, "a.txt")) as handle:
+            assert handle.read().startswith("ne"), "CTRL-S should write"
+        s.send(":Profile legacy\r", settle=0.4)
+        s.send("x", settle=0.3)
+        s.send(" w", settle=0.6)
+        with open(os.path.join(root, "a.txt")) as handle:
+            assert handle.read().startswith("e"), "legacy: <Space>w writes"
+    finally:
+        s.close()
+    # --profile minimal is bare vi: <Space> moves right, no leader menu
+    with open(os.path.join(root, "a.txt"), "w") as handle:
+        handle.write("one\ntwo\nthree\n")
+    s = Session(binary, root, ["--profile", "minimal", "a.txt"])
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send(" ", settle=1.0)
+        assert "+files" not in s.text() and "search" not in s.text(), "no leader menu in minimal:\n" + s.text()
+        s.send("x", settle=0.4)
+        assert "oe" in s.text(), "<Space> moved right, x deleted the n:\n" + s.text()
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

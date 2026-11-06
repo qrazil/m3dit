@@ -91,7 +91,6 @@ const int PREVIEW_LINES = 3000;
 const int PREVIEW_COLUMNS = 400;
 /// Milliseconds a pending key waits before the which-key popup shows.
 const int WHICH_KEY_MS = 400;
-
 /// The smallest a window may get, status line included.
 const int VKIND_CHAR = 118;
 const int VKIND_LINE = 86;
