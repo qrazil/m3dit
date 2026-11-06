@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.21.0
+
+The `git` plugin, and extension API 0.5.0. The git gutter, the hunk commands and `:Git` left the core for `plugins/git/` (default
+profile): no copy is left behind, `--no-plugins` has no git signs, no `:Hunk`, no `:Git` and no `<Space>gs` keys (the finder's
+`<Space>gg gf gb gc gC` pickers stay: the finder is core).
+
+- **API 0.5.0** (additive; `Spec` defaults to `0.5`, so every plugin was rebuilt, nothing else changed): `Ctx.set_signs`, `set_git_summary`,
+  `set_hunk_spans`, `show_text`, `open_scratch`, `pick_list` (`PickEntry`), `change_count`, `run_in`, `has_signs`, `MODE_NORMAL`,
+  `Registry.did_preview` (`PreviewFn`), `Sign`, `GitSummary`. Documented in docs/EXTENSIONS.md section 0.3, each used by `git`.
+- `Tick` handlers now get the buffer number in their context.
+- The git code is `plugins/git/MEDX_git*.m31` over `ext.MED_ext` and m31git only; where the library cannot read a repository it runs `git` through
+  `Ctx.run_in`. The tree's status letters are `ui/MED_gitstatus.m31` (core). `:SignsGit` toggles the signs (`<Space>gt`), `:Git line` blames the
+  cursor line (`<Space>gB`).
+- docs/CORE-AND-PLUGINS.md: the table "What ships where" (core, default plugin, opt-in plugin, not planned, with the state of each and the
+  three profiles `minimal`, `default`, `nvim`).
+- Tests: the git unit tests, `oracle_git.py` (329 checks) and `git_pty.py` (a new scenario: the gutter, the branch, `:PluginDisable git`) moved or
+  grew with the plugin (`plugins/git/tests/`).
+
 ## 0.20.0
 
 The vi core, a profile of the owner's Neovim setup, and the two parity documents. The plugin-API extractions of
