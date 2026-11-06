@@ -464,8 +464,8 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `grr` | Normal | references (language server) | lsp | m3 |
 | `grn` | Normal | rename symbol (language server) | lsp | m3 |
 | `gra` | Normal | code action (language server) | lsp | m3 |
-| `gh` | Normal | +stage the hunks of a motion (gh{motion}, ghh this line, Visual gh) | git | m3 |
-| `gH` | Normal | +reset the hunks of a motion (gH{motion}, gHH this line, Visual gH) | git | m3 |
+| `gh` | Normal | +stage hunks (gh{motion}) | git | m3 |
+| `gH` | Normal | +reset hunks (gH{motion}) | git | m3 |
 | `ys` | Normal | +surround add (ys{motion}{char}) | surround | vim |
 | `yss` | Normal | surround the line | surround | vim |
 | `ds` | Normal | surround delete (ds{char}) | surround | vim |
