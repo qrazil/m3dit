@@ -1,6 +1,6 @@
-// The explorer through the App: the sidebar opens beside the text, its keys move, expand, add, copy, filter and open, <C-w>h and <C-w>l
-// move the focus between it and the windows, and :Neotree close / reveal work. The model is plugin state, so this reads the screen, the
-// command line prompts (they carry the path of the row under the cursor) and the panel's focus.
+/* The explorer through the App: the sidebar opens beside the text, its keys move, expand, add, copy, filter and open, <C-w>h and <C-w>l
+ * move the focus between it and the windows, and :Neotree close / reveal work. The model is plugin state, so this reads the screen, the
+ * command line prompts (they carry the path of the row under the cursor) and the panel's focus. */
 
 import fs;
 import io;
