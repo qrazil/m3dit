@@ -21,7 +21,7 @@
 import fs;
 import io;
 import ui.MED_files;
-import ui.MED_git;
+import ui.MED_gitstatus;
 
 /// The most rows a tree (or a filtered tree) builds.
 const int MAX_ROWS = 20000;
@@ -193,7 +193,7 @@ pub void Tree.refresh() {
 
 /// Read git status again and refresh the rows.
 pub void Tree.refresh_status() {
-    status = MED_git.status_map(root);
+    status = MED_gitstatus.status_map(root);
     refresh();
 }
 

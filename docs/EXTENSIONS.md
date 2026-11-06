@@ -1,6 +1,6 @@
 # Extending m3
 
-Status: API 0.4.0, experimental (the plugin layer is section 0, what 0.3.0 and 0.4.0 added is sections 0.1 and 0.2; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.5.0, experimental (the plugin layer is section 0, what 0.3.0, 0.4.0 and 0.5.0 added is sections 0.1, 0.2 and 0.3; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
@@ -98,6 +98,26 @@ Additive again; `0.3` plugins are refused until rebuilt (`Spec` defaults to `0.4
 | `Ctx.global_state_lines(name)`, `Ctx.did_set_global_state_lines(name, lines)` | the user's state file `name` in m3's state directory, not per project (`recent`, `positions`) | session |
 | `Ctx.note_visit(abs)` | count a visit for the finder's frecency ordering | session |
 | `Ctx.set_cursor` | now also remembers the display column (`j` and `k` keep the column the plugin set) | session, todo |
+
+### 0.3 API 0.5.0 (m3 0.21.0): what `git` needed
+
+Additive; `0.4` plugins are refused until rebuilt (`Spec` defaults to `0.5`). The first plugin that needed to draw in the gutter and
+keep its own data per buffer.
+
+| addition | what it is | used by |
+|---|---|---|
+| `Sign`, `Ctx.set_signs(signs, is_reserved)` | gutter signs of this buffer: row, one cell of text, theme scope. Marks and diagnostics have a row first; a plugin's sign shows where they leave it free. `is_reserved` keeps the sign column open with no sign in it (a tracked file). The last call for a buffer wins; `:PluginDisable` removes the signs | git |
+| `GitSummary`, `Ctx.set_git_summary(summary)` | the branch and hunk counts that `Ctx.status()` answers with (before: the core read them) | git, statusline |
+| `Ctx.set_hunk_spans(spans)` | first row and row count of each hunk, for the `ih` / `ah` text objects | git |
+| `Ctx.show_text(lines)`, `Ctx.open_scratch(title, lines)` | an overlay shown until a key is typed; a new unnamed unmodified buffer | git |
+| `PickEntry`, `Ctx.pick_list(title, entries, selected_line)` | a finder list built by the plugin; `detail` is previewed by the provider of `did_preview`, `action` (`ex:LINE`, `picker:NAME`, `keys:KEYS`) runs on Enter | git |
+| `PreviewFn`, `Registry.did_preview(kind, fn)` | the preview lines of finder entries whose `detail` is of that kind (the core asks for `commit` in its own commit list); `:PluginDisable` stops it | git |
+| `Ctx.change_count()` | how often the buffer text changed: equal numbers, equal text | git |
+| `Ctx.run_in(argv, cwd, input, timeout_ms)` | `Ctx.run` with a directory and standard input | git |
+| `MODE_NORMAL` | `Ctx.mode()` of Normal mode | git |
+
+The git plugin imports only `ext.*` and m31git (`scripts/check_plugins.sh`); where the library cannot read a repository it runs `git`
+through `Ctx.run_in`.
 
 ## 1. What an extension is
 

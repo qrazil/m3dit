@@ -1,0 +1,432 @@
+// The `git` plugin: the git gutter (signs for added, changed and removed rows against the index), the hunk commands
+// (`:Hunk stage|reset|undo|preview|next|prev`, `ih` / `ah` through the hunk spans), `:Git log|show|diff|blame|line`,
+// `:GitSigns`, the branch and hunk counts for the status line, and the preview of commit entries in the finder. It
+// was `App.git_info`, `draw_sign`'s git half, `run_git_action`, `run_git_read`, `run_hunk_command`, the branch timer and
+// `ui/MED_git*.m31`; now it is these modules over API 0.5.0: `Ctx.set_signs`, `set_hunk_spans`, `set_git_summary`,
+// `show_text`, `open_scratch`, `pick_list`, `run_in`, `change_count` and `Registry.did_preview`. Reads go through the m31git
+// library first; `git` runs (through `Ctx.run_in`) only where the library cannot answer.
+//
+//   MEDX_git_lib    the library calls (open a repository, HEAD and index contents, log, blame, show, diff, staging)
+//   MEDX_git_hunk   the diff of the buffer against the base, hunk patches and staging
+//   MEDX_git_cmd    what `:Git ARGS` shows
+
+import engine.MED_buffer;
+import ext.MED_ext;
+import fs;
+import plugins.git.MEDX_git_cmd;
+import plugins.git.MEDX_git_hunk;
+import plugins.git.MEDX_git_lib;
+
+/// How often (ms) HEAD and the branch are read again.
+const int REFRESH_MS = 3000;
+const int FIRST_BRANCH_MS = 500;
+
+/// What is known about the file of one buffer.
+type FileInfo {
+    /// HEAD was asked for (and, when `has_base`, answered).
+    bool is_checked = false;
+    bool has_base = false;
+    List<str> base = [];
+    /// `Ctx.change_count` when `hunks` was made.
+    int tick = -1;
+    MEDX_git_hunk.Hunks hunks = MEDX_git_hunk.Hunks();
+}
+
+/// The plugin's state: the files by buffer number, the branch last read and the timers.
+type State {
+    Map<str, FileInfo> files = {};
+    str branch = "";
+    int branch_ms = 0;
+    int refresh_ms = 0;
+}
+
+/// `Ctx.run_in` as the `git` runner of the library modules.
+type ContextShell {
+    MED_ext.Ctx context;
+}
+
+MED_ext.Ran ContextShell.run(List<str> argv, str cwd, str input) {
+    return context.run_in(argv, cwd, input, 1000);
+}
+
+MEDX_git_lib.Shell shell_of(MED_ext.Ctx context) {
+    return ContextShell(context);
+}
+
+Result<bool, str> done(MED_ext.Ctx context, str text) {
+    context.say(text);
+    return Result<bool, str>.Ok(true);
+}
+
+/// The lines of the buffer.
+List<str> buffer_lines(MED_ext.Ctx context) {
+    List<str> lines = [];
+    for (int row in 0 .. context.line_count()) {
+        lines.push(context.line(row));
+    }
+    return lines;
+}
+
+/// The sign of one change kind.
+MED_ext.Sign sign_of(int row, int kind) {
+    if (kind == MEDX_git_hunk.ADDED) {
+        return MED_ext.Sign(row, "+", "diff.plus");
+    }
+    if (kind == MEDX_git_hunk.CHANGED) {
+        return MED_ext.Sign(row, "~", "diff.delta");
+    }
+    return MED_ext.Sign(row, "_", "diff.minus");
+}
+
+/// Tell the host what the file looks like now: the signs, the hunk spans and the status line counts.
+void publish(State state, MED_ext.Ctx context, FileInfo info) {
+    List<MED_ext.Sign> signs = [];
+    MED_ext.GitSummary summary = MED_ext.GitSummary(branch: state.branch);
+    if (info.has_base) {
+        summary.has_hunks = true;
+        for (int row in 0 .. info.hunks.kinds.size()) {
+            int kind = info.hunks.kinds[row];
+            if (kind == MEDX_git_hunk.NONE) {
+                continue;
+            }
+            signs.push(sign_of(row, kind));
+            if (kind == MEDX_git_hunk.ADDED) {
+                summary.added = summary.added + 1;
+            } else if (kind == MEDX_git_hunk.CHANGED) {
+                summary.changed = summary.changed + 1;
+            } else {
+                summary.removed = summary.removed + 1;
+            }
+        }
+        context.set_hunk_spans(MEDX_git_hunk.spans(info.hunks));
+    } else {
+        context.set_hunk_spans([]);
+    }
+    context.set_signs(signs, info.has_base);
+    context.set_git_summary(summary);
+}
+
+/// The git information of this buffer's file, brought up to date: HEAD is read once, the diff again when the text
+/// changed (`is_forced` reads HEAD again too). The signs and the status line follow.
+FileInfo refresh(State state, MED_ext.Ctx context, bool is_forced) {
+    FileInfo info = FileInfo();
+    str file = context.file;
+    str slot_key = context.buffer_id.to_str();
+    if (file.size() == 0 || !context.is_flag_on("gitsigns", true) || fs.is_directory(file)) {
+        context.set_signs([], false);
+        context.set_hunk_spans([]);
+        context.set_git_summary(MED_ext.GitSummary(branch: state.branch));
+        return info;
+    }
+    match (state.files.get(slot_key)) {
+        case Some(FileInfo known): {
+            info = known;
+        }
+        case None: {
+        }
+    }
+    if (is_forced) {
+        info.is_checked = false;
+    }
+    if (!info.is_checked) {
+        info.is_checked = true;
+        match (MEDX_git_hunk.head_lines(shell_of(context), file)) {
+            case Some(List<str> lines): {
+                info.has_base = true;
+                info.base = lines;
+            }
+            case None: {
+                info.has_base = false;
+            }
+        }
+        info.tick = -1;
+    }
+    if (info.has_base) {
+        int tick = context.change_count();
+        if (tick != info.tick || info.tick < 0) {
+            info.tick = tick;
+            info.hunks = MEDX_git_hunk.diff(info.base, buffer_lines(context));
+        }
+    }
+    state.files.set(slot_key, info);
+    publish(state, context, info);
+    return info;
+}
+
+/// The branch of this buffer's file, read from `.git/HEAD`.
+void read_branch(State state, MED_ext.Ctx context) {
+    if (context.file.size() == 0) {
+        state.branch = "";
+        return;
+    }
+    state.branch = MEDX_git_hunk.branch_of(MEDX_git_hunk.directory_of(context.file));
+}
+
+Result<bool, str> opened(State state, MED_ext.Ctx context, MED_ext.Info info) {
+    if (state.branch.size() == 0) {
+        read_branch(state, context);
+    }
+    refresh(state, context, false);
+    return Result<bool, str>.Ok(true);
+}
+
+/// Every TICK_MS: the diff again when the text changed (in Normal mode, so typing is not interrupted), HEAD and the
+/// branch every REFRESH_MS.
+Result<bool, str> ticked(State state, MED_ext.Ctx context, MED_ext.Info info) {
+    if (context.file.size() == 0) {
+        return Result<bool, str>.Ok(true);
+    }
+    state.branch_ms = state.branch_ms + info.elapsed_ms;
+    state.refresh_ms = state.refresh_ms + info.elapsed_ms;
+    bool is_forced = false;
+    if (state.refresh_ms >= REFRESH_MS) {
+        state.refresh_ms = 0;
+        is_forced = true;
+    }
+    if (state.branch_ms >= REFRESH_MS || (state.branch.size() == 0 && state.branch_ms >= FIRST_BRANCH_MS)) {
+        state.branch_ms = 0;
+        read_branch(state, context);
+        is_forced = true;
+    }
+    if (is_forced) {
+        refresh(state, context, true);
+        return Result<bool, str>.Ok(true);
+    }
+    match (state.files.get(context.buffer_id.to_str())) {
+        case Some(FileInfo known): {
+            if (known.has_base && !context.has_signs()) {
+                // the plugin was switched off and on: the host dropped the signs
+                refresh(state, context, false);
+            } else if (known.has_base && known.tick != context.change_count() && context.mode() == MED_ext.MODE_NORMAL) {
+                refresh(state, context, false);
+            }
+        }
+        case None: {
+            refresh(state, context, false);
+        }
+    }
+    return Result<bool, str>.Ok(true);
+}
+
+// ------------------------------------------------------------------ :Git
+
+Result<bool, str> git_command(State state, MED_ext.Ctx context, str arguments) {
+    MEDX_git_cmd.Out out = MEDX_git_cmd.run(shell_of(context), arguments, context.file, buffer_lines(context), context.cursor().row);
+    if (out.error.size() > 0) {
+        return done(context, out.error);
+    }
+    if (!out.is_list) {
+        context.open_scratch(out.title, out.lines);
+        return Result<bool, str>.Ok(true);
+    }
+    context.pick_list(out.title, out.entries, out.selected_line);
+    return Result<bool, str>.Ok(true);
+}
+
+/// `:Git line`: who last changed the cursor's line.
+Result<bool, str> blame_line(MED_ext.Ctx context) {
+    str file = context.file;
+    if (file.size() == 0) {
+        return done(context, "No file");
+    }
+    MEDX_git_lib.Shell shell = shell_of(context);
+    int row = context.cursor().row;
+    // in process first (m31git); `git blame` when the library cannot answer
+    match (MEDX_git_hunk.blame_row(file, buffer_lines(context), row)) {
+        case Some(str said): {
+            return done(context, said);
+        }
+        case None: {
+        }
+    }
+    int line = row + 1;
+    match (MEDX_git_lib.shell_output(shell, ["git", "-C", MEDX_git_hunk.directory_of(file), "blame", "-L", line.to_str() + "," + line.to_str(), "--date=relative", "--", MEDX_git_hunk.name_of(file)], ".", "")) {
+        case Some(str text): {
+            return done(context, text.trim());
+        }
+        case None: {
+            return done(context, "Not committed yet");
+        }
+    }
+}
+
+// ------------------------------------------------------------------ :Hunk
+
+/// Replace `count` rows from `first` with `lines` as one change.
+void replace_rows(MED_ext.Ctx context, int first, int count, List<str> lines) {
+    int total = context.line_count();
+    str text = lines.join("\n");
+    if (count > 0 && lines.size() > 0) {
+        int last = first + count - 1;
+        context.did_replace(MED_buffer.Pos(first, 0), MED_buffer.Pos(last, context.line(last).size()), text);
+    } else if (count == 0) {
+        if (first >= total) {
+            int end_row = total - 1;
+            context.did_replace(MED_buffer.Pos(end_row, context.line(end_row).size()), MED_buffer.Pos(end_row, context.line(end_row).size()), "\n" + text);
+        } else {
+            context.did_replace(MED_buffer.Pos(first, 0), MED_buffer.Pos(first, 0), text + "\n");
+        }
+    } else {
+        // delete the rows
+        int last = first + count - 1;
+        if (last + 1 < total) {
+            context.did_replace(MED_buffer.Pos(first, 0), MED_buffer.Pos(last + 1, 0), "");
+        } else if (first > 0) {
+            context.did_replace(MED_buffer.Pos(first - 1, context.line(first - 1).size()), MED_buffer.Pos(last, context.line(last).size()), "");
+        } else {
+            context.did_replace(MED_buffer.Pos(0, 0), MED_buffer.Pos(last, context.line(last).size()), "");
+        }
+    }
+}
+
+/// `:Hunk next` and `:Hunk prev`: the start of the next or previous change against the index (wrapping).
+Result<bool, str> go_hunk(State state, MED_ext.Ctx context, bool is_forward) {
+    FileInfo info = refresh(state, context, false);
+    MED_buffer.Pos here = context.cursor();
+    int target = -1;
+    if (info.has_base) {
+        target = MEDX_git_hunk.next_start(info.hunks, here.row, is_forward);
+    }
+    if (target < 0) {
+        return done(context, "No hunk");
+    }
+    context.set_jump_mark();
+    int column = 0;
+    str line = context.line(target);
+    while (column < line.size() && (line.byte_at(column) == 32 || line.byte_at(column) == 9)) {
+        column = column + 1;
+    }
+    context.set_cursor(MED_buffer.Pos(target, column));
+    return Result<bool, str>.Ok(true);
+}
+
+/// `:Hunk stage|reset|undo|preview`: the `<Space>gs gr gu gp` actions; `undo` unstages the staged hunk.
+Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) {
+    str word = arguments.trim();
+    if (word == "next" || word == "prev") {
+        return go_hunk(state, context, word == "next");
+    }
+    if (word != "stage" && word != "reset" && word != "undo" && word != "unstage" && word != "preview") {
+        return done(context, "Hunk: stage, reset, undo, preview, next or prev");
+    }
+    str file = context.file;
+    if (file.size() == 0) {
+        return done(context, "No file");
+    }
+    FileInfo info = refresh(state, context, false);
+    if (!info.has_base) {
+        return done(context, "This file is not tracked by git");
+    }
+    int row = context.cursor().row;
+    if (word == "undo" || word == "unstage") {
+        str said = MEDX_git_hunk.unstage_hunk_at(file, info.hunks, row);
+        if (said == "") {
+            refresh(state, context, true);
+            return done(context, "Hunk unstaged");
+        }
+        if (said == "!") {
+            return done(context, "Cannot unstage in process here; use git restore --staged -p");
+        }
+        return done(context, said);
+    }
+    int index = MEDX_git_hunk.hunk_at(info.hunks, row);
+    if (index < 0) {
+        return done(context, "No hunk at the cursor");
+    }
+    if (word == "preview") {
+        context.show_text(MEDX_git_hunk.hunk_preview(info.hunks, index, info.base, buffer_lines(context)));
+        return Result<bool, str>.Ok(true);
+    }
+    if (word == "reset") {
+        List<str> old = [];
+        for (int offset in 0 .. info.hunks.base_counts[index]) {
+            old.push(info.base[info.hunks.base_froms[index] + offset]);
+        }
+        replace_rows(context, info.hunks.froms[index], info.hunks.counts[index], old);
+        return done(context, "Hunk reset");
+    }
+    // stage: in process first (m31git); `git apply` when the library cannot
+    List<str> lines = buffer_lines(context);
+    str said = MEDX_git_hunk.stage_hunk(file, info.hunks, index, lines);
+    if (said != "!") {
+        if (said == "") {
+            refresh(state, context, true);
+            return done(context, "Hunk staged");
+        }
+        return done(context, "Stage failed: " + said);
+    }
+    MEDX_git_lib.Shell shell = shell_of(context);
+    str directory = MEDX_git_hunk.directory_of(file);
+    str prefix = MEDX_git_lib.shell_output(shell, ["git", "-C", directory, "rev-parse", "--show-prefix"], ".", "").or("").trim();
+    str relative = prefix + MEDX_git_hunk.name_of(file);
+    str patch = MEDX_git_hunk.hunk_patch(info.hunks, index, info.base, lines, relative);
+    MED_ext.Ran ran = context.run_in(["git", "-C", directory, "apply", "--cached", "--unidiff-zero", "-"], directory, patch, 1000);
+    if (ran.code == 0) {
+        refresh(state, context, true);
+        return done(context, "Hunk staged");
+    }
+    return done(context, "Stage failed: " + first_line_of(ran.errors));
+}
+
+str first_line_of(str text) {
+    List<str> parts = text.split("\n");
+    return parts[0];
+}
+
+/// `:GitSigns`: switch the signs on or off for this session.
+Result<bool, str> signs_command(State state, MED_ext.Ctx context) {
+    context.did_run_ex("set gitsigns!");
+    refresh(state, context, false);
+    return Result<bool, str>.Ok(true);
+}
+
+// ------------------------------------------------------------------ the commit preview
+
+type CommitPreview {
+}
+
+List<str> CommitPreview.lines(MED_ext.Ctx context, str detail) {
+    return MEDX_git_hunk.show_lines(shell_of(context), context.project_root(), detail);
+}
+
+// ------------------------------------------------------------------ registration
+
+type Git {
+    State state = State();
+}
+
+Result<bool, str> Git.activate(MED_ext.Registry api) {
+    State kept = state;
+    api.did_hook(MED_ext.Event.BufferOpen, (MED_ext.Ctx context, MED_ext.Info info) => opened(kept, context, info));
+    api.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => ticked(kept, context, info));
+    api.did_command("Git", "log, show, diff, blame or line of the git repository", (MED_ext.Ctx context, str arguments, bool is_bang) => git_command_or_line(kept, context, arguments));
+    api.did_command("Hunk", "stage, reset, undo, preview, next or prev hunk", (MED_ext.Ctx context, str arguments, bool is_bang) => hunk_command(kept, context, arguments));
+    api.did_command("SignsGit", "switch the git signs on or off", (MED_ext.Ctx context, str arguments, bool is_bang) => signs_command(kept, context));
+    api.did_preview("commit", CommitPreview());
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> git_command_or_line(State state, MED_ext.Ctx context, str arguments) {
+    if (arguments.trim() == "line") {
+        return blame_line(context);
+    }
+    return git_command(state, context, arguments);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("git", summary: "gutter signs, hunk keys, :Git log show diff blame");
+    key(spec, "<Space>gs", "Hunk stage", "Stage hunk");
+    key(spec, "<Space>gr", "Hunk reset", "Reset hunk");
+    key(spec, "<Space>gp", "Hunk preview", "Preview hunk");
+    key(spec, "<Space>gu", "Hunk undo", "Unstage hunk");
+    key(spec, "<Space>gl", "Git log %", "Git log of this file");
+    key(spec, "<Space>gd", "Git diff", "Git diff (working tree)");
+    key(spec, "<Space>gm", "Git blame", "Git blame list");
+    key(spec, "<Space>gB", "Git line", "Blame line");
+    key(spec, "<Space>gt", "SignsGit", "Toggle git signs");
+    api.did_plugin(spec, Git());
+}
+
+void key(MED_ext.Spec spec, str keys, str command, str desc) {
+    spec.maps.push(MED_ext.map(MED_ext.MapMode.Normal, keys, command, desc));
+}

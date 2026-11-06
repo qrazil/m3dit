@@ -2,8 +2,8 @@
 //
 // API
 // ---
-//   MED_git.head_lines(path)       Option<List<str>>: the file as HEAD has it, None when untracked or no repo
-//   MED_git.diff(base, current)    Hunks: a sign per buffer row and where each hunk starts
+//   MEDX_git_hunk.head_lines(path)       Option<List<str>>: the file as HEAD has it, None when untracked or no repo
+//   MEDX_git_hunk.diff(base, current)    Hunks: a sign per buffer row and where each hunk starts
 //
 // `kinds[row]` is NONE, ADDED, CHANGED, or REMOVED (lines were removed just
 // below this row; row 0 also stands for removals above the first line).
@@ -13,8 +13,7 @@
 
 import fs;
 import io;
-import engine.MED_shell;
-import ui.MED_gitlib;
+import plugins.git.MEDX_git_lib;
 
 pub const int NONE = 0;
 pub const int ADDED = 1;
@@ -67,10 +66,10 @@ pub str name_of(str path) {
 /// missing, the directory is no repository or the file is untracked. Read in
 /// process through the m31git library; a repository the library cannot read
 /// (a version 4 index, a missing object of a partial clone) goes to `git`.
-pub Option<List<str>> head_lines(str path) {
+pub Option<List<str>> head_lines(MEDX_git_lib.Shell shell, str path) {
     str directory = directory_of(path);
     str name = name_of(path);
-    match (MED_gitlib.base_of(directory, name)) {
+    match (MEDX_git_lib.base_of(directory, name)) {
         case Lines(List<str> lines): {
             return Option<List<str>>.Some(lines);
         }
@@ -80,16 +79,16 @@ pub Option<List<str>> head_lines(str path) {
         case Failed: {
         }
     }
-    match (MED_shell.output(["git", "-C", directory, "show", ":./" + name], "")) {
+    match (MEDX_git_lib.shell_output(shell, ["git", "-C", directory, "show", ":./" + name], ".", "")) {
         case Some(str text): {
-            return Option<List<str>>.Some(MED_shell.split_lines(text));
+            return Option<List<str>>.Some(MEDX_git_lib.split_lines(text));
         }
         case None: {
         }
     }
-    match (MED_shell.output(["git", "-C", directory, "show", "HEAD:./" + name], "")) {
+    match (MEDX_git_lib.shell_output(shell, ["git", "-C", directory, "show", "HEAD:./" + name], ".", "")) {
         case Some(str text): {
-            return Option<List<str>>.Some(MED_shell.split_lines(text));
+            return Option<List<str>>.Some(MEDX_git_lib.split_lines(text));
         }
         case None: {
             return Option<List<str>>.None;
@@ -186,99 +185,6 @@ pub str branch_of(str directory) {
         }
     }
     return "";
-}
-
-/// How much a status letter matters when a folder shows the worst of its files.
-pub int status_rank(str letter) {
-    if (letter == "!") {
-        return 5;
-    }
-    if (letter == "D") {
-        return 4;
-    }
-    if (letter == "M" || letter == "R") {
-        return 3;
-    }
-    if (letter == "A") {
-        return 2;
-    }
-    if (letter == "?") {
-        return 1;
-    }
-    return 0;
-}
-
-/// The status of every changed path below `directory`, keyed by the path
-/// relative to it (`git status --porcelain`): M modified, A added, D deleted,
-/// R renamed, ? untracked, ! conflicted. Folders carry the worst status of
-/// what is inside them. Empty outside a repository.
-pub Map<str, str> status_map(str directory) {
-    Map<str, str> found = {};
-    str text = "";
-    match (MED_shell.output(["sh", "-c", "git rev-parse --show-prefix && git status --porcelain=v1 --untracked-files=all"], directory)) {
-        case Some(str content): {
-            text = content;
-        }
-        case None: {
-            return found;
-        }
-    }
-    List<str> lines = text.split("\n");
-    if (lines.size() < 1) {
-        return found;
-    }
-    str prefix = lines[0];
-    for (int index in 1 .. lines.size()) {
-        str line = lines[index];
-        if (line.size() < 4) {
-            continue;
-        }
-        str index_letter = line.substr(0, 1);
-        str tree_letter = line.substr(1, 2);
-        str name = line.substr(3, line.size());
-        int arrow = name.index_of(" -> ").or(-1);
-        if (arrow >= 0) {
-            name = name.substr(arrow + 4, name.size());
-        }
-        if (name.starts_with("\"") && name.ends_with("\"") && name.size() >= 2) {
-            name = name.substr(1, name.size() - 1);
-        }
-        str letter = tree_letter;
-        if (letter == " ") {
-            letter = index_letter;
-        }
-        if (index_letter == "U" || tree_letter == "U" || (index_letter == "A" && tree_letter == "A") || (index_letter == "D" && tree_letter == "D")) {
-            letter = "!";
-        }
-        if (letter == "C" || letter == "T") {
-            letter = "M";
-        }
-        if (prefix.size() > 0) {
-            if (!name.starts_with(prefix)) {
-                continue;
-            }
-            name = name.substr(prefix.size(), name.size());
-        }
-        // the file and every folder above it
-        str walked = name;
-        while (true) {
-            str old = found.get(walked).or("");
-            if (status_rank(letter) > status_rank(old)) {
-                found.set(walked, letter);
-            }
-            int slash = -1;
-            for (int offset in 0 .. walked.size()) {
-                if (walked.byte_at(offset) == 47) {
-                    slash = offset;
-                }
-            }
-            if (slash < 0) {
-                break;
-            }
-            walked = walked.substr(0, slash);
-        }
-    }
-    return found;
 }
 
 // Mark the rows [from, to) of `kinds` and say where the hunk starts.
@@ -506,7 +412,7 @@ pub Option<str> blame_row(str path, List<str> buffer, int row) {
     str directory = directory_of(path);
     str name = name_of(path);
     List<str> head = [];
-    match (MED_gitlib.head_lines_of(directory, name)) {
+    match (MEDX_git_lib.head_lines_of(directory, name)) {
         case Lines(List<str> lines): {
             head = lines;
         }
@@ -521,12 +427,12 @@ pub Option<str> blame_row(str path, List<str> buffer, int row) {
     if (position < 0) {
         return Option<str>.Some("Not committed yet");
     }
-    match (MED_gitlib.blame_of(directory, name)) {
-        case Some(List<MED_gitlib.BlameLine> lines): {
+    match (MEDX_git_lib.blame_of(directory, name)) {
+        case Some(List<MEDX_git_lib.BlameLine> lines): {
             if (position >= lines.size() || lines.size() != head.size()) {
                 return Option<str>.None;
             }
-            return Option<str>.Some(MED_gitlib.blame_text(lines[position], position + 1));
+            return Option<str>.Some(MEDX_git_lib.blame_text(lines[position], position + 1));
         }
         case None: {
             return Option<str>.None;
@@ -590,7 +496,7 @@ pub List<bytes> ended_lines(List<str> lines, bool is_last_bare) {
 
 /// The lines of `content` with their terminators, and the same without them.
 pub List<bytes> split_ended(bytes content) {
-    return MED_gitlib.split_ended(content);
+    return MEDX_git_lib.split_ended(content);
 }
 
 /// Is the last line of `lines` one without a terminator?
@@ -644,12 +550,12 @@ pub int index_row_of(Hunks hunks, int row) {
 /// cannot (the caller runs `git apply`), else why it failed.
 pub str stage_hunk(str path, Hunks hunks, int index, List<str> buffer) {
     str directory = directory_of(path);
-    match (MED_gitlib.open(directory)) {
-        case Some(MED_gitlib.Repo repo): {
-            str relative = MED_gitlib.relative_to(repo, directory, name_of(path));
-            match (MED_gitlib.index_bytes(repo, relative)) {
+    match (MEDX_git_lib.open(directory)) {
+        case Some(MEDX_git_lib.Repo repo): {
+            str relative = MEDX_git_lib.relative_to(repo, directory, name_of(path));
+            match (MEDX_git_lib.index_bytes(repo, relative)) {
                 case Some(bytes content): {
-                    return MED_gitlib.stage_content(repo, relative, staged_content(hunks, index, content, buffer));
+                    return MEDX_git_lib.stage_content(repo, relative, staged_content(hunks, index, content, buffer));
                 }
                 case None: {
                     return "!";
@@ -666,16 +572,16 @@ pub str stage_hunk(str path, Hunks hunks, int index, List<str> buffer) {
 /// "" when done, "!" when the library cannot, else why not.
 pub str unstage_hunk_at(str path, Hunks unstaged, int row) {
     str directory = directory_of(path);
-    match (MED_gitlib.open(directory)) {
-        case Some(MED_gitlib.Repo repo): {
-            str relative = MED_gitlib.relative_to(repo, directory, name_of(path));
+    match (MEDX_git_lib.open(directory)) {
+        case Some(MEDX_git_lib.Repo repo): {
+            str relative = MEDX_git_lib.relative_to(repo, directory, name_of(path));
             int position = index_row_of(unstaged, row);
             if (position < 0) {
                 return "No staged hunk at the cursor";
             }
-            Option<bytes> staged = MED_gitlib.index_bytes(repo, relative);
+            Option<bytes> staged = MEDX_git_lib.index_bytes(repo, relative);
             bytes head = [];
-            match (MED_gitlib.head_bytes(repo, relative)) {
+            match (MEDX_git_lib.head_bytes(repo, relative)) {
                 case Some(bytes found): {
                     head = found;
                 }
@@ -703,12 +609,12 @@ pub str unstage_hunk_at(str path, Hunks unstaged, int row) {
                             return "!";
                         }
                     }
-                    Hunks against = diff(MED_shell.split_lines(index_text), MED_shell.split_lines(head_text));
+                    Hunks against = diff(MEDX_git_lib.split_lines(index_text), MEDX_git_lib.split_lines(head_text));
                     int index = hunk_at_base(against, position);
                     if (index < 0) {
                         return "No staged hunk at the cursor";
                     }
-                    return MED_gitlib.stage_content(repo, relative, unstaged_content(against, index, content, head));
+                    return MEDX_git_lib.stage_content(repo, relative, unstaged_content(against, index, content, head));
                 }
                 case None: {
                     return "!";
@@ -732,13 +638,13 @@ pub List<int> spans(Hunks hunks) {
 }
 
 /// `git show REV` for the preview and `git:show`: through the library, else `git`. Empty when neither can.
-pub List<str> show_lines(str directory, str rev) {
-    match (MED_gitlib.show_lines(directory, rev)) {
+pub List<str> show_lines(MEDX_git_lib.Shell shell, str directory, str rev) {
+    match (MEDX_git_lib.show_lines(directory, rev)) {
         case Some(List<str> lines): {
             return lines;
         }
         case None: {
         }
     }
-    return MED_shell.lines(["git", "show", "--no-color", "--stat", "--patch", rev], directory).or([]);
+    return MEDX_git_lib.shell_lines(shell, ["git", "show", "--no-color", "--stat", "--patch", rev], directory).or([]);
 }

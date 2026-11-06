@@ -1,0 +1,60 @@
+// Unit checks for MEDX_git_hunk.diff.
+
+import plugins.git.MEDX_git_hunk;
+import tests.MED_check;
+
+MED_check.Check check = MED_check.Check();
+MEDX_git_hunk.Hunks same = MEDX_git_hunk.diff(["a", "b"], ["a", "b"]);
+check.eq_int("no hunks", same.starts.size(), 0);
+MEDX_git_hunk.Hunks added = MEDX_git_hunk.diff(["a", "c"], ["a", "b", "c"]);
+check.eq_int("added row", added.kinds[1], MEDX_git_hunk.ADDED);
+check.eq_int("added start", added.starts[0], 1);
+MEDX_git_hunk.Hunks changed = MEDX_git_hunk.diff(["a", "b", "c"], ["a", "x", "c"]);
+check.eq_int("changed row", changed.kinds[1], MEDX_git_hunk.CHANGED);
+check.eq_int("others untouched", changed.kinds[0], MEDX_git_hunk.NONE);
+MEDX_git_hunk.Hunks removed = MEDX_git_hunk.diff(["a", "b", "c"], ["a", "c"]);
+check.eq_int("removed marks the row above", removed.kinds[0], MEDX_git_hunk.REMOVED);
+MEDX_git_hunk.Hunks mixed = MEDX_git_hunk.diff(["a", "b", "c", "d"], ["a", "x", "y", "c"]);
+check.eq_int("changed", mixed.kinds[1], MEDX_git_hunk.CHANGED);
+check.eq_int("added after the change", mixed.kinds[2], MEDX_git_hunk.ADDED);
+check.eq_int("removed after", mixed.starts.size(), 2);
+MEDX_git_hunk.Hunks grown = MEDX_git_hunk.diff(["a"], ["a", "b", "c"]);
+check.eq_int("appended rows", grown.kinds[2], MEDX_git_hunk.ADDED);
+MEDX_git_hunk.Hunks cleared = MEDX_git_hunk.diff(["a", "b"], []);
+check.eq_int("everything removed", cleared.starts.size(), 1);
+check.eq_int("next", MEDX_git_hunk.next_start(mixed, 0, true), 1);
+check.eq_int("previous", MEDX_git_hunk.next_start(mixed, 5, false), mixed.starts[1]);
+// hunk details and patches
+MEDX_git_hunk.Hunks by_change = MEDX_git_hunk.diff(["a", "b", "c"], ["a", "x", "c"]);
+check.eq_int("hunk_at", MEDX_git_hunk.hunk_at(by_change, 1), 0);
+check.eq_int("hunk_at outside", MEDX_git_hunk.hunk_at(by_change, 0), -1);
+check.eq_str("change patch", MEDX_git_hunk.hunk_patch(by_change, 0, ["a", "b", "c"], ["a", "x", "c"], "f.txt"), "--- a/f.txt\n+++ b/f.txt\n@@ -2,1 +2,1 @@\n-b\n+x\n");
+MEDX_git_hunk.Hunks by_add = MEDX_git_hunk.diff(["a", "c"], ["a", "b", "c"]);
+check.eq_str("add patch", MEDX_git_hunk.hunk_patch(by_add, 0, ["a", "c"], ["a", "b", "c"], "f.txt"), "--- a/f.txt\n+++ b/f.txt\n@@ -1,0 +2,1 @@\n+b\n");
+MEDX_git_hunk.Hunks by_remove = MEDX_git_hunk.diff(["a", "b", "c"], ["a", "c"]);
+check.eq_str("remove patch", MEDX_git_hunk.hunk_patch(by_remove, 0, ["a", "b", "c"], ["a", "c"], "f.txt"), "--- a/f.txt\n+++ b/f.txt\n@@ -2,1 +1,0 @@\n-b\n");
+check.eq_int("removal hunk found from the row below", MEDX_git_hunk.hunk_at(by_remove, 1), 0);
+check.eq_str("preview header", MEDX_git_hunk.hunk_preview(by_change, 0, ["a", "b", "c"], ["a", "x", "c"])[0], "@@ -2,1 +2,1 @@");
+// large files: the common head and tail are cut off first, so one edit in
+// 100000 lines is cheap, and a middle too big for the exact diff is one hunk
+List<str> big_base = [];
+List<str> big_current = [];
+for (int row in 0 .. 100000) {
+    big_base.push("line " + row.to_str());
+    if (row == 50000) {
+        big_current.push("edited");
+    } else {
+        big_current.push("line " + row.to_str());
+    }
+}
+MEDX_git_hunk.Hunks big = MEDX_git_hunk.diff(big_base, big_current);
+check.eq_int("one edit in a big file is one hunk", big.starts.size(), 1);
+check.eq_int("at the edited row", big.starts[0], 50000);
+check.eq_int("the kinds cover every row", big.kinds.size(), 100000);
+List<str> other = [];
+for (int row in 0 .. 3000) {
+    other.push("other " + row.to_str());
+}
+MEDX_git_hunk.Hunks wide = MEDX_git_hunk.diff(big_base.slice(0, 3000), other);
+check.eq_int("an oversized middle is one changed block", wide.starts.size(), 1);
+check.finish("t_git");

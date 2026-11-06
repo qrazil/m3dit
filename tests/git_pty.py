@@ -190,12 +190,41 @@ def hunk_stage_and_undo(binary, root):
         s.close()
 
 
+def gutter_and_plugin_switch(binary, root):
+    with open(os.path.join(root, "f.txt"), "w") as handle:
+        handle.write("".join(("line %d\n" % n) if n != 5 else "changed 5\n" for n in range(1, 31)))
+    s = Session(binary, root, ["f.txt"])
+    try:
+        s.pump(1.0)
+
+        def sign_of(needle):
+            for line in s.screen.display:
+                if needle in line:
+                    return line[0]
+            return None
+        assert sign_of("changed 5") == "~", s.text()
+        assert sign_of("line 6") == " ", s.text()
+        assert "main" in s.text().split("\n")[-2], "the branch is on the status line:\n" + s.text()
+        s.send(":PluginDisable git\r", 0.6)
+        assert sign_of("changed 5") != "~", "the signs go with the plugin:\n" + s.text()
+        s.send(":Hunk next\r", 0.5)
+        assert "ext git is switched off" in s.text(), s.text()
+        s.send(":PluginEnable git\r", 0.6)
+        s.pump(0.8)
+        assert sign_of("changed 5") == "~", "and come back:\n" + s.text()
+        s.send(":SignsGit\r", 0.6)
+        assert sign_of("changed 5") != "~", s.text()
+    finally:
+        s.close()
+
+
 def main():
     binary = sys.argv[1]
     scenario(binary, ":Git log lists the history with a git show preview", log_list_and_preview)
     scenario(binary, ":Git blame is a list that jumps to the line", blame_list_jumps)
     scenario(binary, ":Git show and :Git diff open scratch buffers", show_and_diff_scratch)
     scenario(binary, ":Hunk stage, undo, preview, reset and dih", hunk_stage_and_undo)
+    scenario(binary, "the gutter, the branch and the plugin switch", gutter_and_plugin_switch)
 
 
 main()

@@ -65,21 +65,12 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `<Space>:` | Normal | Commands | finder | m3 |
 | `<Space>?` | Normal | All keys | core | m3 |
 | `<Space>j` | Normal | Jump to a label | jump | m3 |
-| `<Space>g` | Normal | +git | git | config |
-| `<Space>gg` | Normal | Changed files (status) | git | config |
-| `<Space>gf` | Normal | Changed files | git | config |
-| `<Space>gb` | Normal | Branches (checkout) | git | config |
-| `<Space>gc` | Normal | Remote branches (checkout as local) | git | config |
-| `<Space>gC` | Normal | Commit history | git | config |
-| `<Space>gs` | Normal | Stage hunk | git | m3 |
-| `<Space>gr` | Normal | Reset hunk | git | m3 |
-| `<Space>gp` | Normal | Preview hunk | git | m3 |
-| `<Space>gu` | Normal | Unstage hunk | git | m3 |
-| `<Space>gl` | Normal | Git log of this file | git | m3 |
-| `<Space>gd` | Normal | Git diff (working tree) | git | m3 |
-| `<Space>gm` | Normal | Git blame list | git | m3 |
-| `<Space>gB` | Normal | Blame line | git | m3 |
-| `<Space>gt` | Normal | Toggle git signs | git | m3 |
+| `<Space>g` | Normal | +git | finder | config |
+| `<Space>gg` | Normal | Changed files (status) | finder | config |
+| `<Space>gf` | Normal | Changed files | finder | config |
+| `<Space>gb` | Normal | Branches (checkout) | finder | config |
+| `<Space>gc` | Normal | Remote branches (checkout as local) | finder | config |
+| `<Space>gC` | Normal | Commit history | finder | config |
 | `<Space>l` | Normal | +diagnostics | lsp | config |
 | `<Space>ll` | Normal | Show diagnostics at the cursor | lsp | config |
 | `<Space>]]` | Normal | Next diagnostic | lsp | config |
@@ -299,6 +290,15 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | `<Space>8` | Normal | Harpoon: file 8 | harpoon | m3 |
 | `<Space>9` | Normal | Harpoon: file 9 | harpoon | m3 |
 | `<Space>ft` | Normal | TODO comments | todo | m3 |
+| `<Space>gs` | Normal | Stage hunk | git | m3 |
+| `<Space>gr` | Normal | Reset hunk | git | m3 |
+| `<Space>gp` | Normal | Preview hunk | git | m3 |
+| `<Space>gu` | Normal | Unstage hunk | git | m3 |
+| `<Space>gl` | Normal | Git log of this file | git | m3 |
+| `<Space>gd` | Normal | Git diff (working tree) | git | m3 |
+| `<Space>gm` | Normal | Git blame list | git | m3 |
+| `<Space>gB` | Normal | Blame line | git | m3 |
+| `<Space>gt` | Normal | Toggle git signs | git | m3 |
 | `[b` | Normal | previous buffer | bracketed | m3 |
 | `]b` | Normal | next buffer | bracketed | m3 |
 | `[B` | Normal | first buffer | bracketed | m3 |
@@ -345,7 +345,7 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 | finder | fuzzy pickers: files, grep, buffers, recent, git, symbols |
 | whichkey | popup of the keys that can follow a pending prefix |
 | explorer | file tree sidebar and directory pickers |
-| git | gutter signs, hunk keys, branches, commits, blame |
+| git | gutter signs, hunk keys, :Git log show diff blame |
 | surround | ys ds cs and visual S |
 | comment | gc and gcc, language aware |
 | autopairs | insert-mode bracket and quote pairing |

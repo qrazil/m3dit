@@ -36,8 +36,6 @@ import syntax.core.SYN_structure;
 import ui.MED_clip;
 import ui.MED_frecency;
 import ui.MED_files;
-import ui.MED_git;
-import ui.MED_gitcmd;
 import ui.MED_grep;
 import engine.MED_key;
 import engine.MED_listing;
@@ -78,7 +76,6 @@ import ext.MED_ext_enabled;
 /// Rows below the text: the status line and the command line.
 const int FOOTER_ROWS = 2;
 /// How often (ms) HEAD is read again for the git gutter.
-const int GIT_REFRESH_MS = 3000;
 /// Lines the mouse wheel scrolls per notch.
 const int WHEEL_LINES = 3;
 /// Quiet time (ms) after typing in the grep prompt before the search runs.
@@ -95,18 +92,6 @@ const int PREVIEW_COLUMNS = 400;
 /// The smallest a window may get, status line included.
 const int VKIND_CHAR = 118;
 const int VKIND_LINE = 86;
-
-/// What the git gutter knows about one file.
-pub type GitInfo {
-    /// HEAD was asked for (and, when `has_base`, answered).
-    pub bool is_checked = false;
-    pub bool has_base = false;
-    pub List<str> base = [];
-    pub int tick = -1;
-    /// The text changed since `hunks` was made; the next quiet tick diffs again.
-    pub bool is_dirty = false;
-    pub MED_git.Hunks hunks = MED_git.Hunks();
-}
 
 /// One buffer of the session: its engine state (a reference, so the active
 /// buffer's editor is the very object the App drives) and its file.
@@ -146,8 +131,6 @@ pub type Term {
 pub type App {
     pub MED_editor.Editor editor;
     /// The git gutter of each file path, and how long since HEAD was last read.
-    pub Map<str, GitInfo> git = {};
-    pub int git_ms = 0;
     /// Directory listings show dotfiles (`gh` in a listing toggles it).
     pub bool is_dotfiles_listed = true;
     bool is_pending_g = false;
@@ -257,9 +240,6 @@ pub type App {
     pub MED_shell.Stream source = MED_shell.Stream();
     pub str source_kind = "";
     pub int source_ms = 0;
-    /// The git branch shown in the statusline, read from .git/HEAD.
-    pub str branch = "";
-    int branch_ms = 0;
     /// Extensions built in (docs/EXTENSIONS.md): empty unless the build named some. The mode, cursor, text tick and
     /// buffer the Mode/Cursor/Text events last saw, and the extension command names.
     pub MED_ext.Registry ext = MED_ext.Registry();
@@ -1393,10 +1373,6 @@ void App.run_request(str request) {
         }
     } else if (name == "source") {
         source_file(arg.trim());
-    } else if (name == "Git") {
-        run_git_read(arg);
-    } else if (name == "Hunk") {
-        run_hunk_command(arg);
     } else if (name == "Registers") {
         open_picker("registers", arg);
     } else if (name == "Recent") {
@@ -1731,8 +1707,6 @@ void App.run_app_action(str spec) {
     }
     if (action.starts_with("lsp_")) {
         run_lsp_command(action.substr(4, action.size()), arg);
-    } else if (action == "hunk_stage" || action == "hunk_undo" || action == "hunk_reset" || action == "hunk_preview" || action == "blame" || action == "signs") {
-        run_git_action(action);
     } else if (action == "jump") {
         if (is_plugin_on("jump")) {
             jump_stage = 1;
@@ -3516,7 +3490,12 @@ void App.update_preview() {
             }
             if (picker.kind == MED_picker.KIND_LIST && entry.detail.size() > 0) {
                 if (preview_path != "commit:" + entry.detail) {
-                    preview_lines = preview_ready(MED_git.show_lines(root, entry.detail));
+                    preview_lines = [];
+                    if (ext.has_preview("commit")) {
+                        MED_ext.Ctx pcontext = MED_ext.context(ext, editor, path);
+                        pcontext.buffer_id = current_id;
+                        preview_lines = preview_ready(ext.preview_lines("commit", pcontext, entry.detail));
+                    }
                     preview_path = "commit:" + entry.detail;
                 }
                 preview = MED_picker_view.Preview(title: entry.detail, lines: preview_lines, focus: -1);
@@ -3960,27 +3939,12 @@ pub TUI_app.Action App.tick(int elapsed_ms) {
 /// the language server is busy with.
 MED_ext.Status App.status_now() {
     MED_ext.Status out = MED_ext.Status();
-    out.branch = branch;
-    if (branch.size() > 0) {
-        match (git.get(path)) {
-            case Some(GitInfo known): {
-                if (known.has_base) {
-                    out.has_hunks = true;
-                    for (int kind in known.hunks.kinds) {
-                        if (kind == MED_git.ADDED) {
-                            out.added = out.added + 1;
-                        } else if (kind == MED_git.CHANGED) {
-                            out.changed = out.changed + 1;
-                        } else if (kind == MED_git.REMOVED) {
-                            out.removed = out.removed + 1;
-                        }
-                    }
-                }
-            }
-            case None: {
-            }
-        }
-    }
+    MED_ext.GitSummary summary = ext.git_summary_of(current_id);
+    out.branch = summary.branch;
+    out.has_hunks = summary.has_hunks;
+    out.added = summary.added;
+    out.changed = summary.changed;
+    out.removed = summary.removed;
     if (diagnostics.size() > 0) {
         List<int> counts = diagnostic_counts();
         out.errors = counts[0];
@@ -4112,15 +4076,6 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
             return TUI_app.Action.Redraw;
         }
     }
-    branch_ms = branch_ms + elapsed_ms;
-    if (branch_ms >= GIT_REFRESH_MS || branch.size() == 0 && branch_ms >= 500) {
-        branch_ms = 0;
-        str fresh_branch = MED_git.branch_of(MED_git.directory_of(path));
-        if (fresh_branch != branch) {
-            branch = fresh_branch;
-            return TUI_app.Action.Redraw;
-        }
-    }
     if (!has_picker && editor.mode == MED_editor.NORMAL) {
         watch_ms = watch_ms + elapsed_ms;
         if (watch_ms >= WATCH_MS) {
@@ -4147,32 +4102,6 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
             MED_ex.flush_maps(editor);
             did_finish();
             return TUI_app.Action.Redraw;
-        }
-    }
-    if (path.size() > 0 && !has_picker) {
-        match (git.get(path)) {
-            case Some(GitInfo pending): {
-                if (pending.is_dirty && editor.mode == MED_editor.NORMAL) {
-                    GitInfo fresh = git_info(path, editor, true);
-                    return TUI_app.Action.Redraw;
-                }
-            }
-            case None: {
-            }
-        }
-    }
-    git_ms = git_ms + elapsed_ms;
-    if (git_ms >= GIT_REFRESH_MS) {
-        git_ms = 0;
-        if (path.size() > 0 && git.get(path).is_some()) {
-            GitInfo before = git_info(path, editor, true);
-            bool was_tracked = before.has_base;
-            before.is_checked = false;
-            git.set(path, before);
-            GitInfo after = git_info(path, editor, true);
-            if (after.has_base != was_tracked || after.hunks.starts.size() != before.hunks.starts.size()) {
-                return TUI_app.Action.Redraw;
-            }
         }
     }
     if (tree.is_open) {
@@ -4537,7 +4466,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Registers", "Symbols", "Branches", "Commits", "Changed", "Git", "Hunk", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Registers", "Symbols", "Branches", "Commits", "Changed", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -4990,64 +4919,8 @@ bool App.is_selected(int row, int col, int spot) {
     return spot >= low && spot <= high;
 }
 
-/// The git information of `file` for the buffer `subject` shows, brought up to
-/// date (HEAD is read once, the diff again when the text changed).
-GitInfo App.git_info(str file, MED_editor.Editor subject, bool is_diff_now) {
-    GitInfo info = GitInfo();
-    if (file.size() == 0 || !subject.is_option_on("gitsigns", true) || fs.is_directory(file)) {
-        return info;
-    }
-    match (git.get(file)) {
-        case Some(GitInfo known): {
-            info = known;
-        }
-        case None: {
-        }
-    }
-    if (!info.is_checked) {
-        info.is_checked = true;
-        match (MED_git.head_lines(file)) {
-            case Some(List<str> lines): {
-                info.has_base = true;
-                info.base = lines;
-            }
-            case None: {
-                info.has_base = false;
-            }
-        }
-        info.tick = -1;
-    }
-    if (info.has_base) {
-        int tick = subject.current * 1000003 + subject.buffer.line_count();
-        if (tick != info.tick) {
-            if (info.tick < 0 || is_diff_now) {
-                info.tick = tick;
-                info.is_dirty = false;
-                info.hunks = MED_git.diff(info.base, subject.buffer.lines);
-            } else {
-                // while typing keep the signs, fitted to the number of rows
-                info.is_dirty = true;
-                int rows = subject.buffer.line_count();
-                while (info.hunks.kinds.size() < rows) {
-                    info.hunks.kinds.push(MED_git.NONE);
-                }
-                while (info.hunks.kinds.size() > rows) {
-                    info.hunks.kinds.pop();
-                }
-            }
-        }
-    }
-    // the rows of the hunks, for the `ih` / `ah` text objects
-    subject.hunk_spans = [];
-    if (info.has_base) {
-        subject.hunk_spans = MED_git.spans(info.hunks);
-    }
-    git.set(file, info);
-    return info;
-}
-
-/// The sign of one row: a mark's letter, else the git change.
-void App.draw_sign(TUI_buffer.Buffer buffer, MED_editor.Editor shown, GitInfo state, int row, int x, int y) {
+/// The sign of one row: a mark's letter, a diagnostic, else the sign a plugin gave (git).
+void App.draw_sign(TUI_buffer.Buffer buffer, MED_editor.Editor shown, int buffer_id, int row, int x, int y) {
     for (int code in 97 .. 123) {
         match (shown.marks.get(str.from_chars([code]))) {
             case Some(MED_buffer.Pos mark): {
@@ -5071,15 +4944,9 @@ void App.draw_sign(TUI_buffer.Buffer buffer, MED_editor.Editor shown, GitInfo st
         }
         return;
     }
-    if (state.has_base && row < state.hunks.kinds.size()) {
-        int kind = state.hunks.kinds[row];
-        if (kind == MED_git.ADDED) {
-            buffer.set_str(x, y, "+", theme.over("ui.gutter", "diff.plus"));
-        } else if (kind == MED_git.CHANGED) {
-            buffer.set_str(x, y, "~", theme.over("ui.gutter", "diff.delta"));
-        } else if (kind == MED_git.REMOVED) {
-            buffer.set_str(x, y, "_", theme.over("ui.gutter", "diff.minus"));
-        }
+    str given = ext.sign_text(buffer_id, row);
+    if (given.size() > 0) {
+        buffer.set_str(x, y, given, theme.over("ui.gutter", ext.sign_scope(buffer_id, row)));
     }
 }
 
@@ -5495,10 +5362,9 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
     if (is_hints_on && hints.size() > 0 && file.size() > 0) {
         hints_for = absolute_of(file);
     }
-    GitInfo git_state = git_info(file, subject, false);
     subject.sign_columns = 0;
     diagnostic_rows = diagnostic_rows_of(file, subject.buffer.line_count());
-    if (git_state.has_base || has_marks(subject) || diagnostic_rows.size() > 0 || (servers.size() > 0 && file.size() > 0 && subject.is_option_on("lsp", true))) {
+    if (ext.is_sign_column_wanted(win.buffer_id) || has_marks(subject) || diagnostic_rows.size() > 0 || (servers.size() > 0 && file.size() > 0 && subject.is_option_on("lsp", true))) {
         // (a running language server reserves the column before its first diagnostic)
         subject.sign_columns = 1;
     }
@@ -5701,7 +5567,7 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
                     buffer.set_str(frame.x + subject.sign_columns, part_y, number_text(subject, row, gutter), current);
                 }
                 if (subject.sign_columns > 0) {
-                    draw_sign(buffer, subject, git_state, row, frame.x, part_y);
+                    draw_sign(buffer, subject, win.buffer_id, row, frame.x, part_y);
                 }
             }
             int from = 0;
@@ -6579,202 +6445,7 @@ void App.save_undo(Slot slot) {
     MED_persist.save_undo(state_directory, absolute_of(slot.path), slot.editor);
 }
 
-/// The directory of the current file for git commands.
-str App.file_directory() {
-    return MED_git.directory_of(path);
-}
-
-/// Replace `count` rows from `first` with `lines` as one undoable change.
-void App.replace_rows(int first, int count, List<str> lines) {
-    int total = editor.buffer.line_count();
-    str text = lines.join("\n");
-    editor.open_block();
-    if (count > 0 && lines.size() > 0) {
-        int last = first + count - 1;
-        editor.change(MED_buffer.Pos(first, 0), MED_buffer.Pos(last, editor.buffer.line(last).size()), text);
-    } else if (count == 0) {
-        if (first >= total) {
-            int end_row = total - 1;
-            editor.change(MED_buffer.Pos(end_row, editor.buffer.line(end_row).size()), MED_buffer.Pos(end_row, editor.buffer.line(end_row).size()), "\n" + text);
-        } else {
-            editor.change(MED_buffer.Pos(first, 0), MED_buffer.Pos(first, 0), text + "\n");
-        }
-    } else {
-        // delete the rows
-        int last = first + count - 1;
-        if (last + 1 < total) {
-            editor.change(MED_buffer.Pos(first, 0), MED_buffer.Pos(last + 1, 0), "");
-        } else if (first > 0) {
-            editor.change(MED_buffer.Pos(first - 1, editor.buffer.line(first - 1).size()), MED_buffer.Pos(last, editor.buffer.line(last).size()), "");
-        } else {
-            editor.change(MED_buffer.Pos(0, 0), MED_buffer.Pos(last, editor.buffer.line(last).size()), "");
-        }
-    }
-    editor.end_block();
-}
-
-/// `<Space>gs` `gr` `gp` `gB` and friends.
-void App.run_git_action(str action) {
-    if (path.size() == 0 || is_in_listing()) {
-        notice = "No file";
-        return;
-    }
-    if (action == "signs") {
-        bool is_on = editor.is_option_on("gitsigns", true);
-        editor.opts.set("gitsigns", bool_text(!is_on));
-        return;
-    }
-    GitInfo info = git_info(path, editor, true);
-    if (action == "blame") {
-        str name = MED_git.name_of(path);
-        int line = editor.row + 1;
-        // in process first (m31git); `git blame` when the library cannot answer
-        match (MED_git.blame_row(path, editor.buffer.lines, editor.row)) {
-            case Some(str said): {
-                notice = said;
-                return;
-            }
-            case None: {
-            }
-        }
-        match (MED_shell.output(["git", "-C", file_directory(), "blame", "-L", line.to_str() + "," + line.to_str(), "--date=relative", "--", name], "")) {
-            case Some(str text): {
-                notice = text.trim();
-            }
-            case None: {
-                notice = "Not committed yet";
-            }
-        }
-        return;
-    }
-    if (!info.has_base) {
-        notice = "This file is not tracked by git";
-        return;
-    }
-    if (action == "hunk_undo") {
-        str said = MED_git.unstage_hunk_at(path, info.hunks, editor.row);
-        if (said == "") {
-            info.is_checked = false;
-            git.set(path, info);
-            notice = "Hunk unstaged";
-        } else if (said == "!") {
-            notice = "Cannot unstage in process here; use git restore --staged -p";
-        } else {
-            notice = said;
-        }
-        return;
-    }
-    int index = MED_git.hunk_at(info.hunks, editor.row);
-    if (index < 0) {
-        notice = "No hunk at the cursor";
-        return;
-    }
-    if (action == "hunk_preview") {
-        overlay = MED_git.hunk_preview(info.hunks, index, info.base, editor.buffer.lines);
-        return;
-    }
-    if (action == "hunk_reset") {
-        List<str> old = [];
-        for (int offset in 0 .. info.hunks.base_counts[index]) {
-            old.push(info.base[info.hunks.base_froms[index] + offset]);
-        }
-        replace_rows(info.hunks.froms[index], info.hunks.counts[index], old);
-        // resetting rows at the end of the file leaves the cursor past the last row
-        editor.clamp();
-        notice = "Hunk reset";
-        return;
-    }
-    if (action == "hunk_stage") {
-        // in process first (m31git); `git apply` when the library cannot
-        str said = MED_git.stage_hunk(path, info.hunks, index, editor.buffer.lines);
-        if (said != "!") {
-            if (said == "") {
-                info.is_checked = false;
-                git.set(path, info);
-                notice = "Hunk staged";
-            } else {
-                notice = "Stage failed: " + said;
-            }
-            return;
-        }
-        str directory = file_directory();
-        str prefix = MED_shell.output(["git", "-C", directory, "rev-parse", "--show-prefix"], "").or("").trim();
-        str relative = prefix + MED_git.name_of(path);
-        str patch = MED_git.hunk_patch(info.hunks, index, info.base, editor.buffer.lines, relative);
-        MED_shell.Ran ran = MED_shell.run(["git", "-C", directory, "apply", "--cached", "--unidiff-zero", "-"], directory, patch);
-        if (ran.code == 0) {
-            info.is_checked = false;
-            git.set(path, info);
-            notice = "Hunk staged";
-        } else {
-            notice = "Stage failed: " + first_line(ran.errors);
-        }
-        return;
-    }
-}
-
-/// `:Git log|show|diff|blame ...`: a list in the finder or a scratch buffer (ui/MED_gitcmd.m31).
-void App.run_git_read(str arg) {
-    MED_gitcmd.Out out = MED_gitcmd.run(arg, path, editor.buffer.lines, editor.row);
-    if (out.error.size() > 0) {
-        notice = out.error;
-        return;
-    }
-    if (!out.is_list) {
-        open_scratch(out.title, out.lines);
-        return;
-    }
-    picker = MED_picker.make(MED_picker.KIND_LIST, out.title);
-    picker.set_entries(out.entries);
-    if (out.selected_line >= 0) {
-        for (int rank in 0 .. picker.shown.size()) {
-            if (picker.entries[picker.shown[rank]].line == out.selected_line) {
-                picker.selected = rank;
-            }
-        }
-    }
-    has_picker = true;
-    picker.is_deferred = true;
-    update_preview();
-}
-
-/// `:Hunk stage|reset|undo|preview`: the `<Space>gs gr gp` actions by name; `undo` unstages the staged hunk.
-void App.run_hunk_command(str arg) {
-    str word = arg.trim();
-    if (word == "stage") {
-        run_git_action("hunk_stage");
-    } else if (word == "reset") {
-        run_git_action("hunk_reset");
-    } else if (word == "preview") {
-        run_git_action("hunk_preview");
-    } else if (word == "undo" || word == "unstage") {
-        run_git_action("hunk_undo");
-    } else if (word == "next" || word == "prev") {
-        go_hunk(word == "next");
-    } else {
-        notice = "Hunk: stage, reset, undo, preview, next or prev";
-    }
-}
-
-/// `:Hunk next` and `:Hunk prev`: the start of the next or previous change against HEAD (wrapping).
-void App.go_hunk(bool is_forward) {
-    GitInfo state = git_info(path, editor, true);
-    int target = -1;
-    if (state.has_base) {
-        target = MED_git.next_start(state.hunks, editor.row, is_forward);
-    }
-    if (target < 0) {
-        editor.is_failed = true;
-        return;
-    }
-    editor.set_pcmark(MED_buffer.Pos(editor.row, editor.col));
-    editor.row = target;
-    editor.col = MED_text.first_nonblank(editor.buffer.line(target));
-    editor.clamp();
-    editor.want_from_cursor();
-}
-
-/// `git:checkout BRANCH`, `git:checkout_remote REMOTE/BRANCH`, `git:show HASH`.
+/// `git:checkout BRANCH`, `git:checkout_remote REMOTE/BRANCH` (rows of the finder's branch lists).
 void App.run_git_command(str spec) {
     int space = spec.index_of(" ").or(spec.size());
     str action = spec.substr(0, space);
@@ -6793,13 +6464,6 @@ void App.run_git_command(str spec) {
             notice = "Checked out " + arg;
         } else {
             notice = first_line(ran.errors);
-        }
-    } else if (action == "show") {
-        List<str> patch_lines = MED_git.show_lines(root, arg);
-        if (patch_lines.size() > 0) {
-            open_scratch("git-" + arg, patch_lines);
-        } else {
-            notice = "git show failed";
         }
     }
 }
@@ -9327,6 +8991,33 @@ void App.ext_finish(MED_ext.Ctx context) {
             notify_user(levels[index], texts[index], true);
         }
     }
+    if (context.has_overlay) {
+        context.has_overlay = false;
+        overlay = context.overlay_lines;
+    }
+    if (context.has_scratch) {
+        context.has_scratch = false;
+        open_scratch(context.scratch_title, context.scratch_lines);
+    }
+    if (context.has_pick_list) {
+        context.has_pick_list = false;
+        List<MED_picker.Entry> listed = [];
+        for (MED_ext.PickEntry one in context.pick_list_entries) {
+            listed.push(MED_picker.Entry(one.text, path: one.path, line: one.line, column: one.column, detail: one.detail, action: one.action));
+        }
+        picker = MED_picker.make(MED_picker.KIND_LIST, context.pick_list_title);
+        picker.set_entries(listed);
+        if (context.pick_list_line >= 0) {
+            for (int rank in 0 .. picker.shown.size()) {
+                if (picker.entries[picker.shown[rank]].line == context.pick_list_line) {
+                    picker.selected = rank;
+                }
+            }
+        }
+        has_picker = true;
+        picker.is_deferred = true;
+        update_preview();
+    }
     if (context.picker_name.size() > 0) {
         str wanted = context.picker_name;
         context.picker_name = "";
@@ -9528,6 +9219,7 @@ bool App.did_tick_ext(int elapsed_ms) {
     ext.tick_ms = 0;
     bool is_changed = false;
     MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+    context.buffer_id = current_id;
     if (ext.is_tick_wanted()) {
         if (ext.did_poll_jobs(context)) {
             is_changed = true;

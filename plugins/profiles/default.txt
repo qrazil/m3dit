@@ -12,3 +12,4 @@ whichkey
 notify
 statusline
 session
+git

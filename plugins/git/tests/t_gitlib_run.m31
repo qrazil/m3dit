@@ -3,12 +3,12 @@
 //
 // Usage (the current directory is a repository, PWD set by the driver):
 //
-//   t_gitlib_run base FILE            MED_git.head_lines: the gutter's base, or NONE
+//   t_gitlib_run base FILE            MEDX_git_hunk.head_lines: the gutter's base, or NONE
 //   t_gitlib_run libbase FILE         the library alone: LINES..., UNTRACKED or FAILED
 //   t_gitlib_run blame FILE           one commit id per line of HEAD's file (empty for none)
 //   t_gitlib_run log FILE [FROM TO]   commit ids, newest first (the line range as `git log -L`)
-//   t_gitlib_run show REV             MED_gitlib.show_lines, or NONE
-//   t_gitlib_run diff WHAT            MED_gitlib.diff_lines (working, index, head), or NONE
+//   t_gitlib_run show REV             MEDX_git_lib.show_lines, or NONE
+//   t_gitlib_run diff WHAT            MEDX_git_lib.diff_lines (working, index, head), or NONE
 //   t_gitlib_run app FILE KEYS        open FILE in the App, type KEYS (Enter is \r, Escape \x1b, a render
 //                                     after every key), print the notice, list entries, overlay and buffer
 //
@@ -19,11 +19,22 @@ import io;
 import os;
 import term;
 import tui.core.TUI_buffer;
+import engine.MED_shell;
+import ext.MED_ext;
 import ui.MED_app;
-import ui.MED_git;
-import ui.MED_gitlib;
+import plugins.git.MEDX_git_hunk;
+import plugins.git.MEDX_git_lib;
 import ui.MED_picker;
 import m31git.core.GIT_log;
+
+/// The runner of `git` for the library modules, over the same process module the host's `Ctx.run_in` uses.
+type TestShell {
+}
+
+MED_ext.Ran TestShell.run(List<str> argv, str cwd, str input) {
+    MED_shell.Ran done = MED_shell.run(argv, cwd, input);
+    return MED_ext.Ran(code: done.code, text: done.text, errors: done.errors);
+}
 
 void emit(str tag, str text) {
     print(tag + "\t" + text);
@@ -46,6 +57,8 @@ void type_keys(MED_app.App app, str keys, TUI_buffer.Buffer screen) {
 void run_app(str file, str keys) {
     match (MED_app.open(file)) {
         case Ok(MED_app.App app): {
+            app.ext_install();
+            app.ext_started();
             TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(100, 30);
             app.render(screen, screen.area());
             type_keys(app, keys, screen);
@@ -72,7 +85,7 @@ void run_app(str file, str keys) {
 List<str> arguments = os.arguments();
 str operation = arguments[1];
 if (operation == "base") {
-    match (MED_git.head_lines(arguments[2])) {
+    match (MEDX_git_hunk.head_lines(TestShell(), arguments[2])) {
         case Some(List<str> lines): {
             for (str line in lines) {
                 emit("LINE", line);
@@ -83,7 +96,7 @@ if (operation == "base") {
         }
     }
 } else if (operation == "libbase") {
-    match (MED_gitlib.base_of(MED_git.directory_of(arguments[2]), MED_git.name_of(arguments[2]))) {
+    match (MEDX_git_lib.base_of(MEDX_git_hunk.directory_of(arguments[2]), MEDX_git_hunk.name_of(arguments[2]))) {
         case Lines(List<str> lines): {
             for (str line in lines) {
                 emit("LINE", line);
@@ -97,9 +110,9 @@ if (operation == "base") {
         }
     }
 } else if (operation == "blame") {
-    match (MED_gitlib.blame_of(MED_git.directory_of(arguments[2]), MED_git.name_of(arguments[2]))) {
-        case Some(List<MED_gitlib.BlameLine> lines): {
-            for (MED_gitlib.BlameLine line in lines) {
+    match (MEDX_git_lib.blame_of(MEDX_git_hunk.directory_of(arguments[2]), MEDX_git_hunk.name_of(arguments[2]))) {
+        case Some(List<MEDX_git_lib.BlameLine> lines): {
+            for (MEDX_git_lib.BlameLine line in lines) {
                 emit("COMMIT", line.commit);
             }
         }
@@ -114,9 +127,9 @@ if (operation == "base") {
         first_line = arguments[3].parse_int().or(0);
         last_line = arguments[4].parse_int().or(0);
     }
-    match (MED_gitlib.open(MED_git.directory_of(arguments[2]))) {
-        case Some(MED_gitlib.Repo repo): {
-            match (MED_gitlib.log_of(repo, MED_gitlib.relative_to(repo, MED_git.directory_of(arguments[2]), MED_git.name_of(arguments[2])), first_line, last_line, -1)) {
+    match (MEDX_git_lib.open(MEDX_git_hunk.directory_of(arguments[2]))) {
+        case Some(MEDX_git_lib.Repo repo): {
+            match (MEDX_git_lib.log_of(repo, MEDX_git_lib.relative_to(repo, MEDX_git_hunk.directory_of(arguments[2]), MEDX_git_hunk.name_of(arguments[2])), first_line, last_line, -1)) {
                 case Some(List<GIT_log.Entry> commits): {
                     for (GIT_log.Entry entry in commits) {
                         emit("COMMIT", entry.id);
@@ -132,9 +145,9 @@ if (operation == "base") {
         }
     }
 } else if (operation == "show" || operation == "diff") {
-    Option<List<str>> found = MED_gitlib.diff_lines(".", arguments[2]);
+    Option<List<str>> found = MEDX_git_lib.diff_lines(".", arguments[2]);
     if (operation == "show") {
-        found = MED_gitlib.show_lines(".", arguments[2]);
+        found = MEDX_git_lib.show_lines(".", arguments[2]);
     }
     match (found) {
         case Some(List<str> lines): {

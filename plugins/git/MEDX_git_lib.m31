@@ -3,14 +3,14 @@
 //
 // API
 // ---
-//   MED_gitlib.open(directory)                  Option<Repo>: the repository around `directory`, with its work tree
-//   MED_gitlib.base_of(directory, name)         Base: the file as the index has it (HEAD when the index has no entry)
-//   MED_gitlib.head_lines_of(directory, name)   Base: the file as HEAD has it
-//   MED_gitlib.blame_of(directory, name)        Option<List<BlameLine>>: `git blame` of HEAD's file
-//   MED_gitlib.log_of(repo, rel, from, to)      Option<List<GIT_log.Entry>>: `git log [-L from,to:rel] -- rel`
-//   MED_gitlib.show_lines(directory, rev)       Option<List<str>>: `git show --stat --patch rev`
-//   MED_gitlib.diff_lines(directory, what)      Option<List<str>>: `git diff` of "working", "index" or "head"
-//   MED_gitlib.stage_content(...)               Result text: put new file content into the index entry of a path
+//   MEDX_git_lib.open(directory)                  Option<Repo>: the repository around `directory`, with its work tree
+//   MEDX_git_lib.base_of(directory, name)         Base: the file as the index has it (HEAD when the index has no entry)
+//   MEDX_git_lib.head_lines_of(directory, name)   Base: the file as HEAD has it
+//   MEDX_git_lib.blame_of(directory, name)        Option<List<BlameLine>>: `git blame` of HEAD's file
+//   MEDX_git_lib.log_of(repo, rel, from, to)      Option<List<GIT_log.Entry>>: `git log [-L from,to:rel] -- rel`
+//   MEDX_git_lib.show_lines(directory, rev)       Option<List<str>>: `git show --stat --patch rev`
+//   MEDX_git_lib.diff_lines(directory, what)      Option<List<str>>: `git diff` of "working", "index" or "head"
+//   MEDX_git_lib.stage_content(...)               Result text: put new file content into the index entry of a path
 //
 // Every function answers `None` / `Failed` for a repository or object the library cannot read (a v4 index,
 // a missing object of a partial clone, a locked index), and the callers then run the `git` subprocess they ran
@@ -20,7 +20,7 @@ import fs;
 import io;
 import date;
 import text.diff;
-import engine.MED_shell;
+import ext.MED_ext;
 import m31git.core.GIT_refs;
 import m31git.core.GIT_revparse;
 import m31git.core.GIT_object;
@@ -35,6 +35,44 @@ import m31git.diff.GIT_udiff;
 import m31git.diff.GIT_xdiff;
 
 /// A repository: the git directory (`.git`, or what a `.git` file names) and the work tree.
+/// How the plugin runs `git` when the library cannot answer (0.5.0: `Ctx.run_in`; a test gives its own).
+pub interface Shell {
+    MED_ext.Ran run(List<str> argv, str cwd, str input);
+}
+
+/// Standard output of `argv` when it exited 0.
+pub Option<str> shell_output(Shell shell, List<str> argv, str cwd, str input) {
+    MED_ext.Ran done = shell.run(argv, cwd, input);
+    if (done.code != 0) {
+        return Option<str>.None;
+    }
+    return Option<str>.Some(done.text);
+}
+
+/// `shell_output`, split into lines.
+pub Option<List<str>> shell_lines(Shell shell, List<str> argv, str cwd) {
+    match (shell_output(shell, argv, cwd, "")) {
+        case Some(str text): {
+            return Option<List<str>>.Some(split_lines(text));
+        }
+        case None: {
+            return Option<List<str>>.None;
+        }
+    }
+}
+
+/// `text` as lines, without the empty line a trailing newline leaves.
+pub List<str> split_lines(str text) {
+    if (text.size() == 0) {
+        return [];
+    }
+    List<str> parts = text.split("\n");
+    if (parts.size() > 0 && parts[parts.size() - 1] == "") {
+        parts.pop();
+    }
+    return parts;
+}
+
 pub type Repo {
     pub str gitdir;
     pub str root;
@@ -298,7 +336,7 @@ bool is_missing(GIT_index.Error error) {
 pub Base lines_base(bytes content) {
     match (content.utf8()) {
         case Some(str text): {
-            return Base.Lines(MED_shell.split_lines(text));
+            return Base.Lines(split_lines(text));
         }
         case None: {
             return Base.Failed;
@@ -838,7 +876,7 @@ pub Range trace(bytes before, bytes after, int low, int high) {
 
 /// `text` as lines, a final newline not adding an empty one.
 pub List<str> lines_of(bytes raw) {
-    return MED_shell.split_lines(text_of(raw));
+    return split_lines(text_of(raw));
 }
 
 pub str ident_text(GIT_object.Ident who) {

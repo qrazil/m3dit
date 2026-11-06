@@ -4,7 +4,7 @@ import fs;
 import io;
 import os;
 import ui.MED_tree;
-import ui.MED_git;
+import ui.MED_gitstatus;
 import tests.MED_check;
 
 MED_check.Check check = MED_check.Check();
@@ -103,12 +103,12 @@ match (os.run(["sh", "-c", "cd " + base + " && git init -q && git add -A && git 
 }
 put(base + "/src/main.m31", "changed\n");
 put(base + "/src/deep/fresh.txt", "new\n");
-Map<str, str> status = MED_git.status_map(base);
+Map<str, str> status = MED_gitstatus.status_map(base);
 check.eq_str("modified file", status.get("src/main.m31").or(""), "M");
 check.eq_str("untracked file", status.get("src/deep/fresh.txt").or(""), "?");
 check.eq_str("folder takes the worst", status.get("src").or(""), "M");
 check.eq_str("clean file has none", status.get("a/b/new.txt").or(""), "");
-check.eq_int("outside a repo is empty", MED_git.status_map("/tmp/m3_no_repo_here").size(), 0);
+check.eq_int("outside a repo is empty", MED_gitstatus.status_map("/tmp/m3_no_repo_here").size(), 0);
 tree.status = status;
 tree.expanded = [];
 tree.refresh();

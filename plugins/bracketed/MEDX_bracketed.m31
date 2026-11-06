@@ -20,6 +20,7 @@ void pair(MED_ext.Spec spec, str previous_keys, str next_keys, str previous, str
 pub void register(MED_ext.Registry api) {
     MED_ext.Spec spec = MED_ext.Spec("bracketed", summary: "[b ]b [q ]q [d ]d [h ]h [t ]t [c ]c");
     spec.wants.push("todo");
+    spec.wants.push("git");
     pair(spec, "[b", "]b", "bprevious", "bnext", "previous buffer", "next buffer");
     pair(spec, "[B", "]B", "bfirst", "blast", "first buffer", "last buffer");
     pair(spec, "[q", "]q", "cprevious", "cnext", "previous quickfix entry", "next quickfix entry");

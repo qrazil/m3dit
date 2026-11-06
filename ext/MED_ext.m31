@@ -6,7 +6,7 @@
 // `register` once at start-up, in dependency order. With nothing selected `register` is never called, nothing
 // here runs and the editor behaves exactly as it did before this module existed.
 //
-// API (version 0.4.0, see `version()`, `is_compatible_with()`). Method names follow the m31 naming lint: a
+// API (version 0.5.0, see `version()`, `is_compatible_with()`). Method names follow the m31 naming lint: a
 // function that answers yes or no starts with is_, has_, can_ or did_, so registration calls return bool.
 //
 // A first-party plugin registers one `Spec` (plain data: name, summary, API version, `requires`, `wants`,
@@ -63,9 +63,11 @@ import ui.MED_state;
 /// The API version: major.minor.patch. While the major is 0 a plugin built for 0.M.p runs on a host 0.M.q with
 /// p <= q (a patch only adds) and another minor is refused; from 1.0 only the major breaks and a minor adds.
 pub const int API_MAJOR = 0;
-pub const int API_MINOR = 4;
+pub const int API_MINOR = 5;
 pub const int API_PATCH = 0;
-pub const str API_VERSION = "0.4.0";
+pub const str API_VERSION = "0.5.0";
+/// `Ctx.mode()` of Normal mode (0.5.0).
+pub const int MODE_NORMAL = 0;
 /// The longest `context.run` may block the editor.
 pub const int MAX_BLOCKING_MS = 1000;
 /// Consecutive failures after which an extension is switched off.
@@ -371,6 +373,55 @@ pub type Ran {
     pub str errors = "";
 }
 
+/// One gutter sign (0.5.0): the buffer row (0-based), the text (one cell: `+`, `~`, `_`) and the theme scope it is drawn
+/// in on the gutter (`diff.plus`, `diff.delta`, `diff.minus`, ...).
+pub type Sign {
+    pub int row;
+    pub str text;
+    pub str scope;
+}
+
+/// What a plugin tells the status line about the repository of a buffer (0.5.0, `Ctx.set_git_summary`): the branch
+/// and the counts of added, changed and removed hunks against the index. `Ctx.status` answers with it.
+pub type GitSummary {
+    pub str branch = "";
+    pub bool has_hunks = false;
+    pub int added = 0;
+    pub int changed = 0;
+    pub int removed = 0;
+}
+
+/// One row of a finder list a plugin builds (0.5.0, `Ctx.pick_list`): the text shown and matched, the file and
+/// 0-based line and column it opens, a `detail` the plugin's preview provider (`did_preview`) understands, and an
+/// `action` row run on Enter (`ex:LINE`, `picker:NAME`, `keys:KEYS`).
+pub type PickEntry {
+    pub str text;
+    pub str path = "";
+    pub int line = 0;
+    pub int column = 0;
+    pub str detail = "";
+    pub str action = "";
+}
+
+/// The preview of a finder entry whose `detail` a plugin owns (0.5.0, `did_preview`): the lines to show.
+pub interface PreviewFn {
+    List<str> lines(Ctx context, str detail);
+}
+
+type PreviewEntry {
+    int owner;
+    str kind;
+    PreviewFn run;
+}
+
+/// The signs of one buffer: one slot per row, "" for none.
+type SignSet {
+    int owner;
+    bool is_reserved = false;
+    List<str> texts = [];
+    List<str> scopes = [];
+}
+
 // ------------------------------------------------------------------ the plugin description
 
 /// What wakes a lazy plugin.
@@ -439,7 +490,7 @@ pub type Spec {
     pub str name;
     pub str summary = "";
     pub int api_major = 0;
-    pub int api_minor = 4;
+    pub int api_minor = 5;
     pub int api_patch = 0;
     /// Not registered unless every one of these is built in and on.
     pub List<str> requires = [];
@@ -663,6 +714,11 @@ pub type Registry {
     pub str state_directory = "";
     pub str root = ".";
     pub str abs_root = "";
+    /// Gutter signs per buffer number (`Ctx.set_signs`), the git summaries (`Ctx.set_git_summary`) and the preview
+    /// providers (`did_preview`), all 0.5.0.
+    Map<str, SignSet> sign_sets = {};
+    Map<str, GitSummary> git_summaries = {};
+    List<PreviewEntry> previewers = [];
 }
 
 /// Whether the registry holds anything at all (the App skips every hook when not).
@@ -1101,6 +1157,15 @@ pub void Registry.set_off(int owner, bool is_off) {
     }
     Extension known = extensions[owner];
     known.is_off = is_off;
+    if (is_off) {
+        for (str key in sign_sets.keys()) {
+            if (sign_sets.get(key).or(SignSet(-1)).owner == owner) {
+                sign_sets.remove(key);
+            }
+        }
+        git_summaries = {};
+        is_screen_dirty = true;
+    }
     if (!is_off) {
         known.failures = 0;
         if (known.is_plugin && known.state == STATE_PENDING) {
@@ -1322,6 +1387,115 @@ pub List<Span> Registry.decorate(str line, MED_editor.Editor editor) {
         }
     }
     return marks;
+}
+
+/// Give the finder the preview of entries whose `detail` is of kind `kind` (0.5.0): the core asks for `kind` "commit"
+/// for the entries of its commit list. `:PluginDisable` stops it.
+pub bool Registry.did_preview(str kind, PreviewFn run) {
+    if (current < 0) {
+        problem("api.did_preview called before a successful api.did_declare or outside activate");
+        return false;
+    }
+    previewers.push(PreviewEntry(current, kind, run));
+    return true;
+}
+
+/// The lines the live provider of `kind` gives for `detail`; empty when there is none.
+pub List<str> Registry.preview_lines(str kind, Ctx context, str detail) {
+    for (PreviewEntry one in previewers) {
+        if (one.kind == kind && !extensions[one.owner].is_off) {
+            return one.run.lines(context, detail);
+        }
+    }
+    return [];
+}
+
+/// Whether a live plugin gives previews of `kind`.
+pub bool Registry.has_preview(str kind) {
+    for (PreviewEntry one in previewers) {
+        if (one.kind == kind && !extensions[one.owner].is_off) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Replace the signs of buffer `buffer_id` (0.5.0).
+pub void Registry.put_signs(int owner, int buffer_id, List<Sign> signs, bool is_reserved) {
+    SignSet set = SignSet(owner, is_reserved: is_reserved);
+    for (Sign one in signs) {
+        if (one.row < 0 || one.row > 1000000) {
+            continue;
+        }
+        while (set.texts.size() <= one.row) {
+            set.texts.push("");
+            set.scopes.push("");
+        }
+        set.texts[one.row] = one.text;
+        set.scopes[one.row] = one.scope;
+    }
+    sign_sets.set(buffer_id.to_str(), set);
+    is_screen_dirty = true;
+}
+
+/// The sign text a live plugin gives row `row` of buffer `buffer_id`, "" for none.
+pub str Registry.sign_text(int buffer_id, int row) {
+    if (sign_sets.size() == 0) {
+        return "";
+    }
+    match (sign_sets.get(buffer_id.to_str())) {
+        case Some(SignSet set): {
+            if (row < 0 || row >= set.texts.size() || extensions[set.owner].is_off) {
+                return "";
+            }
+            return set.texts[row];
+        }
+        case None: {
+            return "";
+        }
+    }
+}
+
+/// The theme scope of that sign.
+pub str Registry.sign_scope(int buffer_id, int row) {
+    match (sign_sets.get(buffer_id.to_str())) {
+        case Some(SignSet set): {
+            if (row < 0 || row >= set.scopes.size()) {
+                return "";
+            }
+            return set.scopes[row];
+        }
+        case None: {
+            return "";
+        }
+    }
+}
+
+/// Whether a live plugin keeps the sign column of buffer `buffer_id` open (even with no sign in it).
+pub bool Registry.is_sign_column_wanted(int buffer_id) {
+    if (sign_sets.size() == 0) {
+        return false;
+    }
+    match (sign_sets.get(buffer_id.to_str())) {
+        case Some(SignSet set): {
+            return !extensions[set.owner].is_off && (set.is_reserved || set.texts.size() > 0);
+        }
+        case None: {
+            return false;
+        }
+    }
+}
+
+/// What a plugin said about the repository of buffer `buffer_id` (empty when nothing, or its plugin is off).
+pub GitSummary Registry.git_summary_of(int buffer_id) {
+    match (git_summaries.get(buffer_id.to_str())) {
+        case Some(GitSummary known): {
+            return known;
+        }
+        case None: {
+            return GitSummary();
+        }
+    }
 }
 
 /// Run `run` when a job started with `context.background(job, ...)` ends.
@@ -1813,6 +1987,18 @@ pub type Ctx {
     pub int owner = 0;
     /// The buffer number (`:ls`) the handler runs for; 0 when there is none.
     pub int buffer_id = 0;
+    /// `show_text` was called (0.5.0): the App shows the lines over the windows until a key is typed.
+    pub bool has_overlay = false;
+    pub List<str> overlay_lines = [];
+    /// `open_scratch` was called (0.5.0): the App opens a new unnamed buffer holding the lines.
+    pub bool has_scratch = false;
+    pub str scratch_title = "";
+    pub List<str> scratch_lines = [];
+    /// `pick_list` was called (0.5.0): the App opens a finder list of the entries.
+    pub bool has_pick_list = false;
+    pub str pick_list_title = "";
+    pub List<PickEntry> pick_list_entries = [];
+    pub int pick_list_line = -1;
 }
 
 pub int Ctx.line_count() {
@@ -2184,6 +2370,76 @@ pub Ran Ctx.run(List<str> argv, int timeout_ms) {
         where = ".";
     }
     MED_shell.Ran done = MED_shell.run(argv, where, "", timeout_ms: limit);
+    return Ran(code: done.code, text: done.text, errors: done.errors);
+}
+
+/// Replace the signs of this buffer in the gutter (0.5.0). `is_reserved` keeps the sign column open even when `signs`
+/// is empty (the file is tracked, so a sign may appear). Marks and diagnostics have the column first; a plugin's sign
+/// shows on a row they leave free. One plugin gives the signs of a buffer; the last call wins.
+pub void Ctx.set_signs(List<Sign> signs, bool is_reserved) {
+    if (buffer_id <= 0) {
+        return;
+    }
+    registry.put_signs(owner, buffer_id, signs, is_reserved);
+}
+
+/// Whether a plugin has given this buffer signs (and the signs were not removed since: switching the plugin off removes them).
+pub bool Ctx.has_signs() {
+    return registry.is_sign_column_wanted(buffer_id);
+}
+
+/// Tell the status line about the repository of this buffer (0.5.0; `Ctx.status` answers with it).
+pub void Ctx.set_git_summary(GitSummary summary) {
+    if (buffer_id <= 0) {
+        return;
+    }
+    registry.git_summaries.set(buffer_id.to_str(), summary);
+    registry.is_screen_dirty = true;
+}
+
+/// Give the `ih` / `ah` text objects the hunks of this buffer (0.5.0): pairs of first row and row count.
+pub void Ctx.set_hunk_spans(List<int> spans) {
+    editor.hunk_spans = spans;
+}
+
+/// Show `lines` over the windows until a key is typed (0.5.0): a hunk preview, a blame line list.
+pub void Ctx.show_text(List<str> lines) {
+    has_overlay = true;
+    overlay_lines = lines;
+}
+
+/// Open a new unnamed buffer holding `lines`, shown as unmodified, with `title` in the message line (0.5.0).
+pub void Ctx.open_scratch(str title, List<str> lines) {
+    has_scratch = true;
+    scratch_title = title;
+    scratch_lines = lines;
+}
+
+/// Open the finder on `entries` (0.5.0); `selected_line` (0-based, -1 for none) picks the entry whose line it is as the
+/// start. An entry with a `detail` is previewed by the provider given to `did_preview`; its `action` runs on Enter.
+pub void Ctx.pick_list(str title, List<PickEntry> entries, int selected_line) {
+    has_pick_list = true;
+    pick_list_title = title;
+    pick_list_entries = entries;
+    pick_list_line = selected_line;
+}
+
+/// How many times the text of this buffer has changed (0.5.0): equal numbers mean equal text.
+pub int Ctx.change_count() {
+    return editor.buffer.tick;
+}
+
+/// Run `argv` in directory `cwd` with `input` on standard input and wait for it, at most `timeout_ms` (clamped to
+/// MAX_BLOCKING_MS) (0.5.0). The editor is frozen meanwhile.
+pub Ran Ctx.run_in(List<str> argv, str cwd, str input, int timeout_ms) {
+    int limit = timeout_ms;
+    if (limit > MAX_BLOCKING_MS) {
+        limit = MAX_BLOCKING_MS;
+    }
+    if (limit < 1) {
+        limit = 1;
+    }
+    MED_shell.Ran done = MED_shell.run(argv, cwd, input, timeout_ms: limit);
     return Ran(code: done.code, text: done.text, errors: done.errors);
 }
 

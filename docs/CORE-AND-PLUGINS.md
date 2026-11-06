@@ -68,6 +68,73 @@ switched off at run time with `:PluginDisable`; migrate later, when wanted; none
 
 Implemented so far: steps S0, S1 and S2 (0.16.0), and since 0.18.0 the default plugins `bracketed`, `harpoon`, `todo`, `whichkey`, `notify` and `statusline` (the owner asked on 2026-11-01 for m3 to become his daily driver: "make sane defaults, do not wait for approval"). The migration steps S3 to S18 below are a plan, not a commitment.
 
+## What ships where
+
+The rule (owner, 2026-11-05): **core is what Helix, Zed and Kakoune ship in the box**; everything else is a plugin, on by
+default when it is part of a batteries-included editor, off by default when it is an extra; and **bare vi stays possible and
+small** (`--no-plugins` is the core, guarded by `tests/core_only.sh`). Three profiles say it in one line each:
+
+| profile | what it is | how |
+|---|---|---|
+| `minimal` | bare vi: the core editing engine, the renderer, LSP, pickers and the themes, and no plugin | `scripts/build.sh --no-plugins` (or `--profile minimal`); `tests/core_only.sh` is its gate: version, absence of every plugin command and key, golden screens |
+| `default` | batteries included: the core plus the default plugins below | `plugins/profiles/default.txt`, what a release contains; `:PluginDisable NAME` switches one off at run time |
+| `nvim` | the owner's Neovim maps and options on top of `default` | `:Profile nvim` (`engine/MED_profile.m31`, docs/NVIM-PARITY.md); a keymap profile, not a build |
+
+State words are those of docs/CORE-STATUS.md and docs/NVIM-PARITY.md: **done** (works, tested), **partial** (the gap is named
+there), **missing** (not built). "Ships as": **CORE** always on, **DEFAULT PLUGIN** on by default and removable (`plugins/NAME/` when it
+is a compiled plugin, "in core code" while its extraction is still open), **OPT-IN PLUGIN** not in the default profile,
+**NOT PLANNED**.
+
+| feature | ships as | state |
+|---|---|---|
+| Vim engine: motions, operators, text objects, registers, marks, macros, dot, undo tree, folds, ex subset | CORE | done (nvim oracle, 42k cases) |
+| vi/ex requirements of POSIX (`:args`, tags, `:a :i :c`, Ex mode, `-c` `-t`) | CORE | done, see docs/VI-CORE.md (CTRL-Z, `:stop`, `:shell`, `-s` missing) |
+| Search and substitute, patterns, `:g`, `:v` | CORE | done |
+| Windows, splits, tab pages, buffers, quickfix list, message ring | CORE | done (location lists not planned) |
+| Renderer, animation, smooth scroll, resize | CORE | done |
+| Themes (14), transparency | CORE | done |
+| LSP client: diagnostics, hover, definition, references, rename, code action, completion popup, semantic tokens, format | CORE (`lsp` switch) | done (LSP document symbols partial) |
+| Syntax highlighting (the `syntax` library, not tree-sitter) | CORE | done |
+| Completion popup and snippets (VS Code grammar) | CORE | done |
+| Pickers: primitive and sources (files, grep, buffers, recent, lines, commands, keys, options, marks, registers, themes, symbols, diagnostics, quickfix) | CORE | done (the finder is core by decision) |
+| Directory buffer (`:Explore`, `m3 DIR`) | CORE | done |
+| Undo files, `.editorconfig` and `.m3.toml`, auto-reload, autosave, recovery files | CORE | done |
+| Clipboard, OSC 52, mouse, bracketed paste | CORE | done |
+| Minimal statusline and tab line | CORE | done |
+| Extension API, `:Plugins`, key help (`<Space>?`, `:Keys`) | CORE | done |
+| Which-key popup | DEFAULT PLUGIN `whichkey` | done |
+| Statusline extras (branch, hunks, diagnostics, server activity) and the buffer line | DEFAULT PLUGIN `statusline` | done |
+| Git: gutter signs, hunk stage / reset / undo / preview / next / prev, `ih` `ah`, `:Git log show diff blame`, branch | DEFAULT PLUGIN `git` | done (0.21.0, API 0.5.0); word diff and a two-pane diff missing |
+| Bracketed pairs `[b ]b [q ]q [d ]d [h ]h [t ]t` | DEFAULT PLUGIN `bracketed` | done |
+| Harpoon: pinned files | DEFAULT PLUGIN `harpoon` | done |
+| TODO highlight and list | DEFAULT PLUGIN `todo` | done |
+| Notifications (toasts) | DEFAULT PLUGIN `notify` | done |
+| Session: cursor positions, recent files, frecency | DEFAULT PLUGIN `session` | done (`:Session` layout stays core) |
+| Move a line or selection (Alt keys) | DEFAULT PLUGIN `move` | done |
+| File tree sidebar (`<Space>e`) | DEFAULT PLUGIN `explorer`, in core code (extraction open) | done as code, plugin form missing |
+| Terminal (`:terminal`, `<Space>t`, `:!` filters) | DEFAULT PLUGIN `terminal`, in core code (extraction open) | done as code, plugin form missing |
+| Surround (`ys ds cs S`) | DEFAULT PLUGIN `surround`, in core code (extraction open) | partial (find / highlight keys missing) |
+| Autopairs | DEFAULT PLUGIN `autopairs`, in core code (extraction open) | done as code, plugin form missing |
+| Comment operator (`gc`) | CORE (an engine feature checked against nvim) | done |
+| Label jump (`<Space>j`) | OPT-IN PLUGIN `jump` (in core code today, on by default) | done as code |
+| Indent guides | DEFAULT PLUGIN `guides` (in core code, a renderer feature) | done |
+| Formatters on save (`:Formatter`) | CORE (a small hook of `:w`) | done |
+| `:Profile nvim` | profile, not a plugin | done |
+| git-conflict markers and keys | OPT-IN PLUGIN | missing |
+| In-buffer markdown rendering | OPT-IN PLUGIN (the tui-markdown library) | missing |
+| Centered window (no-neck-pain) | OPT-IN PLUGIN, needs a core renderer option | missing |
+| Colour swatches (highlight-colors) | OPT-IN PLUGIN over `did_decorate` | missing |
+| File icons | OPT-IN PLUGIN | missing |
+| Two-pane diff (`:diffthis`, diffview) | OPT-IN PLUGIN, needs the docked-panel API | missing |
+| Multiple cursors | OPT-IN PLUGIN | missing |
+| AI chat and completion (Copilot, Avante, CodeCompanion, minuet, claude-code) | NOT PLANNED | out of scope |
+| Plugin manager, Mason, neotest, nvim-java, DAP, spell checking | NOT PLANNED | out of scope (DAP and spell are post 1.0 in docs/ROADMAP.md) |
+| Lazygit-style dashboard, miller-columns explorer | NOT PLANNED | out of scope |
+
+Rows marked "in core code (extraction open)" are the work of docs/CORE-AND-PLUGINS.md section 10: each moves behind the API it
+names, and no copy stays behind in the core once it lands (`git` is the first: the sign column, the hunk and `:Git` commands, the
+branch timer and the three git modules left `ui/`, and `--no-plugins` has none of them).
+
 ---
 
 ## Owner decisions
@@ -179,6 +246,17 @@ piece is an additive API (0.5.0 and later) and each is the first thing the plugi
 | 11 finder | the picker primitive and its core sources are **core by decision**; what a plugin could own is the key set (`<Space>ff fg fr fb ...`, 15 rows of `picker:NAME` in `MED_keymap`) and the frecency heat | nothing new: the keys are `Action.Call` maps over `Ctx.open_picker(name, arg)` (0.3.0). Deferred as low value until `:PluginDisable finder` has a meaning: today it also switches off the async sources (`is_plugin_on("finder")` in `load_files`) | S, no seam |
 | 12 explorer | `ui/MED_tree.m31` (551 lines, the model) and 148 `tree.` references in `MED_app`: the sidebar takes columns from the window layout, is drawn, focused, clicked, and shows git letters | a **docked panel** API: `Registry.did_panel(PanelSpec)` (side, width, `draw(Canvas)`, `key(Key)`, `mouse(Mouse)`), focus events, a way to give columns back to the layout, a `Canvas` that draws with theme scopes (so transparency still applies), directory reads (`fs` is allowed) and git status (`Ctx.status`-like) | M to L |
 | 13 terminal | `Term` and 70 references in `MED_app`; the pty needs `proc` (plugins may not import it), the screen is `MED_vt` | a **pty service** (`Ctx.spawn_pty(argv, rows, columns)` returning a handle with `write`, `resize`, `poll`), a **panel buffer** kind the host draws from a VT screen (`Ctx.new_panel_buffer(title)`), an input-capture hook so keys go to the program until `<C-\><C-n>`, and resize and exit events | L |
+
+**Item 10 git is done (0.21.0, API 0.5.0)**, in one piece, no copy left in the core: `plugins/git/` holds the three modules that were
+`ui/MED_git*.m31`, the sign column, the hunk and `:Git` commands, the branch and hunk counts, and the commit preview. Deviations from the
+table, with reasons: (1) signs are pushed, not asked for: `Ctx.set_signs(signs, is_reserved)` stores them per buffer in the registry and
+the renderer reads one cell per row (a `did_signs` callback would run the plugin's diff inside the draw loop); (2) the text overlay,
+scratch buffers and plugin-built finder lists are `Ctx.show_text`, `Ctx.open_scratch` and `Ctx.pick_list(PickEntry)` (a plugin may not import
+`MED_picker`); `Entry.action` already existed and the commit rows now say `ex:Git show HASH`; (3) the commit preview in the finder's own
+commit list is a provider, `Registry.did_preview("commit", ...)`, so the core needs no git code for it; (4) the file tree's status letters
+(`git status`) stay in the core as `ui/MED_gitstatus.m31` (the explorer's, not the plugin's); (5) hunk stage / reset / undo went with the
+slice because the sign data they use lives in the plugin: reset uses `Ctx.did_replace`, staging uses the library and `Ctx.run_in` for `git apply`.
+`:Hunk next|prev`, `]h` and `]c` keep working through the plugin command. Also found: a `Tick` context carried no buffer number; it does now.
 
 What was done instead: **9 session** (above). Not planned, as decided: the lazygit dashboard and miller columns. Optional
 later: `colors`, `icons`. Next in order of value per risk: 11 (no seam, only a decision), 10 (signs and overlay are small),

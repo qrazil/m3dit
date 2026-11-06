@@ -108,21 +108,12 @@ pub List<Binding> defaults() {
     rows.push(leaf_row("m3", "core", "?", "All keys", "picker:help"));
     rows.push(leaf_row("m3", "jump", "j", "Jump to a label", "app:jump"));
     // git (gitsigns, mini.pick git pickers)
-    rows.push(leaf_row("config", "git", "g", "+git", ""));
-    rows.push(leaf_row("config", "git", "gg", "Changed files (status)", "picker:changed"));
-    rows.push(leaf_row("config", "git", "gf", "Changed files", "picker:changed"));
-    rows.push(leaf_row("config", "git", "gb", "Branches (checkout)", "picker:branches"));
-    rows.push(leaf_row("config", "git", "gc", "Remote branches (checkout as local)", "picker:remotes"));
-    rows.push(leaf_row("config", "git", "gC", "Commit history", "picker:commits"));
-    rows.push(leaf_row("m3", "git", "gs", "Stage hunk", "app:hunk_stage"));
-    rows.push(leaf_row("m3", "git", "gr", "Reset hunk", "app:hunk_reset"));
-    rows.push(leaf_row("m3", "git", "gp", "Preview hunk", "app:hunk_preview"));
-    rows.push(leaf_row("m3", "git", "gu", "Unstage hunk", "app:hunk_undo"));
-    rows.push(leaf_row("m3", "git", "gl", "Git log of this file", "ex:Git log %"));
-    rows.push(leaf_row("m3", "git", "gd", "Git diff (working tree)", "ex:Git diff"));
-    rows.push(leaf_row("m3", "git", "gm", "Git blame list", "ex:Git blame"));
-    rows.push(leaf_row("m3", "git", "gB", "Blame line", "app:blame"));
-    rows.push(leaf_row("m3", "git", "gt", "Toggle git signs", "app:signs"));
+    rows.push(leaf_row("config", "finder", "g", "+git", ""));
+    rows.push(leaf_row("config", "finder", "gg", "Changed files (status)", "picker:changed"));
+    rows.push(leaf_row("config", "finder", "gf", "Changed files", "picker:changed"));
+    rows.push(leaf_row("config", "finder", "gb", "Branches (checkout)", "picker:branches"));
+    rows.push(leaf_row("config", "finder", "gc", "Remote branches (checkout as local)", "picker:remotes"));
+    rows.push(leaf_row("config", "finder", "gC", "Commit history", "picker:commits"));
     // diagnostics (the owner's ll ]] [[ and trouble)
     rows.push(leaf_row("config", "lsp", "l", "+diagnostics", ""));
     rows.push(leaf_row("config", "lsp", "ll", "Show diagnostics at the cursor", "app:diag_float"));

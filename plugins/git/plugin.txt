@@ -1,0 +1,2 @@
+name: git
+summary: gutter signs, hunk keys, :Git log show diff blame
