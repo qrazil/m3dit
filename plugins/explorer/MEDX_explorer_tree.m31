@@ -2,7 +2,7 @@
  *
  * This module is the model: the folders shown open, the rows they make, git
  * status for every row, and the file operations (add, delete, rename, copy,
- * move, paste). It never draws and never reads a key; MED_app does both.
+ * move, paste). It never draws and never reads a key; the host does both.
  *
  * API */
 // ---

@@ -1,5 +1,5 @@
 /* The `explorer` plugin: the file tree sidebar (`<Space>e`, `:Neotree`), neo-tree's filesystem source in a terminal. It was
- * `ui/MED_tree.m31` and about 600 lines of `ui/MED_app.m31` (the layout, the keys, the mouse, the drawing, the timer); now the
+ * the old tree module and about 600 lines of the App module (the layout, the keys, the mouse, the drawing, the timer); now the
  * host gives it a docked panel (API 0.6.0, `Registry.did_panel`, docs/PANEL-API.md) and it keeps what the sidebar shows: the
  * folders, the git status letters, the file operations and their prompts (ex lines: `:Neotree add NAME`).
  *
