@@ -5,6 +5,10 @@ Status: decision document, 2026-11-05, against m3 0.20.0 (landscape branch on e3
 do not make sense". It sits on top of `docs/PLUGIN-LANDSCAPE.md` (owner decisions D1 to D8 are taken as given) and `docs/KEYMAP.md`
 (the generated table of what is bound today).
 
+**Update 2026-11-05 (owner answers K1 to K12, section 13):** `fg` stays live grep of the current buffer, `<Space>D` is diagnostics and `<Space>d` is reserved
+for debug in `default`, miller columns are `<Space>E`, the git group was re-reviewed as one set (`gc` = commit is locked). Section 13 lists every key that changed;
+the tables in 3 to 12 were updated to match, and where an old sentence still disagrees, section 13 wins.
+
 Decisions already taken by the owner and applied here without re-arguing them:
 
 * The `nvim` profile is his config; where his keys and the default profile collide, his config wins.
@@ -138,10 +142,10 @@ Only keys that matter for the default profile. A cell is the key; "-" means the 
 | live grep | `<leader>/`, `sg` | `fw` | `fw` | `sg` | `st` | `/` | `space /` | **`sg`** (LV KS) and `/` (LV KS HX ZD) |
 | grep word | `sw` | `fW`/`fc` | - | `sw` | - | - | - | `sw` (LV KS) |
 | recent | `fr` | `fo` | `fo` | `s.` | `sr` | - | - | `fr` (LV) |
-| git files | `fg` | `fg` | - | - | - | `g` changed files | - | `fg` (LV AN) |
+| git files | `fg` | `fg` | - | - | - | `g` changed files | - | LV AN say `fg`; owner's `fg` is current-buffer grep, so m3 keeps his and moves git files to `gf` / `gF` (section 13) |
 | help / keymaps | `sh` `sk` | `fh` `fk` | `fh`, `ch` cheatsheet | `sh` `sk` | `sh`/`sk`... | `?` palette | - | `sh` `sk` (LV KS LU) |
 | commands | `sC`, `:` hist | `fC` | - | `sc` | `sC` | `?` | - | `sC` (LV LU) |
-| diagnostics picker | `sd` `sD` | `lD` | - | `sd` | `lw` `ld` | `d` `D` | `space d` | `sd` (LV KS); `d` is Helix + OW |
+| diagnostics picker | `sd` `sD` | `lD` | - | `sd` | `lw` `ld` | `d` `D` | `space d` | `sd` (LV KS); Helix `d` / `D` and ZD `space d` are top-level diagnostics; m3 `default` puts them on `<Space>D` (section 13) |
 | symbols | `ss` `sS` | `ls` `lG` | - | `gO` `gW` | `ls` `lS` | `s` `S` | `space s` `S` | `ss` (LV), `gO`/`gW` (KS, NV) |
 | marks | `sm` | `f'` | `ma` | - | - | - | - | `sm` (LV) |
 | resume | `sR` | - | - | `sr` | `sl` | `'` | - | `sR`/`sr` (LV KS LU) |
@@ -161,7 +165,7 @@ Only keys that matter for the default profile. A cell is the key; "-" means the 
 | session | `qs ql qS qd` | `S` group | - | - | - | - | - | `q` (LV) |
 | lazy / mason | `l`, `cm` | `p` group, `pm` | - | - | `p`, `lI` | - | - | m3 has neither a plugin manager; installer key = `cm` (LV) |
 | zen / scratch | `uz` `.` `S` | `uZ` | - | - | - | - | - | `.` scratch, `uz` zen (LV SN) |
-| debug | `d` group | `d` | - | - | `d` | `G` | `space G` | NOT used by m3 (owner D1); `<Space>D` reserved |
+| debug | `d` group | `d` | - | - | `d` | `G` | `space G` | LV AN LU all use `d`: m3 `default` reserves `<Space>d` for debug (post-v1, empty) |
 
 ### 2.2 Brackets, g-prefix, controls
 
@@ -208,7 +212,7 @@ Principles, in priority order:
 2. Follow the majority when two or more of LV, AN, KS, LU, NC, HX, ZD agree. Where LazyVim is alone and costs a vi key, do not follow it.
 3. Mnemonic letters, one job per letter, no leaf that is also a prefix.
 4. Keep nvim 0.11 builtins (`gra grn grr gri grt gO`, Insert `<C-S>`, `[<Space> ]<Space>`, `]b [b ]q [q ]d [d`, `gc gcc`, `gx`).
-5. Owner decisions D1 to D8 stand. Debug (`<Space>D`) stays reserved and empty.
+5. Owner decisions D1 to D8 stand. Debug (`<Space>d` in `default`, `<Space>D` in `nvim`) stays reserved and empty.
 
 "exists" = bound in m3 today. "from" = old key if renamed (the migration table in section 7 repeats these).
 
@@ -226,23 +230,25 @@ Top-level leaves and groups first, then each group.
 | `<Space>-` | split below | core | no | new (LV) |
 | `<Space>\|` | split right | core | no | new (LV) |
 | `<Space>j` | label jump | jump | yes | |
-| `<Space>e` | file tree | explorer | yes | |
-| `<Space>E` | reveal current file in the tree | explorer | yes | |
-| `<Space>M` | miller columns at the file's directory | explorer | planned | new (owner D2; letter free in every setup read) |
+| `<Space>e` | file tree; opens with the current file revealed (replaces the old `E`) | explorer | yes | |
+| `<Space>E` | miller columns at the file's directory | explorer | planned | owner K4; was reveal-file |
 | `<Space>n` | notification history | notify | no | was "new buffer" |
 | `<Space>.` | scratch buffer (toggle) | scratch (opt-in plugin) | no | new (LV, SN) |
 | `<Space>1` .. `9` | harpoon file N | harpoon | yes | |
-| `<Space>D` | reserved: debug | - | no | (owner D1) |
+| `<Space>d` | reserved: debug group (empty until post-v1) | - | no | owner K2 |
+| `<Space>D` | +diagnostics (group, below) | lsp | yes | was `l` / `ll` / `xx` family |
 
 **`f` find / files** (what you look for by name; LV `f` group, AN `f`)
 
 | key | action | class | exists | from |
 |---|---|---|---|---|
 | `ff` | files | finder | yes | |
+| `gf` / `gF` | modified git files / all git files (listed under `g`) | git | yes | `gf` was changed files |
 | `fF` | files in cwd (not project root) | finder | no | new (LV) |
 | `fr` | recent files | finder | yes | |
 | `fb` | buffers | finder | yes | |
-| `fg` | git files | finder | no | **semantic change**: was live grep (LV AN agree) |
+| `fg` | live grep, current buffer (owner's meaning; = `sb` lines is the fuzzy form) | finder | yes | unchanged (owner K1) |
+| `fG` | live grep, project (also `sg` and `/`) | finder | no | new |
 | `fe` | explorer picker | finder | yes | |
 | `fc` | config file (the keymap file) | finder | no | was "commands" (LV `fc`) |
 | `fn` | new file | core | no | was `<Space>n` (LV) |
@@ -252,7 +258,7 @@ Top-level leaves and groups first, then each group.
 
 | key | action | class | exists | from |
 |---|---|---|---|---|
-| `sg` | live grep (project) | finder | yes | `fg` |
+| `sg` | live grep (project) | finder | yes | (alias of `fG`, `/`; was `fg`, which now greps the buffer) |
 | `sG` | live grep in cwd | finder | no | new (LV) |
 | `sw` (n, x) | grep word / selection | finder | yes | `fw` |
 | `sb` | lines of this buffer | finder | yes | `fd` |
@@ -308,17 +314,24 @@ Top-level leaves and groups first, then each group.
 
 | key | action | class | exists | from |
 |---|---|---|---|---|
-| `gg` | git dashboard (today: changed files picker) | git | yes (picker); dashboard planned | |
-| `gf` | history of this file | git | yes | `gl` (LV `gf`) |
-| `gl` | commit log | git | no | `gC` (LV `gl`) |
-| `gb` | branches (checkout) | git | yes | |
-| `gc` | commit (planned write op); today remote branches | git | yes | owner decision: see section 8 |
+| `gg` | git dashboard (today: changed-files picker) | git | yes (picker); dashboard planned | |
+| `gs` | status picker | git | no | new (LV `gs`) |
+| `gf` | modified git files | git | yes | unchanged (owner's meaning) |
+| `gF` | all git files | git | no | new (LV `fg` job) |
+| `gl` | commit log (repo) | git | no | was `gC` (LV `gl`) |
+| `gL` | log of this file | git | yes | was `gl` |
+| `gb` | branches, local and remote in one picker (checkout; remote entry creates the local branch) | git | yes | absorbs `gc` remote branches |
+| `gn` | new branch (typed name) | git | no | his `gn` |
+| `gR` | rename current branch (typed name) | git | no | his `gr` |
+| `gc` | commit (staged changes, message prompt) | git | planned (F3) | **locked (K5)**; was remote branches |
+| `gp` | pull | git | planned (F3) | new; lazygit `p` |
+| `gP` | push | git | planned (F3) | new; lazygit `P` |
 | `gd` | diff, working tree | git | yes | |
 | `gD` | diff against origin | git | no | new (LV) |
 | `gS` | stash list | git | no | new (LV AN) |
-| `gB` | open on the web (browse) | git | no | new (LV AN `go`); was "blame line" |
-| `gP` `gF` | push / pull | git | planned | new (git write ops F3) |
+| `gB` | open on the web (browse) | git | no | new (LV `gB`, AN `go`); was "blame line" |
 | `gh` | +hunks (group) | git | yes | |
+| `ghl` | hunks of this file (picker) | git | no | his `<leader>gh` picker |
 | `ghs` (n, x) | stage hunk | git | yes | `gs` |
 | `ghr` (n, x) | reset hunk | git | yes | `gr` |
 | `ghS` | stage buffer | git | no | new (LV KS) |
@@ -345,17 +358,18 @@ Top-level leaves and groups first, then each group.
 | `cA` | source action | lsp | no | new (LV) |
 | `cs` | symbols (same as `ss`) | finder | yes | (kept for the old muscle memory; documented as alias) |
 
-**`d` diagnostics** (HX `d`/`D`, ZD `space d`, owner's `dd ds dw`; LazyVim's debug `d` is dropped, owner D1)
+**`D` diagnostics** (HX `d` / `D`, ZD `space d`; owner K2: in `default` the lower case `d` is debug). The letters after `D` are his own `dd ds dw`, so a move
+between profiles changes one capital only.
 
 | key | action | class | exists | from |
 |---|---|---|---|---|
-| `dd` | workspace diagnostics list | lsp | yes | `xx` / `fx` alias |
-| `db` | buffer diagnostics list | lsp | no | new (LV `xX`) |
-| `dl` | diagnostic at the cursor (float) | lsp | yes | `ll` |
-| `dn` `dp` | next / previous diagnostic | lsp | no | duplicates `]d [d`: not added (note only) |
-| `dt` | toggle diagnostics | toggles | no | LV `ud` kept as primary |
+| `Dd` | workspace diagnostics list | lsp | yes | `xx` / `fx` alias; his `dd` |
+| `Db` | buffer diagnostics list | lsp | no | new (LV `xX`) |
+| `Dl` | diagnostic at the cursor (float) | lsp | yes | `ll` |
+| `Ds` | symbols in this file | finder | no | his `ds`; alias of `ss` |
+| `Dw` | symbols in the workspace | finder | no | his `dw`; alias of `sS` |
 
-(`dn dp dt` are listed as not adding anything. Real keys: `dd db dl`.)
+Next / previous diagnostic is `]d [d`; toggling diagnostics is `ud`. `<Space>d` is an empty reserved group (LazyVim `d` debug letters are not used yet).
 
 **`x` lists** (LV, AN, owner)
 
@@ -410,7 +424,7 @@ Top-level leaves and groups first, then each group.
 | `ql` | restore last session | session | planned | new (LV) |
 | `qd` | do not save the session | session | planned | new (LV) |
 
-**`h` harpoon**: `ha` add, `he` menu, `hn` next, `hp` previous, `hx` remove (from `hd`, owner decision), `<Space>1..9` select.
+**`h` harpoon**: `ha` add, `he` menu, `hn` next, `hp` previous, `hx` remove (from `hd`, owner decision), `<Space>1..9` select. In the `nvim` profile also `hP` previous (K3).
 
 ### 3.2 Non-leader keys
 
@@ -497,11 +511,11 @@ Controls and others:
 | C4 | `<Space>n` new buffer | `<Space>fn`; `n` = notifications | LV keymaps.lua 98 (`fn`), ui.lua 286 (`n`), SN README |
 | C5 | `<Space>R` reload | `<Space>br` (buffer reload); `cR` = rename file | AN and LV both bind rename file on `R` / `cR`; reload is a buffer job |
 | C6 | `<Space>bb` picker, `ba` alternate | `bb` alternate; picker is `<Space>,` / `fb` | LV keymaps.lua 38-39 (`bb`, `` ` ``) |
-| C7 | `<Space>fg` live grep | `fg` git files; grep is `sg` and `/` | LV (snacks_picker.lua 70), AN (snacks.lua 201) both `fg` = git files. **Silent meaning swap: flag** |
+| C7 | `<Space>fg` live grep | **no change** (owner K1): `fg` stays live grep, now of the current buffer as in his config; project grep is `fG`, `sg`, `/` | the old `fg` was project-wide; the buffer scope is his meaning (`plugins/mini-picker.lua:157`). Git files moved to `gF` |
 | C8 | `fd fh fc fk fo fm fx fs fl fC ft fw fq` | move to `sb sh sC sk so sm sd ss sp uC st sw sq` | LV snacks_picker.lua 84-109, 165; KS init.lua 555-565. `f` keeps "things that are files" |
 | C9 | `<Space>gs gr gp gu` (hunk ops) | `ghs ghr ghp ghu` | owner decision; LV editor.lua 176-181 |
-| C10 | `<Space>gl` file log, `gm`, `gB`, `gt` | `gf`, `ghB`, `ghb`, `uG`; `gl` = repo log | LV snacks_picker/keymaps.lua 169-178, editor.lua 182-185, 201 |
-| C11 | `<Space>l`, `ll`, `<Space>]]`, `<Space>[[` | `dl` / `cd`; `]d [d` | the leader copies of `]d [d` duplicate a builtin (nvim 0.11 `[d ]d`). Only the owner's config has them |
+| C10 | `<Space>gl` file log, `gm`, `gB`, `gt`, `gC`, `gc` | `gL`, `ghB`, `ghb`, `uG`, `gl`, `gc` = commit (locked, K5); remote branches fold into `gb` | whole git group reviewed as one set in section 13.2 |
+| C11 | `<Space>l`, `ll`, `<Space>]]`, `<Space>[[` | `Dl` / `cd`; `]d [d` | the leader copies of `]d [d` duplicate a builtin (nvim 0.11 `[d ]d`). Only the owner's config has them |
 | C12 | `<Space>ck`, `<Space>ch` | `gK`, `uh` | gK LV (lsp/init.lua), AN; uh LV (keymaps.lua 164), AN. Insert `<C-k>` would shadow digraphs |
 | C13 | `<Space>t` terminal leaf | `tt`, plus `<C-/>` | a leaf cannot also be a group; AN `t` group, LV/SN `<C-/>` |
 | C14 | `[c ]c` bound to hunks | **removed**; hunks are `[h ]h` only | vim: `[c ]c` jump between changes in diff mode (nvim index.txt). LV editor.lua 160-169 and KS init.lua 366-380 both fall back to the builtin when `vim.wo.diff`. Core `:diffthis` is planned (D4), so `[c ]c` must work there |
@@ -546,18 +560,18 @@ Active means not `enabled = false` in his spec.
 | gitsigns `<leader>hR hp hd hD hb hq` | reset buffer, preview, diff this, diff vs base, blame, quit diff | not mapped | **missing** (needs core `:diffthis`, `hq` = leave a diff view) |
 | gitsigns `ih` (o, x) | select hunk | not mapped | **missing** (text-object registry D7) |
 | gitsigns `<leader>tg tw tl tb td ta` | toggle signs, word diff, line highlight, line blame, deleted, all | not mapped | **missing**: m3 has signs toggle only; word diff, line highlight, deleted-line display and inline blame text are not built |
-| harpoon `<leader>ha he hp hn`, `1..9` | | ok | `hp` **collides with his own gitsigns `hp`** (preview hunk); gitsigns is buffer-local so it wins in tracked files. Decision in 8 |
+| harpoon `<leader>ha he hp hn`, `1..9` | | ok | `hp` is **bound twice in his config** (harpoon previous, gitsigns preview hunk); gitsigns is buffer-local so it wins in tracked files. Reproduced as is, plus `hP` (section 13.3) |
 | trouble `<leader>xx xX cs cl xL xQ` | | `xx xX xL xQ cs` | partial (`cl` LSP panel missing) |
 | mini.picker `<leader>ff` | files | ok | ok |
 | mini.picker `<leader>fr` | **resume** last picker | m3 `fr` is **recent files** | **semantic collision**: in the profile `fr` must be resume. Not done today |
-| mini.picker `<leader>fg` | live grep, **current buffer only** (`scope = "current"`) | m3 `fg` is project grep | collision of meaning; profile must map `fg` to buffer lines |
+| mini.picker `<leader>fg` | live grep of the **current buffer** (`scope = "current"`) | m3 `fg` was project grep | **profile must map `fg` to buffer grep** (`default` too, K1); project grep is `fG` / `sg` / `/` |
 | mini.picker `<leader>fb fe fq` | buffers, explorer, quickfix | ok | ok |
-| mini.picker `<leader>gf` | modified git files | ok | ok |
-| mini.picker `<leader>gh` | hunks of the current file (picker) | not mapped | **missing** (hunk list picker). Collides with default `gh` group |
+| mini.picker `<leader>gf` | modified git files | ok | ok (also `default`) |
+| mini.picker `<leader>gh` | hunks of the current file (picker) | not mapped | **missing** (hunk list picker). `default` has `ghl` for it and `gh` as a group |
 | mini.picker `<leader>gp` | pick a branch to compare in Diffview | not mapped (m3 `gp` is preview hunk) | **missing**, collides with m3 `gp` |
-| mini.picker `<leader>gb gc gC` | branches, remote branches, commit history | ok | ok |
+| mini.picker `<leader>gb gc gC` | branches, remote branches, commit history | ok | ok. `default` differs (`gb` lists both, `gc` = commit, `gl` log) and his stay in `nvim` |
 | mini.picker `<leader>gdr` | diff HEAD against a remote branch | not mapped | **missing** (two-pane diff) |
-| mini.picker `<leader>dd ds dw` | diagnostics, document symbols, workspace symbols | not mapped | **missing in the profile** (the pickers exist: `Diagnostics`, `Symbols`; workspace symbols to confirm) |
+| mini.picker `<leader>dd ds dw` | diagnostics, document symbols, workspace symbols | not mapped | **missing in the profile** (pickers exist). `default` has the same letters on `Dd Ds Dw` (K2) |
 | mini.picker (lua) `gd gr gi gt` | definition, references, implementation, type definition as **pickers** | m3 `gd` jumps, `grr` is a list | partial. His `gr` shadows nvim 0.11 `grr grn gra` (they wait `timeoutlen`); `gt` shadows "next tab". Reproduced only if he asks |
 | mini.surround `<leader>sa sd sr` (+ `sf sF sh`) | | `sa sd sr` | partial: find / find_left / highlight missing; `sh` clashes with split |
 | mini.files `<leader>e` + `R` refresh, `gs` sort by time | miller columns | tree | **missing** (miller columns planned, D2) |
@@ -581,14 +595,14 @@ Active means not `enabled = false` in his spec.
 | `<Space>s` search group | `sv sh se sc sa sd sf sF sr` splits and surround | his. The pickers on `s` are not available in the profile; their `f`-based legacy keys are |
 | `<Space>c` code (`ca`, `cr`, `cf`, `cd`) | `cc ca` AI chat, `cs cl` trouble | `ca` is his AI; code action = `gra`; `cr` `cf` stay if he does not bind them (he does not) |
 | `<Space>t` terminal group | `tg tw tl tb td ta` gitsigns toggles | his toggles; terminal by `<C-/>` or `:terminal` |
-| `<Space>d` group | `dd ds dw` | **compatible**: same jobs |
+| `<Space>D` diagnostics group (`Dd Ds Dw`) | `dd ds dw` | his `d` group wins in `nvim`: `dd ds dw` work, and the reserved debug group moves to `<Space>D` there (section 13.1) |
 | `<Space>gh` hunks group | `<leader>gh` hunk picker (leaf) | his |
 | `<Space>gd` diff leaf | `gdd gdr` prefix | his prefix |
 | `<Space>gp` push | `gp` Diffview branch pick | his (push stays a command `:Git push`) |
-| `<Space>gc` commit (planned) | `gc` remote branches | his |
-| `<Space>fg` git files | `fg` buffer grep | his |
+| `<Space>gc` commit | `gc` remote branches | his (commit stays on the dashboard / `:Git commit`) |
+| `<Space>fg` live grep, current buffer | `fg` buffer grep | **same**: no collision any more |
 | `<Space>fr` recent | `fr` resume | his |
-| `<Space>h` harpoon + `hx` | `hS hu hR hp hd hD hb hq` | hunk ops are his; harpoon `ha he hn` remain, `hx` is free, `hp` clashes with his own file (decision in 8) |
+| `<Space>h` harpoon + `hx` | `hS hu hR hp hd hD hb hq` | hunk ops are his; harpoon `ha he hn hx hP` remain; `hp` is bound twice in his config (section 13.3) |
 | `]w ]e` warning / error, `]t` TODO, `]c` | mini.bracketed `]w` window, `]t` treesitter, `]c` comment | his; default `]e` stays (he has none) |
 | `<C-l>` window focus | `<C-l>` visual indent (mini.move) | different mode; no collision. Normal `<C-l>` redraw is lost in both |
 | `gh` / `gH` hunk operator | none | free |
@@ -630,9 +644,9 @@ Everyone who runs 0.20.0 with the default tree has muscle memory for the keys in
 | `<Space>sa sd sr` | `ys ds cs` (unchanged) and Visual `S`; `legacy` / `nvim` keep the leader forms |
 | `<Space>sn` | `<Esc>` |
 | `<Space>bb` / `ba` | `fb` (or `,`) / `bb` |
-| `<Space>fg fd fh fc fk fo fm fx fs fl fC ft fw fq` | `sg sb sh sC sk so sm sd ss sp uC st sw sq` (`fg` is now git files) |
-| `<Space>gs gr gp gu gl gm gB gt` | `ghs ghr ghp ghu gf ghB ghb uG` |
-| `<Space>ll`, `<Space>]]`, `<Space>[[` | `dl` (or `cd`), `]d`, `[d` |
+| `<Space>fg fd fh fc fk fo fm fx fs fl fC ft fw fq` | `fg` stays (live grep, current buffer); `sb sh sC sk so sm sd ss sp uC st sw sq` for the rest; project grep `fG` / `sg` / `/` |
+| `<Space>gs gr gp gu gl gm gB gt gC gc` | `ghs ghr ghp ghu gL ghB ghb uG gl` and `gc` = commit; remote branches are inside `gb` |
+| `<Space>ll`, `<Space>]]`, `<Space>[[` | `Dl` (or `cd`), `]d`, `[d` |
 | `<Space>ck ch` | `gK uh` |
 | `<Space>t` | `tt` or `<C-/>` |
 | `<Space>hd` | `hx` |
@@ -644,18 +658,18 @@ Everyone who runs 0.20.0 with the default tree has muscle memory for the keys in
 
 | # | question | recommendation |
 |---|---|---|
-| K1 | `fg` changes meaning from live grep to git files (LV and AN agree). Accept, or keep `fg` = live grep and move git files to `fG`? | accept the swap; `legacy` and `nvim` keep the old meaning |
-| K2 | `<Space>d` is diagnostics (HX, ZD, your own `dd ds dw`) instead of LazyVim's debug. Debug stays `<Space>D`, empty (D1). | accept |
-| K3 | In the `nvim` profile, harpoon `hp` (previous) clashes with your own gitsigns `hp` (preview hunk). Move harpoon previous to `hP`? | `hP` in the profile only |
-| K4 | Miller columns key. | `<Space>M` (unused by every setup read). Alternatives: `<Space>fm`, replace `e` once the panel exists |
-| K5 | `gc` today lists remote branches (yours); the planned git write ops need `commit`. | commit on `gc`, remote branches stay on `gb` with a toggle, in `default` only; `nvim` keeps yours |
-| K6 | `[t ]t` TODO shadows the nvim 0.11 tag pair. Keep (LV does) or move to `[T ]T`? | keep |
-| K7 | Visual `<` `>` keeping the selection deviates from vi. | accept in `default`, off in `minimal` |
-| K8 | Drop the stale `nnoremap <Space>a <Cmd>Symbols<CR>` (aerial is disabled in your spec)? | drop |
-| K9 | Should the `nvim` profile also reproduce your `gd gr gi gt` as pickers? `gr` makes `grr grn gra` wait `timeoutlen` and `gt` hides "next tab". | no; keep nvim 0.11's `grr` family and tell him |
+| K1 | `fg`: keep as live grep of the current buffer | **decided**: keep (his meaning); git files `gf` / `gF` |
+| K2 | `d` debug (reserved), `D` diagnostics in `default` | **decided**; in `nvim` his `dd ds dw` win and debug is `<Space>D` there |
+| K3 | harpoon `hp` vs gitsigns `hp` | **explained**: bound twice in his config; reproduce it and add `hP` (section 13.3) |
+| K4 | miller columns | **decided**: `<Space>E`; reveal-file folded into `e` |
+| K5 | `gc` commit and the git group | **decided**: `gc` = commit, group reviewed in section 13.2 |
+| K6 | `[t ]t` TODO shadows the nvim 0.11 tag pair. Keep (LV does) or move to `[T ]T`? | keep (accepted by default, owner may veto) |
+| K7 | Visual `<` `>` keeping the selection deviates from vi. | accept in `default`, off in `minimal` (accepted by default, owner may veto) |
+| K8 | Drop the stale `nnoremap <Space>a <Cmd>Symbols<CR>` (aerial is disabled in your spec)? | drop (accepted by default, owner may veto) |
+| K9 | Should the `nvim` profile also reproduce your `gd gr gi gt` as pickers? `gr` makes `grr grn gra` wait `timeoutlen` and `gt` hides "next tab". | no; keep nvim 0.11's `grr` family and tell him (accepted by default, owner may veto) |
 | K10 | Save on `<C-s>` in Normal and Visual. Terminals with XOFF flow control need `stty -ixon`; m3 reads raw bytes so it is unaffected. | accept |
-| K11 | `bl` keeps "list buffers" although LV and AN bind it to "close left". | keep, no tabline order |
-| K12 | Surround `sa sd sr` leader rows disappear from `default` (kept in `nvim` and `legacy`). | accept |
+| K11 | `bl` keeps "list buffers" although LV and AN bind it to "close left". | keep, no tabline order (accepted by default, owner may veto) |
+| K12 | Surround `sa sd sr` leader rows disappear from `default` (kept in `nvim` and `legacy`). | accept (accepted by default, owner may veto) |
 
 ## 9. Build plan for the parity agent
 
@@ -674,11 +688,11 @@ Ordered. Size: S under a day, M a few days, L a milestone. Everything is table-d
 | B8 | `words` plugin: `]r [r`, `<A-n> <A-p>`, subtle underline, LSP `documentHighlight` with a word-under-cursor fallback | M | decoration seam |
 | B9 | Hunk ops: `]H [H`, `<Space>ghs ghr ghS ghR ghu ghp ghb ghB` and `gh{motion}` / `gH{motion}` (operator that takes a motion and applies to the range) | M | operator hook; `ih ah` need B13 |
 | B10 | `terminal` group `tt tf th tv`, `<C-/>` and `<C-_>` (check the byte the terminal sends) | S | terminal plugin |
-| B11 | Nvim profile fill-in: `dd ds dw`, `fr` resume, `fg` buffer grep, `gh` hunk picker, `hp hD` etc as the features land; remove the aerial line | S then grows | resume picker, hunk picker |
+| B11 | Nvim profile fill-in: `dd ds dw`, `fr` resume, `gh` hunk picker, `gdr gp`, `hp` (hunk when tracked else harpoon) and `hP`, `hD` etc as the features land; remove the aerial line | S then grows | resume picker, hunk picker |
 | B12 | Core `:diffthis`, then `ghd ghD` and `hq` | L | D4 (already planned) |
 | B13 | Text-object registry (`ih ah`, `]f [f`, `[i ]i`, mini.ai `an in`) | L | D7 (0.28.0) |
 | B14 | LSP installer `cm` (`:Lsp install`) | L | D5 |
-| B15 | Miller columns `<Space>M` and the git dashboard `gg` | L | D2, panel API, F3 |
+| B15 | Miller columns `<Space>E` and the git dashboard `gg` | L | D2, panel API, F3 |
 | B16 | `conflict` plugin: `[x ]x`, choose ours / theirs / both / none | M | git plugin |
 | B17 | Session restore `qs ql qd`; scratch buffer `<Space>.` | M | session plugin |
 | B18 | Docs: regenerate `docs/KEYMAP.md`, update `docs/NVIM-PARITY.md` rows, README keymap section; oracle case for `[c ]c` in diff mode once `:diffthis` exists | S | after each |
@@ -728,7 +742,7 @@ Defaults are the `config.mappings` of each module (source in section 0). "LV" is
 | mini.operators | `g=` evaluate, `gx` exchange, `gm` multiply, `gr` replace, `gs` sort | not shipped | reject: `gx` is nvim's open URL, `gr` is the LSP prefix, `gs` is sleep, `gm` is vi's. If wanted later: `g=` only |
 | mini.comment | `gc` `gcc` `gc` (visual), `gc` object | nvim 0.11 builtin; LV adds `gco gcO` | yes (`comment` plugin), `gco gcO` to add |
 | mini.diff | `gh` apply, `gH` reset, `gh` object, `[H [h ]h ]H` | LV uses gitsigns (`]h [h ]H [H` and `<leader>gh*`) with the same bracket letters; extras/editor/mini-diff.lua exists | **yes: `gh gH ih ah [h ]h [H ]H`** |
-| mini.files | `l` in, `L` in+, `h` out, `H` out+, `q` close, `'` `m` marks, `<BS>` reset, `@` cwd, `g?` help, `=` synchronize, `<` `>` trim | `<leader>fm` `fM` (extras/editor/mini-files.lua) | miller columns (planned): adopt `h l H L q g? = @ <BS>` inside the panel; entry key `<Space>M` (K4) |
+| mini.files | `l` in, `L` in+, `h` out, `H` out+, `q` close, `'` `m` marks, `<BS>` reset, `@` cwd, `g?` help, `=` synchronize, `<` `>` trim | `<leader>fm` `fM` (extras/editor/mini-files.lua) | miller columns (planned): adopt `h l H L q g? = @ <BS>` inside the panel; entry key `<Space>E` (K4) |
 | mini.pick | `<CR>` choose, `<C-s>` split, `<C-v>` vsplit, `<C-t>` tab, `<M-CR>` choose marked, `<C-x>` mark, `<C-a>` mark all, `<C-n> <C-p>` move, `<C-f> <C-b>` scroll, `<C-g>` move start, `<C-Space>` refine, `<S-Tab>` info, `<Esc>` stop | not used (snacks or telescope) | the finder keys of 10.1 are a superset; add `<C-n> <C-p>` (exist) and `<C-x>` mark as an alias of `<Tab>` |
 | mini.clue | triggers are chosen by the user; clues for `g z [ ] <C-w> " '` and registers via `gen_clues` | LV uses which-key | which-key (core) already shows the same prefixes (`g z [ ] <C-w>` and registers) |
 | mini.jump2d | `<CR>` start jumping | not shipped (flash) | `<Space>j` (exists); not `<CR>` (vi: next line) |
@@ -755,7 +769,7 @@ uses another key (evidence given), the `nvim` profile keeps his; **suggest chang
 |---|---|---|---|
 | `jk` (i) | leave Insert | kept | AN better-escape; option, off in `minimal` |
 | `<leader>n` | new file | changed in default (`fn`, `n` = notifications) | LV keymaps.lua 98, ui.lua 286; SN README. Suggest changing his: low value, ignore |
-| `<leader>ll` | diagnostic float | changed in default (`cd`, `dl`) | LV keymaps.lua 134 `cd`; AN `ld`, `gl`. Suggest: `cd` |
+| `<leader>ll` | diagnostic float | changed in default (`cd`, `Dl`) | LV keymaps.lua 134 `cd`; AN `ld`, `gl`. Suggest: `cd` |
 | `<leader>]]` `[[` | next / prev diagnostic | changed in default (`]d [d`) | nvim 0.11 already binds `]d [d`; three-key forms are redundant. **Suggest changing his**: drop them |
 | `<leader>sv sh se sc` | splits | changed in default (`wv ws w= wd`, `<Space>\|`, `<Space>-`) | LV w group + `-` `\|` (keymaps.lua 199-201), HX window mode, ZD `space w`. His `sh` clashes with his surround `sh`. **Suggest**: `<leader>-` `<leader>\|` |
 | `<leader>ps` `ms` | Lazy / Mason | out (installer on `cm`) | LV `cm` (lsp/init.lua 285), AN `pm`. Suggest: `cm` |
@@ -776,16 +790,16 @@ uses another key (evidence given), the `nvim` profile keeps his; **suggest chang
 | gitsigns `<leader>hq` | quit diff view | no default key | KS `hq` is the hunk quickfix list; his meaning has no precedent. Keep in `nvim` (needs `:diffthis`) |
 | gitsigns `<leader>tg tw tl tb td ta` | toggles | changed in default (`uG uW uB`, others as `u*`) | LV `uG`, AN `u`; KS binds `tb tw` on `t` (init.lua 398-399), so `t` is not unreasonable. Majority `u` (LV, AN). **Suggest**: optional |
 | gitsigns `ih` | hunk object | kept | KS init.lua 401 `ih`; AN `ig`; MI `gh`. Default has `ih` and `ah` |
-| harpoon `<leader>ha he hn hp 1..9` | | kept (`hd` remove becomes `hx`) | `hp` clashes with his own gitsigns `hp` (K3) |
+| harpoon `<leader>ha he hn hp 1..9` | | kept (`hd` remove becomes `hx`; `hP` added) | `hp` is bound twice in his config, section 13.3 |
 | mini.picker `<leader>ff` | files | kept | LV, AN, NC, KS-ish |
 | mini.picker `<leader>fr` | **resume** | changed in default (`fr` recent, `sR` resume) | LV `fr` = recent (snacks_picker.lua 71), `sR` resume (107), KS `sr`, HX `'`. **Suggest**: resume on `<leader>sR` or `'` |
-| mini.picker `<leader>fg` | live grep **current buffer** | changed in default (`sb` lines, `fg` git files) | LV `fg` git files, `sb` buffer lines (84), AN `fg`. **Suggest**: `sb` |
+| mini.picker `<leader>fg` | live grep **current buffer** | kept (K1) | `plugins/mini-picker.lua:157`; the buffer-lines picker is also on `sb` (LV 84). Nothing to change |
 | mini.picker `<leader>fb fe fq` | buffers, explorer, quickfix | kept | LV `fb`, `fe`; `fq` kept in m3, `sq` is the LV spelling |
-| mini.picker `<leader>gf` | modified git files | changed in default (`gf` = history of this file) | LV `gf` file history (keymaps.lua 175). **Suggest**: `gs` status picker (LV snacks_picker.lua 77) |
-| mini.picker `<leader>gh` | hunks of this file (picker) | changed in default (`gh` group) | LV `gd` = diff hunks picker. **Suggest**: `<leader>gd` or `ghl` |
+| mini.picker `<leader>gf` | modified git files | kept (K1/K5) | `gf` modified, `gF` all git files in `default` |
+| mini.picker `<leader>gh` | hunks of this file (picker) | changed in default (`ghl`; `gh` is a group) | LV `gd` = diff hunks picker. **Suggest**: `<leader>gd` or `ghl` |
 | mini.picker `<leader>gp` `gdr` | compare against a branch / remote | no default key | no precedent in the setups read; `gD` is diff vs origin (LV 76). Suggest: `gD` |
-| mini.picker `<leader>gb gc gC` | branches, remote branches, commits | `gb` kept; `gc` changed (commit planned); `gC` changed (`gl`) | AN `gb gc gC`, LU `gb gc gC` (which-key.lua 187-210) both use these letters for branch / commit. **Both views are valid: keep his in `nvim`** |
-| mini.picker `<leader>dd ds dw` | diagnostics, doc symbols, ws symbols | `dd` kept; `ds dw` changed (`ss sS`) | HX `d` `D`, `s` `S`; LV `sd ss sS`; nvim 0.11 `gO`. **Suggest**: `gO`, `gW` for symbols |
+| mini.picker `<leader>gb gc gC` | branches, remote branches, commits | `gb` kept (now lists remote too); `gc` changed (commit, locked); `gC` changed (`gl`) | AN `gb gc gC` and LU use these letters too; both valid. His stay in `nvim` |
+| mini.picker `<leader>dd ds dw` | diagnostics, doc symbols, ws symbols | kept in `nvim`; `default` has `Dd Ds Dw` (same letters, capital `D`) | K2. Suggest (optional): `gO` / `gW` also work in both |
 | mini.picker `gd` | definition picker | kept (jump) | LV, AN, HX, ZD, KS all `gd` |
 | mini.picker `gr` | references picker | changed in default (`grr`) | **suggest changing his**: `gr` is a prefix of nvim 0.11 `grr grn gra gri grt gO` so those wait `timeoutlen`; LV has the same trade (nowait) but KS keeps `grr`; `gr{char}` is vi. Use `grr` |
 | mini.picker `gi` | implementation picker | changed in default (`gri`, `gI`) | **suggest changing his**: `gi` is vi "insert where Insert stopped" (nvim `index.txt`, kept by `minimal`). LV, AN, ZD use `gI` |
@@ -812,3 +826,111 @@ The strongest cases, which shadow a vi key or a nvim 0.11 default: `>` `<` (inde
 | B19 | finder in-picker keys aligned with snacks / mini.pick: `<Tab>` mark and next (move `<C-t>` mark to it, `<C-t>` open in tab), `<C-s>` `<C-v>` split, `dd` delete buffer in the buffers source, `<Tab>` stage in the status source | S |
 | B20 | explorer panel keys (`a d r c m y p o . I H Z P u ]g [g ]d [d`) as in snacks / neo-tree, and the miller panel keys of mini.files (`h l H L q g? = @ <BS>`) | M |
 | B21 | in `nvim`: `fr` resume, `fg` buffer lines, `gh` hunk picker, `dd ds dw`, `gdr gp`, `<leader>t*` toggles (as features land) | S then grows |
+
+## 13. Owner decisions K1 to K12 (2026-11-05)
+
+Answers to section 8. Where an earlier table disagrees with this section, this section wins; the tables were updated to match.
+
+### 13.1 K1, K2: `fg`, `D` and `d`
+
+* **K1.** No muscle memory for `fg` = git files. `fg` stays what his config has: **live grep of the current buffer** (`plugins/mini-picker.lua:157`, `scope = "current"`),
+  in `default` too. Project-wide live grep is `fG`, `sg` and `/`. Git files go to the git group: `gf` modified git files (his meaning), `gF` all git files.
+  This reverses C7 and the K1 row above; the LazyVim / AstroNvim `fg` = git files is not followed.
+* **K2.** In `default`: `<Space>d` = **debug** (reserved, empty, post-v1; LazyVim, AstroNvim and LunarVim all use `d` for debug, so the letter is kept free for it) and
+  `<Space>D` = **diagnostics**: `Dd` workspace list, `Db` buffer list, `Dl` at the cursor, `Ds` symbols in the file, `Dw` workspace symbols.
+* **The difference between profiles, on purpose.** His config binds `<leader>dd` diagnostics, `<leader>ds` document symbols, `<leader>dw` workspace symbols
+  (`mini-picker.lua` 190-199), and in the `nvim` profile his keys win. So there the lower-case `d` group is his diagnostics group and the reserved debug group moves to
+  **`<Space>D`**. The letters after the `d` / `D` are identical (`d s w`), so switching profile changes one capital. which-key labels each profile's group
+  ("diagnostics" / "debug (reserved)"). Suggestion for him, not a requirement: nothing; if he later wants debug on `d` he moves his three pickers to `Dd Ds Dw`.
+
+### 13.2 K5: the whole git group as one set
+
+Reviewed against LazyVim (`keymaps.lua` 169-178, `snacks_picker.lua` 75-82, `editor.lua` 176-185), AstroNvim (`gitsigns.lua`, `snacks.lua` 151-172), LunarVim
+(`which-key.lua` 187-210), snacks lazygit, kickstart (`init.lua` 383-401) and the lazygit / neogit conventions (lazygit `p` pull, `P` push in its files panel and `c` commit: from
+memory of the lazygit docs, not re-read here). Rules used: lower case = the common action, capital = the wider or riskier variant; read-only things are pickers, write
+things are verbs; no key is both a leaf and a prefix.
+
+`gc` = commit **fits and is locked**: it sits under `<Space>g`, so it never meets the builtin `gc` comment operator (`gc` without `<Space>` is a different key, unchanged).
+LazyVim leaves `gc` free; AstroNvim and LunarVim use `gc` for commits (picker), which is the same noun.
+
+| key | action | class | exists | notes |
+|---|---|---|---|---|
+| `gg` | git dashboard (picker of changed files until the dashboard exists) | git | picker yes | LV, AN, LU `gg` = git UI; neogit / fugitive in his config |
+| `gs` | status picker | git | no | LV `gs` |
+| `gf` | modified git files | git | yes | his `gf`; LV `gf` is file history, moved to `gL` |
+| `gF` | all git files | git | no | the job of LV/AN `fg` |
+| `gl` | repo log picker | git | no | LV `gl` |
+| `gL` | log of this file | git | yes | was `gl` in m3 |
+| `gb` | branches, local and remote, checkout | git | yes | his `gb`; folds in his `gc` (remote as local) |
+| `gn` | new branch (typed) | git | no | his `gn` |
+| `gR` | rename current branch (typed) | git | no | his `gr` (`gr` stays free in the leader tree) |
+| `gc` | commit | git | planned (F3) | locked |
+| `gp` | pull | git | planned (F3) | lazygit `p` |
+| `gP` | push | git | planned (F3) | lazygit `P` |
+| `gd` | diff, working tree | git | yes | LV `gd` |
+| `gD` | diff against origin | git | no | LV `gD` |
+| `gS` | stash | git | no | LV, AN |
+| `gB` | open on the web | git | no | LV `gB`, AN `go` |
+| `gh` + `s r S R u p b B d D l` | hunks (`l` = hunk picker for this file) | git | partly | owner decision plus `ghl` for his `<leader>gh` |
+| `]h [h ]H [H`, `gh{motion}`, `gH{motion}`, `ih ah` | hunk motions and objects | git | partly | owner decision |
+
+His git keys: `gf` kept; `gb` kept (now also remote); `gh` (picker) becomes `ghl` in `default`; `gc` (remote branches) folded into `gb` in `default`, kept in `nvim`; `gC` (commit
+history) = `gl`; `gdr` (diff HEAD vs remote), `gp` (compare against a picked branch) have no `default` key (`gD` covers "against origin"; two-pane diff needs `:diffthis`); `gn gr gt gdd`
+as section 5. Clash noted: in `nvim` `gp` is his compare-branch picker while `default` `gp` is pull; the profile replaces the tree, so there is no conflict.
+In the `nvim` profile commit has no leader key (`gc` is his): use the dashboard or `:Git commit`. Owner may veto.
+
+### 13.3 K3: what `hp` is, and what to do
+
+`<leader>hp` is bound **twice in his config**:
+
+| where | action |
+|---|---|
+| `lua/plugins/harpoon.lua:32` (`keys = ...`) | harpoon "cycle previous" (global) |
+| `lua/plugins/gitsigns.lua:90` (`on_attach`, buffer-local) | gitsigns "Preview Hunk" |
+
+Buffer-local wins, so in a git-tracked buffer `hp` previews the hunk and harpoon previous is unreachable there; in other buffers `hp` is harpoon previous. `hn` (harpoon next) has no clash.
+
+Recommendation: in the `nvim` profile reproduce exactly that (`hp` = preview hunk in a tracked buffer, harpoon previous otherwise) and add **`hP` = harpoon previous
+everywhere**. Not `[H ]H`: those are first / last hunk in both profiles. In `default` there is no clash (hunks are `gh*`, harpoon `hp` / `hn` stay). Suggestion to him: put his gitsigns keys
+under `gh` (section 11) and `hp` is harpoon's again.
+
+### 13.4 K4: miller columns
+
+Miller columns are **`<Space>E`** (the `mini.files` job: his `<leader>e` is mini.files, so in `nvim` `e` opens miller columns when they exist and the tree is `:Explorer`).
+Reveal-file moves out of `E`: it is folded into `e` (opening the tree selects the current file, which is what reveal did). A separate `er` was rejected: m3's key lookup
+returns leaf, prefix or nothing for a key, so `e` as a leaf plus `er` would force `e` to wait for a timeout or become a group. If a separate reveal key is wanted, `fE` is free.
+
+### 13.5 K6 to K12
+
+| # | decision | status |
+|---|---|---|
+| K6 | `[t ]t` stay TODO (shadows nvim 0.11 tag pair; LV does the same) | accepted by default, owner may veto |
+| K7 | Visual `<` `>` keep the selection in `default`; vi in `minimal` | accepted by default, owner may veto |
+| K8 | drop the stale `<Space>a` Symbols line (aerial is disabled) from the `nvim` profile | accepted by default, owner may veto |
+| K9 | `nvim` profile does not reproduce his `gd gr gi gt` pickers; nvim 0.11 `grr gri grt` instead | accepted by default, owner may veto |
+| K10 | `<C-s>` saves (Normal, Visual); `<Space>w` becomes the windows group (owner adapts); Insert `<C-S>` stays signature help | accepted by the owner |
+| K11 | `bl` stays "list buffers" | accepted by default, owner may veto |
+| K12 | surround leader rows leave `default` (kept in `nvim` and `legacy`) | accepted by default, owner may veto |
+
+### 13.6 Keys that changed since the first version of this review
+
+| key / area | before | now |
+|---|---|---|
+| `fg` | git files (default) | live grep, current buffer (his meaning) |
+| `fG` | none | live grep, project (with `sg`, `/`) |
+| `gf` | file history | modified git files |
+| `gF` | pull | all git files |
+| `gL` | none | log of this file |
+| `gl` | commit log | commit log (unchanged); old `gl` file log is now `gL` |
+| `gc` | commit, planned (remote branches today) | commit, locked; remote branches inside `gb` |
+| `gp` / `gP` | none / push | pull / push |
+| `gn`, `gR`, `gs` | none | new branch, rename branch, status picker |
+| `ghl` | none | hunks of this file (picker) |
+| `<Space>d` | diagnostics group | reserved debug group (empty) |
+| `<Space>D` | reserved debug | diagnostics group `Dd Db Dl Ds Dw` |
+| `dl` | diagnostic float | `Dl` |
+| `<Space>M` | miller columns | `<Space>E` |
+| `<Space>E` | reveal file | miller columns; reveal folded into `e` |
+| `nvim` profile `hP` | none | harpoon previous everywhere; `hp` = hunk preview in tracked buffers, harpoon previous otherwise |
+| `nvim` profile debug | `<Space>D` | `<Space>D` (unchanged); `default` debug is `<Space>d` |
+| `<C-s>`, `<Space>w` | proposed | accepted |
