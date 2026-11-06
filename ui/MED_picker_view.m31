@@ -281,7 +281,7 @@ pub List<str> hints_for(MED_picker.Picker picker) {
     if (kind == MED_picker.KIND_FILES || kind == MED_picker.KIND_GREP || kind == MED_picker.KIND_LIST) {
         items.push("^T mark");
         if (picker.marked.size() > 0 || kind == MED_picker.KIND_GREP || kind == MED_picker.KIND_LIST) {
-            items.push("^Q quickfix");
+            items.push("^Q list");
         }
     }
     if (kind == MED_picker.KIND_FILES || kind == MED_picker.KIND_GREP) {

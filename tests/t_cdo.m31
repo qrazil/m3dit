@@ -38,7 +38,7 @@ write_file(base + "-b.txt", "foo three\nfoo foo\n");
 match (MED_app.open(base + "-a.txt")) {
     case Ok(MED_app.App app): {
         type_text(app, ":e " + base + "-b.txt\r");
-        app.quickfix_list = [MED_picker.Entry("a1", path: base + "-a.txt", line: 0, column: 0), MED_picker.Entry("a3", path: base + "-a.txt", line: 2, column: 0), MED_picker.Entry("b1", path: base + "-b.txt", line: 0, column: 0)];
+        app.lists.replace("", [MED_picker.Entry("a1", path: base + "-a.txt", line: 0, column: 0), MED_picker.Entry("a3", path: base + "-a.txt", line: 2, column: 0), MED_picker.Entry("b1", path: base + "-b.txt", line: 0, column: 0)]);
         type_text(app, ":cdo s/foo/bar/\r");
         check.eq_str("the last file was changed on its entry's line only", app.editor.buffer.dump(), "bar three\nfoo foo\n");
         type_text(app, ":buffer 1\r");
@@ -56,7 +56,7 @@ match (MED_app.open(base + "-a.txt")) {
         check.ok("the first failing line ends it (E486)", app.editor.message.starts_with("E486") || app.notice.starts_with("E486"));
         type_text(app, ":cdo\r");
         check.ok("no command is an error", app.notice.starts_with("E471") || app.editor.message.starts_with("E471"));
-        app.quickfix_list = [];
+        app.lists.wipe("");
         type_text(app, ":cdo s/a/b/\r");
         check.ok("an empty list is E42", app.notice.starts_with("E42") || app.editor.message.starts_with("E42"));
     }

@@ -11,7 +11,7 @@ more than 38,500 generated and hand-written cases (20 known divergences, listed 
 `tests/oracles/known_divergences.txt`); on top of it sit the built-in plugins that make it a daily editor:
 a fuzzy finder with async sources (rg / fd / git when installed, a built-in walker and grep when not), which-key for
 every prefix, a keymap table that mirrors the owner's Neovim leader keys, git signs with hunk stage / reset /
-preview / blame, a statusline and bufferline, harpoon-style pinned files, quickfix, a terminal pane, `:!` `:r !` and
+preview / blame, a statusline and bufferline, harpoon-style pinned files, the generic list (`:l`, `]l`), a terminal pane, `:!` `:r !` and
 `!{motion}` filters, label jump, line move, indent guides, TODO highlighting, last-position restore and a minimal
 language server client. Every built-in can be switched off (`:PluginDisable NAME`, `:Plugins`). See
 [docs/ROADMAP.md](docs/ROADMAP.md) for the queue from 0.7.0 to 1.0.0 and [docs/KEYMAP.md](docs/KEYMAP.md) for every default key (generated from the same table the editor uses) and DESIGN
@@ -229,7 +229,7 @@ keys; a `--no-plugins` build starts in it); `nvim` is the owner's Neovim keys; `
 | `<Space>ff` / `<Space><Space>` | find files |
 | `<Space>fr` `fb` `fg` `fG` | recent files, buffers, live grep of this buffer, live grep of the project |
 | `<Space>,` / `<Space>/` / `<Space>:` / `<Space>?` | buffers, live grep, command palette, keymap help |
-| `<Space>s` | search group: `sg` grep, `sw` word, `sb` lines, `sh` keys, `sk` keymaps, `sC` commands, `so` options, `sm` marks, `sd` diagnostics, `ss` symbols, `sq` quickfix, `sp` plugins, `st` TODOs |
+| `<Space>s` | search group: `sg` grep, `sw` word, `sb` lines, `sh` keys, `sk` keymaps, `sC` commands, `so` options, `sm` marks, `sd` diagnostics, `ss` symbols, `sq` the list, `sp` plugins, `st` TODOs |
 | `<Space>e` / `<Space>fe` | file tree (the current file revealed) / explorer picker |
 | `<Space>b` | buffers: `bb` alternate, `bn` `bp`, `bd` delete, `bl` list, `br` reload |
 | `<Space>w` | windows: `ws` split below, `wv` split right, `wd` close, `wo` only, `w=` equalise (also `<Space>-` and `<Space>\|`) |
@@ -249,7 +249,7 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 
 | plugin | default keys | what it does |
 |---|---|---|
-| finder | `<Space>ff fg fr fb fd fq fh fc fk fo fm fx fs ft fw` | files, live grep, recent, buffers, lines of the buffer, quickfix, keys, commands, options, marks, diagnostics, symbols, TODOs, word under cursor; `<C-t>` marks, `<C-q>` sends to quickfix |
+| finder | `<Space>ff fg fr fb fd fq fh fc fk fo fm fx fs ft fw` | files, live grep, recent, buffers, lines of the buffer, the list, keys, commands, options, marks, diagnostics, symbols, TODOs, word under cursor; `<C-t>` marks, `<C-q>` sends to quickfix |
 | whichkey (core; `:set nowhichkey` or the plugin name `whichkey` turn it off) | after 400 ms of any pending prefix | `<Space>`, `g`, `z`, `[`, `]`, `<C-w>`, `"`, `'`, operators |
 | explorer | `<Space>e` | file tree sidebar (see below) |
 | git | `<Space>gg gf gb gl gL gd`, `<Space>gh` hunks, `]h [h`, `ih ah`, `:Git`, `:Hunk` (the `legacy` profile: `gc gC gs gr gp gu gB gm gt`, `]c [c`) | changed files, branch checkout, remote branches, commit log with preview, hunk stage / unstage / reset / preview, blame line and list, file log, diff, signs; the reads and the staging run in process (see below) |
@@ -257,7 +257,7 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 | comment | `gc` `gcc` | language-aware toggle |
 | autopairs | insert mode | bracket and quote pairing |
 | statusline | | mode, file, git branch and hunk counts, E/W counts, filetype, position; bufferline with two or more buffers |
-| bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` | buffers, quickfix, diagnostics, hunks, TODO comments |
+| bracketed | `[b ]b [l ]l [d ]d [h ]h [t ]t` | buffers, the default list, diagnostics, hunks, TODO comments |
 | harpoon | `<Space>ha he hn hp hx` (`hd` in `nvim` and `legacy`), `<Space>1`..`9` | pinned files per project (`~/.local/state/m3`) |
 | move | `<A-j> <A-k> <A-h> <A-l>` | move or shift the line or the Visual selection |
 | notify | `:Notify`, `:Notifications` | toast notifications (language server messages, plugins), history in the finder |
@@ -273,7 +273,7 @@ These are the features of the core that have a switch; as each one moves into a 
 (`plugins/NAME/`, docs/CORE-AND-PLUGINS.md) it keeps its name and the same two commands, and `:Plugins` shows the
 compiled plugins under "Compiled plugins" with their state (`active`, `lazy`, `off`, `refused: requires x`)
 and the extension API they were written for. Compiled plugins since 0.18.0, each in `plugins/NAME/` with its own README and tests: `move`, `bracketed`, `harpoon`, `todo`, `notify` (new: toast notifications, `:Notify`, `:Notifications`), `statusline` and (0.19.0) `session` and (0.21.0) `git`; each keeps its row in the table above, and `--without NAME` builds without it. Everything else in the table is still in the core ([docs/DAILY-DRIVER.md](docs/DAILY-DRIVER.md) says what is missing for daily use, [docs/CORE-AND-PLUGINS.md](docs/CORE-AND-PLUGINS.md) what moves next).
-Project-wide replace: put hits in the quickfix list (`<C-q>` in a finder list), then `:cdo s/old/new/ | update` runs the line at
+Project-wide replace: put hits in the list (`<C-q>` in a finder list), then `:cdo s/old/new/ | update` runs the line at
 each entry, `:cfdo %s/old/new/ | update` once for each file in the list, `:bufdo` in each listed buffer; the first line that fails
 ends the run.
 `:Keys` or `<Space>?` browses every key. `:set nojk_escape` turns the Insert-mode `jk` off.

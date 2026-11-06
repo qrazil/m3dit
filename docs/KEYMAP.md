@@ -55,7 +55,7 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>sm` | Normal | Marks | finder | m3 |
 | `<Space>sd` | Normal | Diagnostics | finder | m3 |
 | `<Space>ss` | Normal | Symbols in this file | finder | m3 |
-| `<Space>sq` | Normal | Quickfix list | finder | m3 |
+| `<Space>sq` | Normal | Generic list | finder | m3 |
 | `<Space>sp` | Normal | Plugins | finder | m3 |
 | `<Space>sn` | Normal | Clear search highlight | core | m3 |
 | `<Space>b` | Normal | +buffers | core | m3 |
@@ -93,8 +93,8 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>x` | Normal | +lists | lsp | m3 |
 | `<Space>xx` | Normal | Diagnostics | lsp | m3 |
 | `<Space>xX` | Normal | Diagnostics of this buffer | lsp | m3 |
-| `<Space>xQ` | Normal | Quickfix list | finder | m3 |
-| `<Space>xL` | Normal | Location list | finder | m3 |
+| `<Space>xQ` | Normal | Generic list | finder | m3 |
+| `<Space>xL` | Normal | Generic list | finder | m3 |
 | `<Space>t` | Normal | +terminal | terminal | m3 |
 | `<Space>tt` | Normal | Terminal | terminal | m3 |
 | `<Space>u` | Normal | +ui toggles | core | m3 |
@@ -149,10 +149,10 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `]b` | Normal | next buffer | bracketed | m3 |
 | `[B` | Normal | first buffer | bracketed | m3 |
 | `]B` | Normal | last buffer | bracketed | m3 |
-| `[q` | Normal | previous quickfix entry | bracketed | m3 |
-| `]q` | Normal | next quickfix entry | bracketed | m3 |
-| `[Q` | Normal | first quickfix entry | bracketed | m3 |
-| `]Q` | Normal | last quickfix entry | bracketed | m3 |
+| `[l` | Normal | previous list entry | bracketed | m3 |
+| `]l` | Normal | next list entry | bracketed | m3 |
+| `[L` | Normal | first list entry | bracketed | m3 |
+| `]L` | Normal | last list entry | bracketed | m3 |
 | `[t` | Normal | previous TODO comment | bracketed | m3 |
 | `]t` | Normal | next TODO comment | bracketed | m3 |
 | `[h` | Normal | previous git hunk | bracketed | m3 |
@@ -199,7 +199,7 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>fr` | Normal | Recent files | finder | config |
 | `<Space>fb` | Normal | Buffers | finder | config |
 | `<Space>fe` | Normal | File explorer (picker) | finder | config |
-| `<Space>fq` | Normal | Quickfix list | finder | config |
+| `<Space>fq` | Normal | Generic list | finder | config |
 | `<Space>fd` | Normal | Lines of this buffer | finder | config |
 | `<Space>fw` | Normal | Grep the word under the cursor | finder | m3 |
 | `<Space>fh` | Normal | Help: all keys | finder | m3 |
@@ -230,8 +230,8 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>x` | Normal | +trouble | lsp | config |
 | `<Space>xx` | Normal | Diagnostics | lsp | config |
 | `<Space>xX` | Normal | Diagnostics of this buffer | lsp | config |
-| `<Space>xQ` | Normal | Quickfix list | finder | config |
-| `<Space>xL` | Normal | Location list | finder | config |
+| `<Space>xQ` | Normal | Generic list | finder | config |
+| `<Space>xL` | Normal | Generic list | finder | config |
 | `<Space>cs` | Normal | Symbols | finder | config |
 | `<Space>c` | Normal | +code | lsp | m3 |
 | `<Space>cr` | Normal | Rename symbol | lsp | m3 |
@@ -282,10 +282,10 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `]b` | Normal | next buffer | bracketed | m3 |
 | `[B` | Normal | first buffer | bracketed | m3 |
 | `]B` | Normal | last buffer | bracketed | m3 |
-| `[q` | Normal | previous quickfix entry | bracketed | m3 |
-| `]q` | Normal | next quickfix entry | bracketed | m3 |
-| `[Q` | Normal | first quickfix entry | bracketed | m3 |
-| `]Q` | Normal | last quickfix entry | bracketed | m3 |
+| `[l` | Normal | previous list entry | bracketed | m3 |
+| `]l` | Normal | next list entry | bracketed | m3 |
+| `[L` | Normal | first list entry | bracketed | m3 |
+| `]L` | Normal | last list entry | bracketed | m3 |
 | `[t` | Normal | previous TODO comment | bracketed | m3 |
 | `]t` | Normal | next TODO comment | bracketed | m3 |
 | `[h` | Normal | previous git hunk | bracketed | m3 |
@@ -481,7 +481,7 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<C-^>` | Normal | Normal mode: alternate buffer | core | vim |
 | `<A-j>/<A-k>` | Normal | Normal and Visual: move the line or selection down / up | move | m3 |
 | `<A-h>/<A-l>` | Normal | Normal and Visual: shift the line or selection left / right | move | m3 |
-| `<C-q>` | Normal | Picker: send the marked (or all) entries to the quickfix list | finder | m3 |
+| `<C-q>` | Normal | Picker: send the marked (or all) entries to the list | finder | m3 |
 | `<C-t>` | Normal | Picker: mark or unmark the entry | finder | m3 |
 | `<Tab>` | Insert | Insert and Select mode: jump to the next snippet tabstop (an active snippet; nvim 0.11's default) | core | vim |
 | `<S-Tab>` | Insert | Insert and Select mode: jump to the previous snippet tabstop (Insert mode types a Tab otherwise, as nvim does) | core | vim |
@@ -506,7 +506,7 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | comment | gc and gcc, language aware |
 | autopairs | insert-mode bracket and quote pairing |
 | statusline | mode, file, branch, diagnostics, filetype, position; tabline |
-| bracketed | [b ]b [q ]q [d ]d [h ]h [t ]t [c ]c |
+| bracketed | [b ]b [l ]l [d ]d [h ]h [t ]t [c ]c |
 | harpoon | pinned files per project, <Space>1..9 |
 | move | move a line or selection with Alt-h/j/k/l |
 | jump | label jump: <Space>j, then a character, then a label |

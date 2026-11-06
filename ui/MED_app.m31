@@ -48,6 +48,7 @@ import encoding.json;
 import proc;
 import timer;
 import ui.MED_lsp;
+import ui.MED_lists;
 import ui.MED_pum;
 import ui.MED_glide;
 import ui.MED_picker;
@@ -253,9 +254,8 @@ pub type App {
     int ext_col = 0;
     int ext_tick = 0;
     int ext_buffer = 0;
-    /// The quickfix list and the entry `]q` / `:cnext` last went to.
-    pub List<MED_picker.Entry> quickfix_list = [];
-    pub int quickfix_index = -1;
+    /// The generic lists (docs/LIST.md): the finder's CTRL-Q, `:grep`, `:make`, references and plugins fill them, `:l` and `]l` walk them.
+    pub MED_lists.Store lists = MED_lists.Store();
     /// The argument list (`:args`, `:next`, `:argdo`): the files named on the command line, and where `:next` is.
     pub List<str> arglist = [];
     pub int arg_index = 0;
@@ -1404,8 +1404,18 @@ void App.run_request(str request) {
         start_terminal(arg.trim());
     } else if (name == "Keys") {
         open_picker("help", "");
-    } else if (name == "copen") {
-        open_picker("quickfix", "");
+    } else if (name == "copen" || name == "list" || name == "List") {
+        open_picker("list", arg.trim());
+    } else if (name == "lnext" || name == "ListNext") {
+        go_list(arg.trim(), 1);
+    } else if (name == "lprev" || name == "ListPrev") {
+        go_list(arg.trim(), -1);
+    } else if (name == "lfirst" || name == "ListFirst") {
+        go_list(arg.trim(), 0);
+    } else if (name == "llast" || name == "ListLast") {
+        go_list(arg.trim(), 2);
+    } else if (name == "lclear" || name == "ListClear") {
+        clear_list(arg.trim());
     } else if (name == "cclose") {
         has_picker = false;
     } else if (name == "cdo" || name == "cfdo" || name == "bufdo" || name == "argdo" || name == "windo" || name == "tabdo") {
@@ -1430,21 +1440,21 @@ void App.run_request(str request) {
     } else if (name == "args" || name == "next" || name == "Next" || name == "previous" || name == "first" || name == "rewind" || name == "last" || name == "wnext" || name == "argadd" || name == "argdelete") {
         run_arglist(name, arg, is_forced);
     } else if (name == "cc") {
-        go_quickfix_number(arg.trim());
+        go_list_number(MED_lists.DEFAULT_NAME, arg.trim());
     } else if (name == "clist") {
-        list_quickfix();
+        print_list(MED_lists.DEFAULT_NAME);
     } else if (name == "cwindow") {
-        if (quickfix_list.size() > 0) {
-            open_picker("quickfix", "");
+        if (lists.size(MED_lists.DEFAULT_NAME) > 0) {
+            open_picker("list", "");
         }
     } else if (name == "cnext") {
-        go_quickfix(1);
+        go_list(MED_lists.DEFAULT_NAME, 1);
     } else if (name == "cprevious" || name == "cNext") {
-        go_quickfix(-1);
+        go_list(MED_lists.DEFAULT_NAME, -1);
     } else if (name == "cfirst") {
-        go_quickfix(0);
+        go_list(MED_lists.DEFAULT_NAME, 0);
     } else if (name == "clast") {
-        go_quickfix(2);
+        go_list(MED_lists.DEFAULT_NAME, 2);
     } else if (name == "theme" || name == "colorscheme") {
         run_theme_command(arg.trim());
     } else if (name == "Plugins" || name == "PluginEnable" || name == "PluginDisable") {
@@ -3251,7 +3261,7 @@ TUI_app.Action App.handle_picker(term.Event event) {
                 }
             }
             case Quickfix: {
-                send_to_quickfix();
+                send_to_list();
             }
         }
         if (!has_picker) {
@@ -5759,10 +5769,15 @@ bool App.did_open_list_picker(str name, str arg) {
     } else if (name == "lines") {
         title = "Lines";
         entries = MED_sources.line_entries(editor.buffer.lines, path);
-    } else if (name == "quickfix") {
-        title = "Quickfix";
-        for (MED_picker.Entry one in quickfix_list) {
+    } else if (name == "quickfix" || name == "list") {
+        str which = MED_lists.named(arg);
+        title = list_title(which);
+        for (MED_picker.Entry one in lists.items(which)) {
             entries.push(one);
+        }
+        if (entries.size() == 0) {
+            notice = "The list " + which + " is empty";
+            return false;
         }
     } else if (name == "symbols") {
         title = "Symbols";
@@ -5881,12 +5896,14 @@ bool App.did_open_list_picker(str name, str arg) {
         }
         entries = mapped;
     } else if (name == "diagnostics" || name == "buffer_diagnostics") {
-        title = "Diagnostics";
         entries = diagnostic_entries(name == "buffer_diagnostics");
         if (entries.size() == 0) {
             notice = "No diagnostics";
             return false;
         }
+        lists.replace("diagnostics", entries);
+        open_picker("list", "diagnostics");
+        return false;
     } else {
         notice = "Not supported yet: " + name;
         return false;
@@ -5907,9 +5924,8 @@ bool App.did_open_list_picker(str name, str arg) {
     return true;
 }
 
-/** CTRL-Q in a picker: the marked (or all) entries with a position become the
- * quickfix list, and the list opens. */
-void App.send_to_quickfix() {
+/** CTRL-Q in a picker: the marked (or all) entries with a position become the default list, and the list opens. */
+void App.send_to_list() {
     List<MED_picker.Entry> kept = [];
     for (MED_picker.Entry one in picker.chosen()) {
         if (one.path.size() > 0) {
@@ -5917,50 +5933,62 @@ void App.send_to_quickfix() {
         }
     }
     if (kept.size() == 0) {
-        notice = "Nothing with a position to send to the quickfix list";
+        notice = "Nothing with a position to send to the list";
         return;
     }
-    quickfix_list = kept;
-    quickfix_index = -1;
+    lists.replace(MED_lists.DEFAULT_NAME, kept);
     stop_source();
-    open_picker("quickfix", "");
-    notice = quickfix_list.size().to_str() + " entries in the quickfix list";
+    open_picker("list", "");
+    notice = kept.size().to_str() + " entries in the list";
 }
 
-/** `]q` `[q` `:cnext` `:cprevious` `:cfirst` `:clast` (`how`: 1 next, -1
- * previous, 0 first, 2 last). */
-void App.go_quickfix(int how) {
-    if (quickfix_list.size() == 0) {
-        notice = "E42: No Errors";
-        return;
+/// One `Ctx.list_set` / `list_add` / `list_clear` / `list_open` of a plugin.
+void App.apply_list_op(MED_ext.ListOp operation) {
+    List<MED_picker.Entry> rows = [];
+    for (MED_ext.PickEntry one in operation.entries) {
+        rows.push(MED_picker.Entry(one.text, path: one.path, line: one.line, column: one.column, detail: one.detail, action: one.action));
     }
-    if (how == 1) {
-        quickfix_index = quickfix_index + 1;
-        if (quickfix_index >= quickfix_list.size()) {
-            quickfix_index = 0;
-        }
-    } else if (how == -1) {
-        quickfix_index = quickfix_index - 1;
-        if (quickfix_index < 0) {
-            quickfix_index = quickfix_list.size() - 1;
-        }
-    } else if (how == 0) {
-        quickfix_index = 0;
-    } else {
-        quickfix_index = quickfix_list.size() - 1;
+    if (operation.kind == "set") {
+        lists.replace(operation.name, rows);
+    } else if (operation.kind == "add") {
+        lists.append(operation.name, rows);
+    } else if (operation.kind == "clear") {
+        lists.wipe(operation.name);
+    } else if (operation.kind == "open") {
+        open_picker("list", operation.name);
     }
-    MED_picker.Entry one = quickfix_list[quickfix_index];
-    jump_to(one.path, one.line, one.column);
-    notice = "(" + (quickfix_index + 1).to_str() + " of " + quickfix_list.size().to_str() + ") " + one.text;
 }
 
-/// `:cc [N]`: jump to entry N of the quickfix list (the current entry without N).
-void App.go_quickfix_number(str arg) {
-    if (quickfix_list.size() == 0) {
-        notice = "E42: No Errors";
+/// Go to row `index` of a list and say where it is.
+void App.show_list_row(str name, int index) {
+    List<MED_picker.Entry> rows = lists.items(name);
+    MED_picker.Entry one = rows[index];
+    if (one.path.size() > 0) {
+        jump_to(one.path, one.line, one.column);
+    }
+    notice = "(" + (index + 1).to_str() + " of " + rows.size().to_str() + ") " + one.text;
+}
+
+/** `]l` `[l` `]L` `[L` `:lnext` `:lprev` `:lfirst` `:llast` and `:cnext` ... (`how`: 1 next, -1 previous, 0 first, 2
+ * last; `name` the list, empty for the default one). */
+void App.go_list(str name, int how) {
+    str which = MED_lists.named(name);
+    int index = lists.step(which, how);
+    if (index < 0) {
+        notice = "The list " + which + " is empty";
         return;
     }
-    int number = quickfix_index + 1;
+    show_list_row(which, index);
+}
+
+/// `:cc [N]`: jump to row N of a list (the current row without N).
+void App.go_list_number(str name, str arg) {
+    str which = MED_lists.named(name);
+    if (lists.size(which) == 0) {
+        notice = "The list " + which + " is empty";
+        return;
+    }
+    int number = lists.current(which) + 1;
     if (arg.size() > 0) {
         match (arg.parse_int()) {
             case Some(int given): {
@@ -5972,34 +6000,33 @@ void App.go_quickfix_number(str arg) {
             }
         }
     }
-    if (number < 1) {
-        number = 1;
-    }
-    if (number > quickfix_list.size()) {
-        number = quickfix_list.size();
-    }
-    quickfix_index = number - 1;
-    MED_picker.Entry one = quickfix_list[quickfix_index];
-    jump_to(one.path, one.line, one.column);
-    notice = "(" + number.to_str() + " of " + quickfix_list.size().to_str() + ") " + one.text;
+    show_list_row(which, lists.pick(which, number));
 }
 
-/// `:clist`: every entry, numbered, the current one marked.
-void App.list_quickfix() {
-    if (quickfix_list.size() == 0) {
-        notice = "E42: No Errors";
+/// `:lclear [NAME]`
+void App.clear_list(str name) {
+    lists.wipe(name);
+    notice = "The list " + MED_lists.named(name) + " is cleared";
+}
+
+/// `:clist`: every row of a list, numbered, the current one marked.
+void App.print_list(str name) {
+    str which = MED_lists.named(name);
+    List<MED_picker.Entry> rows = lists.items(which);
+    if (rows.size() == 0) {
+        notice = "The list " + which + " is empty";
         return;
     }
-    List<str> lines = [];
-    for (int position in 0 .. quickfix_list.size()) {
-        MED_picker.Entry one = quickfix_list[position];
+    List<str> out = [];
+    for (int position in 0 .. rows.size()) {
+        MED_picker.Entry one = rows[position];
         str mark = " ";
-        if (position == quickfix_index) {
+        if (position == lists.current(which)) {
             mark = ">";
         }
-        lines.push(mark + (position + 1).to_str() + " " + one.path + ":" + (one.line + 1).to_str() + ":" + (one.column + 1).to_str() + " " + one.text);
+        out.push(mark + (position + 1).to_str() + " " + one.path + ":" + (one.line + 1).to_str() + ":" + (one.column + 1).to_str() + " " + one.text);
     }
-    overlay = lines;
+    overlay = out;
 }
 
 /// Recent files below the project root, newest first.
@@ -6076,7 +6103,7 @@ void App.open_scratch(str title, List<str> lines) {
     notice = title;
 }
 
-/** `:cdo CMD` runs the ex line at each entry of the quickfix list, `:cfdo CMD` once for each file in it (at its first
+/** `:cdo CMD` runs the ex line at each entry of the default list, `:cfdo CMD` once for each file in it (at its first
  * entry), `:bufdo CMD` in each listed buffer, as `:cfirst | CMD | cnext | CMD ...` would; the first line that fails ends
  * it. Nothing is written: add `| update` to the command (or `:wall` afterwards), as in Vim. */
 void App.run_do(str name, str line) {
@@ -6106,12 +6133,12 @@ void App.run_do(str name, str line) {
             window_ids.push(number);
         }
     } else {
-        if (quickfix_list.size() == 0) {
+        if (lists.size(MED_lists.DEFAULT_NAME) == 0) {
             notice = "E42: No Errors";
             return;
         }
         List<str> seen = [];
-        for (MED_picker.Entry one in quickfix_list) {
+        for (MED_picker.Entry one in lists.items(MED_lists.DEFAULT_NAME)) {
             if (name == "cfdo" && seen.contains(one.path)) {
                 continue;
             }
@@ -6143,8 +6170,8 @@ void App.run_do(str name, str line) {
     }
 }
 
-/// Fill the quickfix list from compiler or grep output and go to the first entry (not with `!`).
-void App.fill_quickfix(List<MED_errfmt.Place> places, bool is_forced, str what) {
+/// Fill the default list from compiler or grep output and go to the first entry (not with `!`).
+void App.fill_list(List<MED_errfmt.Place> places, bool is_forced, str what) {
     List<MED_picker.Entry> entries = [];
     for (MED_errfmt.Place one in places) {
         int column = 0;
@@ -6153,20 +6180,19 @@ void App.fill_quickfix(List<MED_errfmt.Place> places, bool is_forced, str what) 
         }
         entries.push(MED_picker.Entry(one.file + ":" + one.line.to_str() + ": " + one.text, path: one.file, line: one.line - 1, column: column));
     }
-    quickfix_list = entries;
-    quickfix_index = -1;
+    lists.replace(MED_lists.DEFAULT_NAME, entries);
     if (entries.size() == 0) {
         notice = what + ": no matches";
         return;
     }
     if (is_forced) {
-        notice = entries.size().to_str() + " entries in the quickfix list";
+        notice = entries.size().to_str() + " entries in the list";
         return;
     }
-    go_quickfix(0);
+    go_list(MED_lists.DEFAULT_NAME, 0);
 }
 
-/** `:make [ARGS]` runs 'makeprg', `:grep ARGS` runs 'grepprg'; the places in their output become the quickfix list.
+/** `:make [ARGS]` runs 'makeprg', `:grep ARGS` runs 'grepprg'; the places in their output become the default list.
  * `:vimgrep /PATTERN/ FILE...` searches the files itself. Files are named as the shell expands them. */
 void App.run_make(str name, str arg, bool is_forced) {
     if (name == "vimgrep" || name == "lvimgrep") {
@@ -6188,7 +6214,7 @@ void App.run_make(str name, str arg, bool is_forced) {
         notice = "E282: cannot run " + line;
         return;
     }
-    fill_quickfix(MED_errfmt.parse(MED_shell.split_lines(ran.text)), is_forced, name);
+    fill_list(MED_errfmt.parse(MED_shell.split_lines(ran.text)), is_forced, name);
 }
 
 /// `:vimgrep /PATTERN/[g][j] FILE...` (the patterns of `:grep` without a program; no `**` expansion).
@@ -6226,7 +6252,7 @@ void App.run_vimgrep(str arg, bool is_forced) {
     for (MED_grep.Hit hit in MED_grep.search(searched, pattern, false)) {
         places.push(MED_errfmt.Place(file: hit.path, line: hit.line + 1, column: hit.column + 1, text: hit.text));
     }
-    fill_quickfix(places, is_forced, "vimgrep");
+    fill_list(places, is_forced, "vimgrep");
 }
 
 /// The ex lines of `-c`, `+CMD` and `-t` (and `:recover` for `-r`), run once the files are read; `-e` then starts Ex mode.
@@ -7351,10 +7377,14 @@ void App.handle_lsp_result(str purpose_and_file, json.Value result) {
             entries.push(place_entry(one));
         }
         root = MED_files.project_root();
-        picker = MED_picker.make(MED_picker.KIND_LIST, "References");
-        if (purpose == "definition") {
-            picker.title = "Definitions";
+        if (purpose == "references") {
+            lists.replace(MED_lists.DEFAULT_NAME, entries);
+            open_picker("list", "");
+            picker.title = "References";
+            notice = entries.size().to_str() + " references in the list";
+            return;
         }
+        picker = MED_picker.make(MED_picker.KIND_LIST, "Definitions");
         picker.set_entries(entries);
         has_picker = true;
         update_preview();
@@ -8632,6 +8662,13 @@ void App.ext_finish(MED_ext.Ctx context) {
         context.has_scratch = false;
         open_scratch(context.scratch_title, context.scratch_lines);
     }
+    if (context.list_ops.size() > 0) {
+        List<MED_ext.ListOp> operations = context.list_ops;
+        context.list_ops = [];
+        for (MED_ext.ListOp one in operations) {
+            apply_list_op(one);
+        }
+    }
     if (context.has_pick_list) {
         context.has_pick_list = false;
         List<MED_picker.Entry> listed = [];
@@ -8876,6 +8913,17 @@ bool App.did_tick_ext(int elapsed_ms) {
     ext_finish(context);
     ext_watch();
     return is_changed;
+}
+
+/// The title of the finder over a list.
+str list_title(str name) {
+    if (name == MED_lists.DEFAULT_NAME) {
+        return "List";
+    }
+    if (name == "diagnostics") {
+        return "Diagnostics";
+    }
+    return "List: " + name;
 }
 
 /// A place the tag stack returns to.

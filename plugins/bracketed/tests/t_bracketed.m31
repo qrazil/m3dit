@@ -35,8 +35,10 @@ match (MED_app.open("")) {
         check.eq_int("[B goes to the first", app.current_id, 1);
         type_text(app, "]B");
         check.eq_int("]B goes to the last", app.current_id, 3);
-        type_text(app, "]q");
-        check.ok("]q with an empty quickfix list is not an error that stops the editor", app.current_id == 3);
+        type_text(app, "]l");
+        check.ok("]l with an empty list is not an error that stops the editor", app.current_id == 3);
+        check.ok("[q is no longer mapped", app.ext.desc_of_keys("n", "[q") == "");
+        check.ok("]q is no longer mapped", app.ext.desc_of_keys("n", "]q") == "");
         check.eq_str("which-key shows the plugin's label", app.ext.desc_of_keys("n", "]b"), "next buffer");
         type_text(app, ":PluginDisable bracketed\r");
         type_text(app, "[b");

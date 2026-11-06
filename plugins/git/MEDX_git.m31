@@ -460,6 +460,34 @@ Result<bool, str> buffer_command(State state, MED_ext.Ctx context, FileInfo info
     }
 }
 
+/// `:Hunk list`: the hunks of this buffer, against the index, as the generic list (docs/LIST.md): `]l` walks them, `:l` shows them.
+Result<bool, str> list_hunks(State state, MED_ext.Ctx context) {
+    str file = context.file;
+    if (file.size() == 0) {
+        return done(context, "No file");
+    }
+    FileInfo info = refresh(state, context, false);
+    if (!info.has_base) {
+        return done(context, "This file is not tracked by git");
+    }
+    List<MED_ext.PickEntry> rows = [];
+    for (int index in 0 .. info.hunks.starts.size()) {
+        int row = info.hunks.starts[index];
+        str shown = "";
+        if (row >= 0 && row < context.line_count()) {
+            shown = context.line(row).trim();
+        }
+        rows.push(MED_ext.PickEntry("hunk " + (index + 1).to_str() + "  +" + info.hunks.counts[index].to_str() + " -" + info.hunks.base_counts[index].to_str() + "  " + shown, path: file, line: row));
+    }
+    if (rows.size() == 0) {
+        context.list_clear("");
+        return done(context, "No hunks");
+    }
+    context.list_set("", rows);
+    context.list_open("");
+    return Result<bool, str>.Ok(true);
+}
+
 /// `:Hunk stage|reset|undo|preview|first|last|next|prev` and the range and buffer forms behind `gh` `gH` `hS` `hR`.
 Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) {
     str word = arguments.trim();
@@ -468,6 +496,9 @@ Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) 
     }
     if (word == "first" || word == "last") {
         return go_end_hunk(state, context, word == "first");
+    }
+    if (word == "list") {
+        return list_hunks(state, context);
     }
     if (word.starts_with("preview-or ")) {
         // the nvim profile's `hp`: the hunk preview in a tracked buffer, else the command after `preview-or`
@@ -479,7 +510,7 @@ Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) 
         return hunk_command(state, context, "preview");
     }
     if (word != "stage" && word != "reset" && word != "undo" && word != "unstage" && word != "preview" && word != "range-stage" && word != "range-reset" && word != "stage-buffer" && word != "reset-buffer") {
-        return done(context, "Hunk: stage, reset, undo, preview, first, last, next or prev");
+        return done(context, "Hunk: stage, reset, undo, preview, list, first, last, next or prev");
     }
     str file = context.file;
     if (file.size() == 0) {

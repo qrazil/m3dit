@@ -52,7 +52,7 @@ switched off at run time with `:PluginDisable`; migrate later, when wanted; none
 | finder | files, grep, recent, symbols: the most used feature after editing | later (needs `pick_stream`) |
 | explorer (file tree) | the sidebar the owner opens with `<Space>e` | later (needs the widget API, slice D) |
 | git (gutter, hunks, `:Git` commands) | gutter signs, `]c [c`, stage and reset a hunk, blame; also the one that carries m31git | later (after finder) |
-| bracketed | `[b ]b [q ]q [d ]d [h ]h [t ]t` pairs, muscle memory | **done, 0.18.0** (`plugins/bracketed`) |
+| bracketed | `[b ]b [l ]l [d ]d [h ]h [t ]t` pairs, muscle memory | **done, 0.18.0** (`plugins/bracketed`) |
 | harpoon | pinned files per project, `<Space>1..9` | **done, 0.18.0** (`plugins/harpoon`) |
 | todo | TODO/FIXME highlight and list | **done, 0.18.0** (`plugins/todo`) |
 | session | cursor position, layout and buffers restored | **done, 0.19.0** (`plugins/session`: positions, recent, visits; `:Session` stays core) |
@@ -90,7 +90,7 @@ is a compiled plugin, "in core code" while its extraction is still open), **OPT-
 | Vim engine: motions, operators, text objects, registers, marks, macros, dot, undo tree, folds, ex subset | CORE | done (nvim oracle, 42k cases) |
 | vi/ex requirements of POSIX (`:args`, tags, `:a :i :c`, Ex mode, `-c` `-t`) | CORE | done, see docs/VI-CORE.md (CTRL-Z, `:stop`, `:shell`, `-s` missing) |
 | Search and substitute, patterns, `:g`, `:v` | CORE | done |
-| Windows, splits, tab pages, buffers, quickfix list, message ring | CORE | done (location lists not planned) |
+| Windows, splits, tab pages, buffers, generic list (was quickfix; docs/LIST.md), message ring | CORE | done (0.25.0; no per-window location list) |
 | Renderer, animation, smooth scroll, resize | CORE | done |
 | Themes (14), transparency | CORE | done |
 | LSP client: diagnostics, hover, definition, references, rename, code action, completion popup, semantic tokens, format | CORE (`lsp` switch) | done (LSP document symbols partial) |
@@ -105,7 +105,7 @@ is a compiled plugin, "in core code" while its extraction is still open), **OPT-
 | Which-key popup (leader menu and prefix help, `:set whichkey`) | CORE (owner, 2026-11-05; on in `default` and `nvim`, off in `minimal`) | done |
 | Statusline extras (branch, hunks, diagnostics, server activity) and the buffer line | DEFAULT PLUGIN `statusline` | done |
 | Git: gutter signs, hunk stage / reset / undo / preview / next / prev, `ih` `ah`, `:Git log show diff blame`, branch | DEFAULT PLUGIN `git` | done (0.21.0, API 0.5.0); word diff and a two-pane diff missing |
-| Bracketed pairs `[b ]b [q ]q [d ]d [h ]h [t ]t` | DEFAULT PLUGIN `bracketed` | done |
+| Bracketed pairs `[b ]b [l ]l [d ]d [h ]h [t ]t` | DEFAULT PLUGIN `bracketed` | done |
 | Harpoon: pinned files | DEFAULT PLUGIN `harpoon` | done |
 | TODO highlight and list | DEFAULT PLUGIN `todo` | done |
 | Notifications (toasts) | DEFAULT PLUGIN `notify` | done |
@@ -544,7 +544,7 @@ its option.
 | Semantic tokens | `MED_semtok` | C | core | tree-sitter | |
 | Format on save (`lspformat`) | `App.lsp_format_before_write` | C | core option | none | must run inside the write path, before `BufferWritePre` handlers |
 | Diagnostics: signs, `]d [d`, `<Space>ll`, picker | `App.diagnostic_*`, `draw_sign` | S | signs and store core; `]d [d` rows in `bracketed`; picker source in `finder` | `nox-trouble` | |
-| Bracketed pairs `[b ]b [q ]q [d ]d [h ]h [t ]t` | `App.did_bracketed` | P | `bracketed` | none | soft dependencies on `git`, `todo`, diagnostics |
+| Bracketed pairs `[b ]b [l ]l [d ]d [h ]h [t ]t` | `App.did_bracketed` | P | `bracketed` | none | soft dependencies on `git`, `todo`, diagnostics |
 | Harpoon `<Space>ha he hn hp hd 1..9` | `App.harpoon_*`, `MED_state` | P | `harpoon` | none | per-project state file |
 | Move line/selection `<A-j/k/h/l>` | `App.did_alt_move` | P | `move` | `nox-move` | needs no new API (section 7, step 2) |
 | Label jump `<Space>j` | `App.handle_jump_key` | P | `jump` | none | needs key capture and an overlay |
@@ -554,7 +554,7 @@ its option.
 | Session: `:Session`, buffers, layout, cursors, last position | `MED_session`, `App.apply_session_*`, `remember_position` | P | `session` | none | needs a layout read/write API |
 | Undo files, project settings, auto-reload, autowrite | `MED_persist`, `MED_projconf`, `App.check_disk` | C | core | none | T2 |
 | Themes, `:theme`, picker with live preview | `MED_theme`, `MED_theme_data` | S | engine core; 10 themes in data plugin `themes` | Helix themes | |
-| Quickfix list `:copen :cnext`, `<C-q>` from pickers | `App.send_to_quickfix`, `go_quickfix` | C | core | `nox-list` | the generic named-list idea becomes `Ctx.set_list(name, items)` on the same store |
+| Generic list (was the quickfix list) `:l :lnext :cnext`, `<C-q>` from pickers | `App.send_to_list`, `go_list`, `ui/MED_lists.m31` | C | core | `nox-list` | done in 0.25.0 (docs/LIST.md); plugins use `Ctx.list_set` on the same store |
 | Messages | command-line message, `:messages` is accepted and ignored (`MED_ex` line 1683) | C | add a message ring and `:messages` to core (a Vim command) | `nox-notify` | the toast stack is the plugin |
 | Mouse, clipboard, cursor shape, focus reporting | `App.handle_mouse`, `MED_clip` | C | core | | |
 
@@ -564,7 +564,7 @@ its option.
 |---|---|---|
 | `nox-notify` (toast stack, levels, message history) | one message line; `:messages` is a no-op | **N**: message ring in core (`:messages`), `Message` event; `notify` plugin draws toasts (needs Float, Tween). Step 11 |
 | `nox-trouble` (diagnostics, grep, todo in one panel) | diagnostics picker `<Space>xx fx`, quickfix picker | **N**, deferred: a persistent panel needs the docked widget (slice D). Until then `finder` covers it |
-| `nox-list` (generic named lists, items with actions, preview) | quickfix (core), pickers with preview | Covered. Add `Ctx.set_list(name, items)` so plugins can fill the quickfix store |
+| `nox-list` (generic named lists, items with actions, preview) | the generic list (core, `ui/MED_lists.m31`), pickers with preview | **Done in 0.25.0** (docs/LIST.md): `Ctx.list_set` / `list_add` / `list_clear` / `list_open` let plugins fill it |
 | `nox-todo` (highlight + `:TodoList`) | both exist, hard-wired in `draw_line` and `MED_sources` | Migration, not new (step 6) |
 | `nox-move` | exists (`did_alt_move`) | Migration (step 2) |
 | `nox-indent` (guides, scope overlay) | guides yes, scope overlay no | Guides stay core; `indentscope` optional later |

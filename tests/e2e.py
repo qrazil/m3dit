@@ -202,11 +202,11 @@ def finder_grep_and_quickfix(binary, root):
         s.send(" sg", settle=0.4)
         s.send("line", settle=0.8)
         assert s.wait_for("hello.txt:3"), "grep hit:\n" + s.text()
-        s.send("\x11", settle=0.5)  # ctrl-q: to the quickfix list
-        assert s.wait_for("Quickfix"), s.text()
+        s.send("\x11", settle=0.5)  # ctrl-q: to the list
+        assert s.wait_for("List"), s.text()
         s.send("\x1b", settle=0.2)
-        s.send("]q", settle=0.3)
-        s.send(":cnext\r", settle=0.3)
+        s.send("]l", settle=0.3)
+        s.send(":lnext\r", settle=0.3)
         assert s.wait_for("of 2") or s.wait_for("of 3"), s.text()
     finally:
         s.close()

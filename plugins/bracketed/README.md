@@ -5,7 +5,7 @@
 | keys | does |
 |---|---|
 | `[b` `]b` / `[B` `]B` | previous, next / first, last buffer (`:bprevious` `:bnext` `:bfirst` `:blast`) |
-| `[q` `]q` / `[Q` `]Q` | previous, next / first, last quickfix entry (`:cprevious` `:cnext` `:cfirst` `:clast`) |
+| `[l` `]l` / `[L` `]L` | previous, next / first, last entry of the default list (`:lprev` `:lnext` `:lfirst` `:llast`; docs/LIST.md). `[q` `]q` `[Q` `]Q` are gone: there is no separate quickfix list |
 | `[t` `]t` | previous, next TODO comment in the buffer (`:Todo prev`, `:Todo next`; the `todo` plugin) |
 | `[h` `]h`, `[c` `]c` | previous, next git hunk (`:Hunk prev`, `:Hunk next`; wraps) |
 | `[d` `]d` | previous, next diagnostic (`:Lsp prev_diag`, `:Lsp next_diag`) |

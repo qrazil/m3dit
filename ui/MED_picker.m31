@@ -4,7 +4,7 @@
  *
  * Kinds: files, buffers, grep (the prompt is the search, not a filter),
  * commands (the palette), help (the keymap), explore (one directory), marks,
- * and list (everything else: recent files, lines, quickfix, git branches and
+ * and list (everything else: recent files, lines, the list, git branches and
  * commits, symbols ... an entry has a file position or an action).
  *
  * Keys (engine key codes): printable characters edit the prompt; Backspace,
@@ -13,7 +13,7 @@
  * cancel; CTRL-H toggles hidden files, Tab (CTRL-I) toggles the ignore rules,
  * CTRL-F toggles fixed-string grep; CTRL-T marks or unmarks the entry (and moves
  * on), CTRL-Q sends the marked entries (all shown ones when none is marked) to
- * the quickfix list; CTRL-S / CTRL-V accept into a new window
+ * the generic list; CTRL-S / CTRL-V accept into a new window
  * below / beside (files, buffers, grep). In the explorer `-` on an empty prompt goes
  * up a directory. */
 
@@ -62,7 +62,7 @@ pub enum Outcome {
     /// Accept, opening the entry in a new window below (CTRL-S) or right (CTRL-V).
     AcceptSplit;
     AcceptVsplit;
-    /// CTRL-Q: the marked entries go to the quickfix list.
+    /// CTRL-Q: the marked entries go to the generic list.
     Quickfix;
 }
 

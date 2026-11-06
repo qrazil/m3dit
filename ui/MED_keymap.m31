@@ -101,7 +101,7 @@ List<Binding> default_rows() {
     tree(rows, "finder", "sm", "Marks", "picker:marks");
     tree(rows, "finder", "sd", "Diagnostics", "picker:diagnostics");
     tree(rows, "finder", "ss", "Symbols in this file", "picker:symbols");
-    tree(rows, "finder", "sq", "Quickfix list", "picker:quickfix");
+    tree(rows, "finder", "sq", "Generic list", "picker:list");
     tree(rows, "finder", "sp", "Plugins", "picker:plugins");
     tree(rows, "core", "sn", "Clear search highlight", "ex:nohlsearch");
     // b: buffers
@@ -145,8 +145,8 @@ List<Binding> default_rows() {
     tree(rows, "lsp", "x", "+lists", "");
     tree(rows, "lsp", "xx", "Diagnostics", "picker:diagnostics");
     tree(rows, "lsp", "xX", "Diagnostics of this buffer", "picker:buffer_diagnostics");
-    tree(rows, "finder", "xQ", "Quickfix list", "picker:quickfix");
-    tree(rows, "finder", "xL", "Location list", "picker:quickfix");
+    tree(rows, "finder", "xQ", "Generic list", "picker:list");
+    tree(rows, "finder", "xL", "Generic list", "picker:list");
     // t: terminal, u: ui toggles, q: quit
     tree(rows, "terminal", "t", "+terminal", "");
     tree(rows, "terminal", "tt", "Terminal", "ex:terminal");
@@ -199,7 +199,7 @@ List<Binding> legacy_rows() {
     rows.push(leaf_row("config", "finder", "fr", "Recent files", "picker:recent"));
     rows.push(leaf_row("config", "finder", "fb", "Buffers", "picker:buffers"));
     rows.push(leaf_row("config", "finder", "fe", "File explorer (picker)", "picker:explore"));
-    rows.push(leaf_row("config", "finder", "fq", "Quickfix list", "picker:quickfix"));
+    rows.push(leaf_row("config", "finder", "fq", "Generic list", "picker:list"));
     rows.push(leaf_row("config", "finder", "fd", "Lines of this buffer", "picker:lines"));
     rows.push(leaf_row("m3", "finder", "fw", "Grep the word under the cursor", "picker:word"));
     rows.push(leaf_row("m3", "finder", "fh", "Help: all keys", "picker:help"));
@@ -232,8 +232,8 @@ List<Binding> legacy_rows() {
     rows.push(leaf_row("config", "lsp", "x", "+trouble", ""));
     rows.push(leaf_row("config", "lsp", "xx", "Diagnostics", "picker:diagnostics"));
     rows.push(leaf_row("config", "lsp", "xX", "Diagnostics of this buffer", "picker:buffer_diagnostics"));
-    rows.push(leaf_row("config", "finder", "xQ", "Quickfix list", "picker:quickfix"));
-    rows.push(leaf_row("config", "finder", "xL", "Location list", "picker:quickfix"));
+    rows.push(leaf_row("config", "finder", "xQ", "Generic list", "picker:list"));
+    rows.push(leaf_row("config", "finder", "xL", "Generic list", "picker:list"));
     rows.push(leaf_row("config", "finder", "cs", "Symbols", "picker:symbols"));
     rows.push(leaf_row("m3", "lsp", "c", "+code", ""));
     rows.push(leaf_row("m3", "lsp", "cr", "Rename symbol", "app:lsp_rename"));
@@ -248,7 +248,7 @@ List<Binding> legacy_rows() {
 
 /// Commands the palette lists besides the leader rows.
 pub List<Binding> commands() {
-    return [Binding("", "Write file", "ex:write"), Binding("", "Write all buffers", "ex:wall"), Binding("", "Write and quit", "ex:wq"), Binding("", "Quit without saving", "ex:quit!"), Binding("", "New empty buffer", "ex:enew"), Binding("", "Undo", "ex:undo"), Binding("", "Redo", "ex:redo"), Binding("", "Show line numbers", "ex:set number"), Binding("", "Hide line numbers", "ex:set nonumber"), Binding("", "Clear search highlight", "ex:nohlsearch"), Binding("", "Reload the file", "ex:edit!"), Binding("", "Sort lines", "ex:sort"), Binding("", "First buffer", "ex:bfirst"), Binding("", "Last buffer", "ex:blast"), Binding("", "New window", "ex:new"), Binding("", "New window on the right", "ex:vnew"), Binding("", "List the built-in plugins", "ex:Plugins"), Binding("", "Pick a colour scheme (theme)", "picker:themes"), Binding("", "Browse every key", "ex:Keys"), Binding("", "Open the quickfix list", "picker:quickfix"), Binding("", "Open a terminal", "ex:terminal")];
+    return [Binding("", "Write file", "ex:write"), Binding("", "Write all buffers", "ex:wall"), Binding("", "Write and quit", "ex:wq"), Binding("", "Quit without saving", "ex:quit!"), Binding("", "New empty buffer", "ex:enew"), Binding("", "Undo", "ex:undo"), Binding("", "Redo", "ex:redo"), Binding("", "Show line numbers", "ex:set number"), Binding("", "Hide line numbers", "ex:set nonumber"), Binding("", "Clear search highlight", "ex:nohlsearch"), Binding("", "Reload the file", "ex:edit!"), Binding("", "Sort lines", "ex:sort"), Binding("", "First buffer", "ex:bfirst"), Binding("", "Last buffer", "ex:blast"), Binding("", "New window", "ex:new"), Binding("", "New window on the right", "ex:vnew"), Binding("", "List the built-in plugins", "ex:Plugins"), Binding("", "Pick a colour scheme (theme)", "picker:themes"), Binding("", "Browse every key", "ex:Keys"), Binding("", "Open the list", "picker:list"), Binding("", "Open a terminal", "ex:terminal")];
 }
 
 /* One prefix row as text: "SEQUENCE|label". A control key is spelled `^W` and
@@ -327,7 +327,7 @@ pub List<Binding> enabled(List<Binding> table, List<str> disabled) {
 
 /// Notes that the help lists but nothing runs.
 pub List<Binding> notes() {
-    return [Binding("jk", "Insert mode: leave to Normal mode (:set nojk_escape turns it off)", "", plugin: "core", mode: "i", source: "config", is_full: true), Binding("<Space>", "Normal mode: leader key", "", source: "config", is_full: true), Binding("<C-^>", "Normal mode: alternate buffer", "", source: "vim", is_full: true), Binding("<A-j>/<A-k>", "Normal and Visual: move the line or selection down / up", "", plugin: "move", is_full: true), Binding("<A-h>/<A-l>", "Normal and Visual: shift the line or selection left / right", "", plugin: "move", is_full: true), Binding("<C-q>", "Picker: send the marked (or all) entries to the quickfix list", "", plugin: "finder", is_full: true), Binding("<C-t>", "Picker: mark or unmark the entry", "", plugin: "finder", is_full: true), Binding("<Tab>", "Insert and Select mode: jump to the next snippet tabstop (an active snippet; nvim 0.11's default)", "", mode: "i", source: "vim", is_full: true), Binding("<S-Tab>", "Insert and Select mode: jump to the previous snippet tabstop (Insert mode types a Tab otherwise, as nvim does)", "", mode: "i", source: "vim", is_full: true), Binding("<Tab>", "Insert mode: expand the snippet whose prefix stands before the cursor (snippets.json, VS Code format, next to the keymap file)", "", mode: "i", is_full: true), Binding("<C-Space>", "Insert mode: ask the language server for completions (a picker; with :set lspcomplete=auto the popup)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<Tab>/<C-n>/<Down>", "Insert mode, completion popup open: select the next item (past the last one nothing is selected)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<S-Tab>/<C-p>/<Up>", "Insert mode, completion popup open: select the previous item", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<C-y>/<CR>", "Insert mode, completion popup open: accept the selected item (<CR> with nothing selected is a line break)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<C-e>", "Insert mode, completion popup open: close it and keep what was typed (<Esc> closes it and leaves Insert mode)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("Select", "Select mode (after a jump onto a placeholder): a typed character or <CR> replaces it, <BS> and <Del> remove it, <Esc> leaves, <C-g> turns it into Visual mode", "", mode: "i", source: "vim", is_full: true)];
+    return [Binding("jk", "Insert mode: leave to Normal mode (:set nojk_escape turns it off)", "", plugin: "core", mode: "i", source: "config", is_full: true), Binding("<Space>", "Normal mode: leader key", "", source: "config", is_full: true), Binding("<C-^>", "Normal mode: alternate buffer", "", source: "vim", is_full: true), Binding("<A-j>/<A-k>", "Normal and Visual: move the line or selection down / up", "", plugin: "move", is_full: true), Binding("<A-h>/<A-l>", "Normal and Visual: shift the line or selection left / right", "", plugin: "move", is_full: true), Binding("<C-q>", "Picker: send the marked (or all) entries to the list", "", plugin: "finder", is_full: true), Binding("<C-t>", "Picker: mark or unmark the entry", "", plugin: "finder", is_full: true), Binding("<Tab>", "Insert and Select mode: jump to the next snippet tabstop (an active snippet; nvim 0.11's default)", "", mode: "i", source: "vim", is_full: true), Binding("<S-Tab>", "Insert and Select mode: jump to the previous snippet tabstop (Insert mode types a Tab otherwise, as nvim does)", "", mode: "i", source: "vim", is_full: true), Binding("<Tab>", "Insert mode: expand the snippet whose prefix stands before the cursor (snippets.json, VS Code format, next to the keymap file)", "", mode: "i", is_full: true), Binding("<C-Space>", "Insert mode: ask the language server for completions (a picker; with :set lspcomplete=auto the popup)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<Tab>/<C-n>/<Down>", "Insert mode, completion popup open: select the next item (past the last one nothing is selected)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<S-Tab>/<C-p>/<Up>", "Insert mode, completion popup open: select the previous item", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<C-y>/<CR>", "Insert mode, completion popup open: accept the selected item (<CR> with nothing selected is a line break)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<C-e>", "Insert mode, completion popup open: close it and keep what was typed (<Esc> closes it and leaves Insert mode)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("Select", "Select mode (after a jump onto a placeholder): a typed character or <CR> replaces it, <BS> and <Del> remove it, <Esc> leaves, <C-g> turns it into Visual mode", "", mode: "i", source: "vim", is_full: true)];
 }
 
 /** Whether `typed` names a leaf, a prefix of longer sequences, or nothing.

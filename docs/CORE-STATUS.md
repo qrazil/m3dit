@@ -22,8 +22,8 @@ Each bullet of the CORE paragraph.
 | LSP: document symbols and workspace symbols from the server | missing | `:Symbols` is a lexical outline (MED_sources.symbol_entries); textDocument/documentSymbol and workspace/symbol are not requested; also no typeDefinition, implementation, declaration, call hierarchy |
 | Picker primitive and core sources (files, buffers, grep, lines, help/keys, commands, options, marks, registers, quickfix, themes, recent, symbols, todos) | done+tested | tests/t_picker.m31, t_sources.m31, finder_pty.py, finder_variants_pty.py, screen_pty `finder_*` `command_palette` `keys_browser`; `:Registers` is new: core_pty `registers_picker` |
 | Directory buffer (`:Explore`, `m3 DIR`) | done+tested | screen_pty `explore_directory`; core_pty `directory_argument_and_clean` (new: `m3 .` opens the listing, it used to exit 1) |
-| Quickfix list | done+tested | e2e `finder_grep_and_quickfix`; core_pty `quickfix_commands` (new: `:cc N`, `:clist`, `:cwindow`) |
-| Location list (`:lopen` `:lnext` ...) | deferred | one list for the editor; a per-window list adds nothing m3 produces (decision: not built) |
+| Generic list (was the quickfix list; docs/LIST.md) | done+tested (0.25.0) | `tests/t_list.m31`; e2e `finder_grep_and_quickfix`; core_pty `quickfix_commands` (the `:c*` aliases) |
+| Location list (`:lopen` `:lnext` ...) | folded in (0.25.0) | `:lnext` `:lprev` `:lfirst` `:llast` `:lclear` work on the one list store; `:lopen` and a per-window list do not exist |
 | Message ring and `:messages` | done+tested | core_pty `messages_ring` (new: `:messages` was a no-op; now a 200 line ring, `:messages clear`; messages and notices are logged once each) |
 | Snippets (LSP grammar, user snippets file) | done+tested | tests/t_snippet.m31, t_snippet_run + oracle_snippet.py against nvim vim.snippet, e2e `snippets_tab_select` |
 | Undo files | done+tested | tests/t_undofile.m31, e2e `undofile_persists` |
@@ -137,6 +137,25 @@ The brief's section (d).
 | `--version`, `--help`, `--completions bash\|zsh\|fish`, short forms `--k`, Oro refusals, exit statuses 0/1/2 | done+tested | tests/test_entry_cli.sh (about 60 checks); the grammar is `args` from m31, the same as mgit/1git; deprecated `-u` `-v` `-h` still warn and work |
 | Plugin options naming (`harpoon_max`) | done untested | plugins branch |
 
+## Deliberate divergences from vim/nvim
+
+m3 takes ideas from nvim and helix and does not copy their mistakes or their unwanted features. The nvim oracle corpus (`tests/oracles`) stays the
+regression reference for the vi core, not a mandate. A divergence is listed here, and the oracle cases it changes are in
+`tests/oracles/known_divergences.txt` with the reason: none is hidden. Every default below can be rebound.
+
+| divergence | vim / nvim | m3 | oracle |
+|---|---|---|---|
+| `:l`, `:list` (0.25.0) | print lines unambiguously, as `:set list` shows them; with a range, the cursor goes to the last line | open the generic list (`:l NAME`); a range is ignored. The print is still shown by `:set list` | 7 corpus cases (`:list`, `:1,2l`, `:2l`, `:2,3l`) in known_divergences.txt, reason "intentional" |
+| `:lnext` `:lprev` `:lfirst` `:llast` `:lclear`, `:List*` | the location list of the current window | the generic list (default name `quickfix`); `:lopen`, `:lolder`, `:lwindow` do not exist; `:ll` is `:llast` | none in the corpus |
+| `[q` `]q` `[Q` `]Q` | nvim 0.11 maps quickfix prev / next / first / last | not mapped; `[l` `]l` `[L` `]L` walk the default list | none (keys are not in the corpus) |
+| one list store | quickfix and per-window location lists | a single store of named lists | none |
+| Select mode `gh` `gH` | Select-mode starters | git hunk operators (0.23.0) | none |
+| `Q` | Ex mode (vim) / replay macro (nvim 0.11) | follows nvim 0.11; Ex mode is `gQ` | matches nvim |
+
+Proposed for dropping (nothing removed; the owner decides): the `:z` and `:#` page printers, `:=`, the Ex-mode entry `gQ` / `:visual` dance, and
+the remaining `[` / `]` chords that exist only for vi's C-source navigation. No part of m3's own design depends on them. The location-list commands
+`:lopen :lwindow :lolder :lnewer` are not ported (no second store).
+
 ## Choices made without the owner
 
 | choice | why |
@@ -145,7 +164,7 @@ The brief's section (d).
 | Non-UTF-8 text opens as Latin-1 | It is the last entry of nvim's default `fileencodings` and the only single-byte encoding that round-trips every byte |
 | `m3 DIR` opens the listing | nvim does (netrw); exiting 1 was the worse behaviour |
 | OSC 52 is on when no clipboard tool exists | the terminal decides; `M3_NO_OSC52=1` turns it off; reading the clipboard through OSC 52 is never done |
-| One quickfix list, no location list | m3 produces one list (picker CTRL-Q, LSP); a per-window list is a second store for nothing |
+| One list store, no per-window location list | m3 produces lists (picker CTRL-Q, `:grep`, LSP, hunks, plugins) and a second store would hold nothing the first cannot; the `:l*` commands are the generic list's (0.25.0) |
 | User commands may be abbreviated when the prefix is unique, as in Vim | the corpus compares it |
 | `:augroup!` removes nothing | nvim 0.11 keeps the deleted group's autocommands running; the corpus compares it |
 | Options the engine does not read are accepted and stored, and docs/OPTIONS.md lists them | a `:set` in a user's init file must not stop at E518 because of an option m3 has no use for |

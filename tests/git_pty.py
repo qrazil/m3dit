@@ -179,6 +179,12 @@ def hunk_stage_and_undo(binary, root):
         s.send(":Hunk undo\r", 0.8)
         assert "Hunk unstaged" in s.text(), s.text()
         assert git(root, "diff", "--cached").strip() == ""
+        s.send(":Hunk list\r", 0.8)       # the hunks are rows of the generic list
+        assert "hunk 1" in s.text() and "hunk 2" in s.text(), s.text()
+        s.send("\x1b", 0.3)
+        s.send("gg:lnext\r", 0.5)
+        s.send(":lnext\r", 0.5)
+        assert "(2 of 2)" in s.text(), s.text()
         s.send("5G:Hunk preview\r", 0.6)
         assert "-five" in s.text() and "+changed 5" in s.text(), s.text()
         s.send("\x1b", 0.3)

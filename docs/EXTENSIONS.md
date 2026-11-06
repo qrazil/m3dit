@@ -1,6 +1,6 @@
 # Extending m3
 
-Status: API 0.6.0, experimental (the plugin layer is section 0, what 0.3.0 to 0.6.0 added is sections 0.1 to 0.4; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.7.0, experimental (the plugin layer is section 0, what 0.3.0 to 0.7.0 added is sections 0.1 to 0.5; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
@@ -133,6 +133,20 @@ Additive; `0.5` plugins are refused until rebuilt (`Spec` defaults to `0.6`). Th
 | `Ctx.open_path(path, how)` | open a path here (0), in a window below (1) or beside (2) | explorer |
 | `Ctx.rename_buffer(from, to)` | the buffer of `from` is now the file `to` (a rename in the tree) | explorer |
 | `Ctx.working_directory()` | the editor's working directory | explorer |
+
+### 0.5 API 0.7.0 (m3 0.25.0): the generic list
+
+Additive; `0.6` plugins are refused until rebuilt (`Spec` defaults to `0.7`). A plugin fills the core's lists (docs/LIST.md); the host keeps
+the store, walks it with `:lnext` / `]l` and shows it in the finder.
+
+| addition | what it is | used by |
+|---|---|---|
+| `Ctx.list_set(name, rows)` | give list `name` (empty: the default list) new `PickEntry` rows; no row is current | git (`:Hunk list`) |
+| `Ctx.list_add(name, rows)` | add rows to the end | |
+| `Ctx.list_clear(name)` | empty the list | git |
+| `Ctx.list_open(name)` | open the list in the finder, with its preview | git |
+
+The calls are recorded in order and applied when the handler returns, as `pick_list` is.
 
 ## 1. What an extension is
 

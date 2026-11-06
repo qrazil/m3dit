@@ -277,7 +277,7 @@ def quickfix_commands(binary, root):
         assert s.wait_for("one"), s.text()
         s.send(" sb", settle=0.8)
         assert s.wait_for("Lines"), s.text()
-        s.send("\x11", settle=0.6)  # CTRL-Q: every entry to the quickfix list
+        s.send("\x11", settle=0.6)  # CTRL-Q: every entry to the list
         s.send("\x1b", settle=0.4)
         s.send(":clist\r", settle=0.5)
         text = s.text()
@@ -288,7 +288,7 @@ def quickfix_commands(binary, root):
         s.send(":cc 1\r", settle=0.5)
         assert "(1 of 3)" in s.text(), s.text()
         s.send(":cwindow\r", settle=0.6)
-        assert "Quickfix" in s.text(), s.text()
+        assert "List" in s.text(), s.text()
     finally:
         s.close()
 

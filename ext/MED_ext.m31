@@ -67,9 +67,9 @@ import ui.MED_theme;
 /** The API version: major.minor.patch. While the major is 0 a plugin built for 0.M.p runs on a host 0.M.q with
  * p <= q (a patch only adds) and another minor is refused; from 1.0 only the major breaks and a minor adds. */
 pub const int API_MAJOR = 0;
-pub const int API_MINOR = 6;
+pub const int API_MINOR = 7;
 pub const int API_PATCH = 0;
-pub const str API_VERSION = "0.6.0";
+pub const str API_VERSION = "0.7.0";
 /// `Ctx.mode()` of Normal mode (0.5.0).
 pub const int MODE_NORMAL = 0;
 /// The longest `context.run` may block the editor.
@@ -407,6 +407,14 @@ pub type PickEntry {
     pub str action = "";
 }
 
+/** One change to a generic list (0.7.0, docs/LIST.md): `kind` is "set", "add", "clear" or "open", `name` the list (empty for the
+ * default one) and `entries` the rows for "set" and "add". */
+pub type ListOp {
+    pub str kind;
+    pub str name = "";
+    pub List<PickEntry> entries = [];
+}
+
 /// The preview of a finder entry whose `detail` a plugin owns (0.5.0, `did_preview`): the lines to show.
 pub interface PreviewFn {
     List<str> lines(Ctx context, str detail);
@@ -586,7 +594,7 @@ pub type Spec {
     pub str name;
     pub str summary = "";
     pub int api_major = 0;
-    pub int api_minor = 6;
+    pub int api_minor = 7;
     pub int api_patch = 0;
     /// Not registered unless every one of these is built in and on.
     pub List<str> requires = [];
@@ -2184,6 +2192,8 @@ pub type Ctx {
     pub str pick_list_title = "";
     pub List<PickEntry> pick_list_entries = [];
     pub int pick_list_line = -1;
+    /// `list_set` / `list_add` / `list_clear` / `list_open` were called (0.7.0), in order.
+    pub List<ListOp> list_ops = [];
     /// `focus_panel` / `blur_panel` were called (0.6.0).
     pub bool has_panel_focus = false;
     pub bool has_panel_blur = false;
@@ -2617,6 +2627,26 @@ pub void Ctx.pick_list(str title, List<PickEntry> entries, int selected_line) {
     pick_list_title = title;
     pick_list_entries = entries;
     pick_list_line = selected_line;
+}
+
+/// Give the generic list `name` (empty: the default one, the one `:cnext` and `]l` walk) new rows, none of them current (0.7.0).
+pub void Ctx.list_set(str name, List<PickEntry> entries) {
+    list_ops.push(ListOp("set", name: name, entries: entries));
+}
+
+/// Add rows to the end of the generic list `name` (0.7.0).
+pub void Ctx.list_add(str name, List<PickEntry> entries) {
+    list_ops.push(ListOp("add", name: name, entries: entries));
+}
+
+/// Empty the generic list `name` (0.7.0).
+pub void Ctx.list_clear(str name) {
+    list_ops.push(ListOp("clear", name: name));
+}
+
+/// Open the generic list `name` in the finder, with its preview (0.7.0).
+pub void Ctx.list_open(str name) {
+    list_ops.push(ListOp("open", name: name));
 }
 
 /// The first and last row the last plugin operator (`gh{motion}`, `gH{motion}`) covered; [-1, -1] before any (0.5.0).

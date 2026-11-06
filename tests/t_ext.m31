@@ -38,13 +38,13 @@ void type_text(MED_app.App app, str text) {
 MED_check.Check check = MED_check.Check();
 MED_ext.Registry api = MED_ext.Registry();
 // version and compatibility
-check.eq_str("version", MED_ext.version(), "0.6.0");
-check.ok("same version is compatible", MED_ext.is_compatible(0, 6));
-check.ok("0.x: another minor is not", !MED_ext.is_compatible(0, 1) && !MED_ext.is_compatible(0, 3) && !MED_ext.is_compatible(0, 5));
+check.eq_str("version", MED_ext.version(), "0.7.0");
+check.ok("same version is compatible", MED_ext.is_compatible(0, 7));
+check.ok("0.x: another minor is not", !MED_ext.is_compatible(0, 1) && !MED_ext.is_compatible(0, 3) && !MED_ext.is_compatible(0, 5) && !MED_ext.is_compatible(0, 6));
 check.ok("another major is not", !MED_ext.is_compatible(1, 0));
-check.ok("0.x: an older patch runs", MED_ext.is_compatible_with(0, 6, 0));
-check.ok("0.x: a newer patch than the host does not", !MED_ext.is_compatible_with(0, 6, 1));
-check.ok("0.x: a negative patch does not", !MED_ext.is_compatible_with(0, 6, -1));
+check.ok("0.x: an older patch runs", MED_ext.is_compatible_with(0, 7, 0));
+check.ok("0.x: a newer patch than the host does not", !MED_ext.is_compatible_with(0, 7, 1));
+check.ok("0.x: a negative patch does not", !MED_ext.is_compatible_with(0, 7, -1));
 // the default build has no extension
 MED_ext.Registry none = MED_ext.Registry();
 MED_ext_enabled.install(none);
@@ -92,18 +92,18 @@ check.eq_str("command saw arguments", main_context.notice, "hello world");
 check.ok("unknown command", !api.did_run_command("Nope", main_context, "", false));
 // consumption: Ok(false) stops later handlers
 MED_ext.Registry stop = MED_ext.Registry();
-stop.did_declare("Gate", "x", 0, 6);
+stop.did_declare("Gate", "x", 0, 7);
 Probe after = Probe();
 stop.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => Result<bool, str>.Ok(false));
-stop.did_declare("Late", "x", 0, 6);
+stop.did_declare("Late", "x", 0, 7);
 stop.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => hit(after, info));
 check.eq_int("consumed event stops dispatch", stop.fire(MED_ext.Event.Tick, MED_ext.context(stop, editor, ""), MED_ext.Info()), 1);
 check.eq_int("later handler did not run", after.runs, 0);
 // error isolation: Err is reported, three in a row switch the extension off, others keep running
 MED_ext.Registry broken = MED_ext.Registry();
-broken.did_declare("Bad", "x", 0, 6);
+broken.did_declare("Bad", "x", 0, 7);
 broken.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => Result<bool, str>.Err("boom"));
-broken.did_declare("Good", "x", 0, 6);
+broken.did_declare("Good", "x", 0, 7);
 Probe good = Probe();
 broken.did_hook(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => hit(good, info));
 MED_ext.Ctx bad_context = MED_ext.context(broken, editor, "");
@@ -118,7 +118,7 @@ check.ok("problems name the extension", broken.take_problems()[0] == "ext Bad: b
 // edits go through editor.change, one undo step per handler, bounds are checked
 MED_editor.Editor text = MED_editor.new("abc  \ndef  \n");
 MED_ext.Registry edits = MED_ext.Registry();
-edits.did_declare("Edit", "x", 0, 6);
+edits.did_declare("Edit", "x", 0, 7);
 edits.did_hook(MED_ext.Event.BufferWritePre, (MED_ext.Ctx context, MED_ext.Info info) => MEDX_trim_whitespace.trim_all(context));
 MED_ext.Ctx edit_context = MED_ext.context(edits, text, "");
 check.ok("can edit when no block is open", edit_context.can_edit());
@@ -144,7 +144,7 @@ api.put_segment("Alpha.git", "");
 check.eq_str("segment removed", api.segments(), "3 todo");
 // a job that ends: lines reach the JobFn
 MED_ext.Registry jobs = MED_ext.Registry();
-jobs.did_declare("Jobs", "x", 0, 6);
+jobs.did_declare("Jobs", "x", 0, 7);
 Probe job_probe = Probe();
 jobs.did_job("echo", (MED_ext.Ctx context, str job, List<str> lines) => job_done(job_probe, lines));
 MED_ext.Ctx job_context = MED_ext.context(jobs, text, "");

@@ -60,7 +60,7 @@ Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119).
 | `:s` with `&` `~` `\1` `\u` `\U`, flags `g c`, `:&` `:&&` `:~` `g&` `&` | done+tested | corpus 119 |
 | `:g`, `:v` (and `:g!`) | done+tested | corpus 118, 119 |
 | `:k`, `:ma[rk]` | done+tested | corpus 118 |
-| `:z`, `:=`, `:#`, `:nu`, `:p`, `:l` | done+tested | corpus 119 (`:z+ - . ^ =` and counts) |
+| `:z`, `:=`, `:#`, `:nu`, `:p` (`:l` is the generic list since 0.25.0) | done+tested | corpus 119 (`:z+ - . ^ =` and counts) |
 | `:r file`, `:r !cmd`, `:{range}!cmd` filters, `:!` | done+tested | corpus 118 |
 | `:e!`, `:e #`, `:f[ile]` | done+tested (`:file` new) | `:file NAME` renames the buffer |
 | `:@x`, `:*x` | done+tested | corpus 119 |
@@ -69,7 +69,7 @@ Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119).
 | `:pre[serve]` | done (new) | writes the recovery files now; message "Preserved" |
 | `:rec[over]` | done+tested | older; `-r` calls it |
 | `:ta[g]`, `:ts[elect]`, `:tj[ump]`, `:tn[ext]`, `:tp[revious]`, `:tN`, `:tr[ewind]`, `:tl[ast]`, `:po[p]`, `:tags` | done+tested (new) | `t_vi`; see Tags |
-| `:gr[ep]`, `:vim[grep]`, `:mak[e]` (and `l` forms) | done+tested (new) | fill the quickfix list; see below |
+| `:gr[ep]`, `:vim[grep]`, `:mak[e]` (and `l` forms) | done+tested (new) | fill the default list (docs/LIST.md); see below |
 | `:vi[sual]`, `gQ` (Ex mode) | done+tested (new) | see Ex mode; vi's `Q` is **divergence kept** (below) |
 | `:st[op]`, `:su[spend]`, `CTRL-Z` | missing | needs the terminal library to raise SIGTSTP and restore the screen on SIGCONT: **m31 request**: signals (`SIGTSTP`/`SIGCONT` handlers or `os.raise`), the same blocker as `docs/M31-ON-TRAP-REQUEST.md` |
 | `:sh[ell]` | missing | would run `$SHELL` with the terminal handed over (needs a terminal suspend/resume in tui); the `terminal` plugin's `:terminal` is the m3 way |
@@ -90,7 +90,7 @@ sorted files (the files are scanned linearly), `tagcase`, `taglength`, `:tselect
 `:make [args]` runs 'makeprg', `:grep args` runs 'grepprg' (`$*` is replaced by the arguments); the output is read as `file:line:col: text`,
 `file:line: text` or `file(line,col): text` (`engine/MED_errfmt.m31`, **'errorformat' is not read**) and becomes the quickfix list; the first
 entry is jumped to (not with `!`). `:vimgrep /pat/ files` searches the named files itself (smart-case, files as the shell expands them, no `**`).
-`:lgrep`, `:lvimgrep`, `:lmake` are the same (there is one list, `docs/CORE-STATUS.md`).
+`:lgrep`, `:lvimgrep`, `:lmake` are the same (there is one list store, docs/LIST.md; since 0.25.0 the list is the generic one and `:l` / `:lnext` ... walk it).
 
 ## Ex mode
 
