@@ -333,3 +333,18 @@ keys cannot work in m3 yet (G4); his gitsigns shows blame at the end of the line
 * The statement that jdtls support is limited (G3) and that `keymaps.lua` shadows surround's `sh` (G8) were not run; both are marked.
 * Not checked: whether the m3 `explorer` already handles a `Rename` that notifies LSP (it does not send anything: grep of `MED_lsp` for
   `willRename` finds nothing); whether `:Formatter` supports in-place formatters (G10).
+
+## Owner decisions (2026-11-05)
+
+These answer D1 to D8 above and override the recommendations where they differ.
+
+| | Decision |
+|---|---|
+| D1 | No DAP for now. Revisit after a stable release; it is not part of v1. |
+| D2 | Miller columns and the git dashboard are wanted, not "not planned". Both become planned features (the dashboard needs the git write operations of F6; miller columns need the explorer panel API). |
+| D3 | `words` and `toggles` are on by default. |
+| D4 | Core `:diffthis` first, the diff plugin second. |
+| D5 | An LSP installer is a must, because it will raise adoption. This reverses the earlier "no LSP installer" decision: `:Lsp doctor` stays as the diagnostic, an installer (`:Lsp install <server>`, per-filetype suggestions, registry of known servers) is added and scheduled with the LSP milestone. |
+| D6 | jdtls and Java specifics come after DAP, in v2 or a 1.x release. |
+| D7 | The engine gains a text-object registry, in its own oracle-gated milestone. |
+| D8 | Key collisions get fixed. In the `nvim` profile his config wins. m3's Harpoon remove moves off `<Space>hd`; his `<leader>hd` is gitsigns "Diff This" (diff the file against the index), `<leader>hD` is "Diff Against Base" (`diffthis("~")`), `<leader>hp` previews the hunk. |
