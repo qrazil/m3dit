@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.25.0
+
+The generic list, and extension API 0.7.0 (docs/LIST.md). The quickfix list is not a store of its own any more: it is the list named `quickfix` in a core
+service of named lists, which the finder's `<C-q>`, `:grep` / `:vimgrep` / `:make`, LSP references and diagnostics, the git hunks and any plugin fill.
+It follows the nox `nox-list` plugin, cut down to what the editor needs.
+
+- **Commands**: `:l [NAME]`, `:list`, `:List` open a list in the finder (with its preview); `:lnext :lprev :lfirst :llast :lclear` (long forms `:ListNext
+  :ListPrev :ListFirst :ListLast :ListClear`) walk and empty it. `:cc :clist :cwindow :copen :cnext :cprevious :cfirst :clast :cdo :cfdo` stay as thin aliases on the
+  default list. `:lgrep` `:lvimgrep` `:lmake` fill the same list as `:grep` `:vimgrep` `:make`.
+- **Keys**: `[l ]l` previous / next and `[L ]L` first / last row of the default list (the `bracketed` plugin). `<Space>sq`, `<Space>fq`, `<Space>xQ` and
+  `<Space>xL` open the list (rebindable; the `nvim` profile keeps its keys).
+- **Git**: `:Hunk list` puts the hunks of the buffer in the list.
+- **Plugin API 0.7.0**: `Ctx.list_set`, `list_add`, `list_clear`, `list_open`. Plugins built for 0.6 are refused until rebuilt.
+- **Migration** (breaking, on purpose):
+  - `:l` and `:list` no longer print lines "as `:set list`" and ignore a range; they open the list. (`:set list` is unchanged.) Seven oracle cases are in
+    `tests/oracles/known_divergences.txt` as intentional.
+  - `[q ]q [Q ]Q` are gone, from the `bracketed` plugin and from docs/KEYMAP.md; they are unmapped. Use `]l [l ]L [L`, or map them back:
+    `:nnoremap ]q :lnext<CR>`.
+  - `:ll` is `:llast` here; `:lopen`, `:lwindow`, `:lolder`, `:lnewer` do not exist. There was no location list before, so nothing that worked stopped.
+  - The finder's CTRL-Q footer says `^Q list`; the actions `picker:quickfix` and `picker:list` both open the list.
+  - API: `Spec` defaults to minor 7; rebuild plugins.
+- docs/CORE-STATUS.md has a new section, "Deliberate divergences from vim/nvim".
+
 ## 0.24.0
 
 The `explorer` plugin, and extension API 0.6.0. The file tree sidebar left the core: `ui/MED_tree.m31` and about 600 lines of `ui/MED_app.m31` (layout, keys, mouse,
