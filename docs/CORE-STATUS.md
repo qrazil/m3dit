@@ -139,22 +139,29 @@ The brief's section (d).
 
 ## Deliberate divergences from vim/nvim
 
-m3 takes ideas from nvim and helix and does not copy their mistakes or their unwanted features. The nvim oracle corpus (`tests/oracles`) stays the
+m3 takes ideas from nvim and helix and does not copy their mistakes or their unwanted features, and leans toward divergence when there is a good reason (better or new functionality, a better default, a simpler design, performance): parity is a means, not a goal. The nvim oracle corpus (`tests/oracles`) stays the
 regression reference for the vi core, not a mandate. A divergence is listed here, and the oracle cases it changes are in
-`tests/oracles/known_divergences.txt` with the reason: none is hidden. Every default below can be rebound.
+`tests/oracles/divergences.tsv` (the single source; this table is generated from it) or, for a single case that is an artifact of the headless harness, `known_divergences.txt`: none is hidden. Every default below can be rebound.
 
-| divergence | vim / nvim | m3 | oracle |
-|---|---|---|---|
-| `:l`, `:list` (0.25.0) | print lines unambiguously, as `:set list` shows them; with a range, the cursor goes to the last line | open the generic list (`:l NAME`); a range is ignored. The print is still shown by `:set list` | 7 corpus cases (`:list`, `:1,2l`, `:2l`, `:2,3l`) in known_divergences.txt, reason "intentional" |
-| `:lnext` `:lprev` `:lfirst` `:llast` `:lclear`, `:List*` | the location list of the current window | the generic list (default name `quickfix`); `:lopen`, `:lolder`, `:lwindow` do not exist; `:ll` is `:llast` | none in the corpus |
-| `[q` `]q` `[Q` `]Q` | nvim 0.11 maps quickfix prev / next / first / last | not mapped; `[l` `]l` `[L` `]L` walk the default list | none (keys are not in the corpus) |
-| one list store | quickfix and per-window location lists | a single store of named lists | none |
-| Select mode `gh` `gH` | Select-mode starters | git hunk operators (0.23.0) | none |
-| `Q` | Ex mode (vim) / replay macro (nvim 0.11) | follows nvim 0.11; Ex mode is `gQ` | matches nvim |
+<!-- divergences:begin -->
 
-Proposed for dropping (nothing removed; the owner decides): the `:z` and `:#` page printers, `:=`, the Ex-mode entry `gQ` / `:visual` dance, and
-the remaining `[` / `]` chords that exist only for vi's C-source navigation. No part of m3's own design depends on them. The location-list commands
-`:lopen :lwindow :lolder :lnewer` are not ported (no second store).
+Generated from `tests/oracles/divergences.tsv` by `python3 scripts/divergences.py --write docs/CORE-STATUS.md`; edit the tsv, not this table.
+
+| id | vim / nvim | m3 | reason | oracle |
+|---|---|---|---|---|
+| `list-print` | `:l` / `:list` print lines unambiguously (like `:set list`); with a range the cursor goes to the last line of it | `:l [NAME]` and `:list` open the generic list; a range is ignored; `:set list` is the way to see tabs and line ends | the list is the one place results go (docs/LIST.md); the print variant has no use in a visual editor | cases skipped |
+| `list-global` | `:g/pat/l` prints the matching lines | `:g/pat/l` opens the generic list once per match | same command as list-print | cases skipped |
+| `list-location` | a location list per window (`:lopen`, `:lnext` ...) | one list store of named lists; `:lnext` `:lprev` `:lfirst` `:llast` `:lclear` work on it; `:lopen` `:lwindow` `:lolder` do not exist | a second store would hold nothing the first cannot (docs/LIST.md) | no case affected |
+| `bracket-q` | nvim 0.11 maps `[q ]q [Q ]Q` to quickfix prev / next / first / last | not mapped; `[l ]l [L ]L` walk the default list | the quickfix list is the generic list now; keys are not in the oracle corpus | no case affected |
+| `ex-q` | vi's `Q` enters Ex mode (vim), nvim 0.11 replays the last macro | follows nvim 0.11; Ex mode is `gQ` | Vim commands behave like nvim (owner rule) | no case affected |
+| `select-gh` | `gh` / `gH` start Select mode | git hunk operators `gh{motion}` / `gH{motion}` (0.23.0) | m3 has no Select mode; the keys serve staging and resetting hunks | no case affected |
+| `ctrl-r-redo` | vi's CTRL-R redraws the screen | CTRL-R redoes (as Vim and nvim do); CTRL-L redraws | Vim wins over vi | no case affected |
+| `remap-option` | vi has 'remap'; nvim has no such option | `:set remap` is accepted and ignored | a shared config must load | no case affected |
+| `open-mode` | vi's `:open` and `:ex` open mode | not built | nvim has no open mode either | no case affected |
+
+<!-- divergences:end -->
+
+What to drop or change next is proposed, with a verdict and a migration for each item, in docs/DIVERGENCE-AUDIT.md (nothing is removed until the owner decides).
 
 ## Choices made without the owner
 

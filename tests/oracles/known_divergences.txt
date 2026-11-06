@@ -120,19 +120,3 @@ int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecon
 int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n		:x<CR>
 # quitting: the oracle has no result after :x and :q in nvim (the process exits), the engine reports a quit
 int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n		:w<CR>:q<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); vim's ':list' print-with-$list is not ported
-int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2l<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); vim's ':list' print-with-$list is not ported
-int main() {\n    if (x) {\n        foo(a, b);\n    }\n    return 0;\n}\n\nsecond para line one\nsecond line two\n\nthird para\n	0,0	:2,3l<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); vim's ':list' print-with-$list is not ported
-one two three\nfour five six\nseven eight nine\nten eleven twelve\nthirteen	0,0	:1,2l<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); vim's ':list' print-with-$list is not ported
-one two three\nfour five six\nseven eight nine\nten eleven twelve\nthirteen	2,3	:1,2l<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); vim's ':list' print-with-$list is not ported
-a,b,c\n1,2,3\nx y z\naaa\nbbb\nabab	3,1	:1,2l<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); vim's ':list' print-with-$list is not ported
-a,b,c\n1,2,3\nx y z\naaa\nbbb\nabab	3,1	:1,2l<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); vim's ':list' print-with-$list is not ported
-one two three\nfour five six\nseven eight nine\nten eleven twelve\nthirteen	0,0	:1,2l<CR>
-# intentional: m3 owns ':l' and ':list' for the generic list (docs/CORE-STATUS.md, Deliberate divergences from vim/nvim); the ':g/pat/l' form of vim's ':list' is not ported
-foo bar foo\n  baz foo\nfoo\n\nlast foo line	1,2	:g/e/l<CR>

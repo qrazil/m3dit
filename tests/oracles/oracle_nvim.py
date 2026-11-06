@@ -25,6 +25,11 @@ known_divergences.txt holds cases the engine knowingly does not match, each
 preceded by a `# reason` comment. A known case that starts to match is
 reported, so the list cannot rot.
 
+divergences.tsv is the list of deliberate divergences from vim/nvim (docs/CORE-STATUS.md is generated
+from it by scripts/divergences.py). A row with `skip` and a selector (a regular expression searched in the
+key notation) takes the matching corpus cases out of the comparison; they are counted and listed with -v.
+A row with `flip` keeps them in and expects them to differ, like known_divergences.txt.
+
 The fuzzer (--fuzz) builds random cases from a vocabulary of key chunks over
 small texts that include combining marks, wide characters and tabs, from a
 seed (--seed), so a failure reproduces. A failing fuzz case is shrunk and
@@ -37,6 +42,7 @@ import concurrent.futures
 import glob
 import os
 import random
+import re
 import signal
 import subprocess
 import sys
@@ -538,6 +544,21 @@ def shrink(runner, case, tmp, fails):
 
 # ---------------------------------------------------------------------- main
 
+def load_divergences():
+    """The skip and flip rules of divergences.tsv: (id, mode, compiled selector)."""
+    rules = []
+    path = os.path.join(HERE, "divergences.tsv")
+    if not os.path.exists(path):
+        return rules
+    with open(path) as handle:
+        lines = handle.read().split("\n")
+    for line in lines[1:]:
+        cells = line.split("\t")
+        if len(cells) >= 6 and cells[4] in ("skip", "flip") and cells[5]:
+            rules.append((cells[0], cells[4], re.compile(cells[5])))
+    return rules
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runner", required=True)
@@ -566,6 +587,8 @@ def main():
 
         total = matched = divergent = failed = 0
         stale = []
+        rules = load_divergences()
+        skipped = {}
 
         if args.corpus:
             cases = []
@@ -576,6 +599,20 @@ def main():
                 cases += cs
             if args.only:
                 cases = [c for c in cases if args.only in c.line()]
+            kept = []
+            for c in cases:
+                rule = None
+                for candidate in rules:
+                    if candidate[2].search(c.notation):
+                        rule = candidate
+                        break
+                if rule and rule[1] == "skip":
+                    skipped[rule[0]] = skipped.get(rule[0], 0) + 1
+                    continue
+                if rule:
+                    known[c.ident()] = "divergences.tsv: " + rule[0]
+                kept.append(c)
+            cases = kept
             diffs = compare_cases(args.runner, cases, tmp)
             for c, d in zip(cases, diffs):
                 total += 1
@@ -637,7 +674,10 @@ def main():
 
         for c in stale:
             print("STALE known divergence now matches: %s" % c.line())
-        print("%d cases, %d matched, %d known divergences, %d failed" % (total, matched, divergent, failed))
+        if skipped and args.verbose:
+            for ident in sorted(skipped):
+                print("skipped by divergences.tsv (%s): %d cases" % (ident, skipped[ident]))
+        print("%d cases, %d matched, %d known divergences, %d skipped (divergences.tsv), %d failed" % (total, matched, divergent, sum(skipped.values()), failed))
         return 1 if failed or stale else 0
 
 

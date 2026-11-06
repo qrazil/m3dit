@@ -16,4 +16,9 @@ if command -v python3 >/dev/null 2>&1; then
     else
         bad "docs/OPTIONS.md" "$out"
     fi
+    if out=$(python3 scripts/divergences.py --check docs/CORE-STATUS.md 2>&1); then
+        note "docs/CORE-STATUS.md divergences table is generated from tests/oracles/divergences.tsv"
+    else
+        bad "docs/CORE-STATUS.md divergences" "$out"
+    fi
 fi
