@@ -79,6 +79,10 @@ pub Option<List<str>> head_lines(MEDX_git_lib.Shell shell, str path) {
         case Failed: {
         }
     }
+    if (MEDX_git_lib.open(directory).is_none()) {
+        // no repository above this directory: nothing for `git` to find either (and no process to start)
+        return Option<List<str>>.None;
+    }
     match (MEDX_git_lib.shell_output(shell, ["git", "-C", directory, "show", ":./" + name], ".", "")) {
         case Some(str text): {
             return Option<List<str>>.Some(MEDX_git_lib.split_lines(text));
