@@ -1,0 +1,153 @@
+// The explorer through the App: the sidebar opens beside the text, its keys move, expand, add, copy, filter and open, <C-w>h and <C-w>l
+// move the focus between it and the windows, and :Neotree close / reveal work. The model is plugin state, so this reads the screen, the
+// command line prompts (they carry the path of the row under the cursor) and the panel's focus.
+
+import fs;
+import io;
+import os;
+import term;
+import tests.MED_check;
+import tui.app.TUI_app;
+import tui.core.TUI_buffer;
+import ui.MED_app;
+import engine.MED_editor;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void write_file(str path, str text) {
+    match (io.write(path, text)) {
+        case Ok(int count): {
+        }
+        case Err(io.Error error): {
+            print("cannot write " + path);
+        }
+    }
+}
+
+void make_dirs(str directory) {
+    match (fs.makedirs(directory)) {
+        case Ok(bool did_make): {
+        }
+        case Err(io.Error error): {
+        }
+    }
+}
+
+void rm_tree(str directory) {
+    match (os.run(["rm", "-rf", directory])) {
+        case Ok(os.ExitStatus status): {
+        }
+        case Err(io.Error error): {
+        }
+    }
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int code_point in text.chars()) {
+        if (code_point == 10) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else if (code_point == 27) {
+            app.handle(term.Event.Key(term.Key(term.Code.Escape, 0)));
+        } else {
+            app.handle(press(code_point));
+        }
+    }
+}
+
+/// How many rows of the sidebar (below its header, above its label) have text.
+int rows_shown(TUI_buffer.Buffer screen, int height) {
+    int count = 0;
+    for (int row in 1 .. height - 2) {
+        if (screen.row_text(row).substr(0, 20).trim().size() > 0) {
+            count = count + 1;
+        }
+    }
+    return count;
+}
+
+MED_check.Check check = MED_check.Check();
+str side = os.env("M3_TEST_TMP").or("/tmp") + "/explorer-side";
+rm_tree(side);
+make_dirs(side + "/lib");
+write_file(side + "/lib/util.txt", "util\n");
+write_file(side + "/main.txt", "main\n");
+write_file(side + "/.dot", "dot\n");
+match (MED_app.open_all([side + "/main.txt"])) {
+    case Err(str message): {
+        check.ok("open for the tree tests: " + message, false);
+    }
+    case Ok(MED_app.App app): {
+        app.ext_install();
+        app.ext_started();
+        TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 10);
+        type_text(app, ":Neotree " + side + "\n");
+        check.ok("a directory argument opens the tree", app.ext.panel_columns(80) > 0);
+        check.ok("and focuses it", app.ext.is_panel_focused);
+        app.render(screen, screen.area());
+        check.eq_int("rows: a folder and a file (no dotfiles)", rows_shown(screen, 10), 2);
+        check.ok("the sidebar shows the folder", screen.row_text(1).contains("lib/"));
+        check.ok("and the file", screen.row_text(2).contains("main.txt"));
+        check.ok("the header names the folder", screen.row_text(0).contains("explorer-side"));
+        // opening the tree puts the cursor on the current file (main.txt): k goes to the folder
+        type_text(app, "k");
+        type_text(app, "l");
+        app.render(screen, screen.area());
+        check.eq_int("l expands the folder", rows_shown(screen, 10), 3);
+        type_text(app, "j");
+        type_text(app, "i");
+        check.eq_str("j moves (i names the row)", app.notice, side + "/lib/util.txt");
+        type_text(app, "h");
+        type_text(app, "i");
+        check.eq_str("h goes to the parent", app.notice, side + "/lib");
+        type_text(app, "h");
+        app.render(screen, screen.area());
+        check.eq_int("h on an open folder closes it", rows_shown(screen, 10), 2);
+        type_text(app, "H");
+        app.render(screen, screen.area());
+        check.eq_int("H shows hidden files", rows_shown(screen, 10), 3);
+        type_text(app, "H");
+        type_text(app, "l");
+        type_text(app, "a");
+        check.eq_int("a opens a command line", app.editor.mode, MED_editor.CMDLINE);
+        check.eq_str("prefilled with the folder", app.editor.cmdline, "Neotree add " + side + "/lib/");
+        type_text(app, "new.txt\n");
+        check.ok("the file is created", fs.is_file(side + "/lib/new.txt"));
+        type_text(app, "i");
+        check.eq_str("and selected", app.notice, side + "/lib/new.txt");
+        type_text(app, "yp");
+        check.ok("copy and paste", fs.is_file(side + "/lib/new_copy.txt"));
+        type_text(app, "d");
+        check.ok("d prompts with the path", app.editor.cmdline.starts_with("Neotree delete " + side + "/lib/new"));
+        type_text(app, "\x1b");
+        type_text(app, "r");
+        check.ok("r prompts with the path", app.editor.cmdline.starts_with("Neotree rename "));
+        type_text(app, "\x1b");
+        type_text(app, "/util\n");
+        app.render(screen, screen.area());
+        check.eq_int("the filter leaves the folder and the match", rows_shown(screen, 10), 2);
+        type_text(app, "\x1b");
+        app.render(screen, screen.area());
+        check.eq_int("Esc clears the filter", rows_shown(screen, 10), 5);
+        type_text(app, "z");
+        app.render(screen, screen.area());
+        check.eq_int("z collapses all", rows_shown(screen, 10), 2);
+        type_text(app, "j\n");
+        check.eq_str("Enter opens the file in the editor window", app.path, side + "/main.txt");
+        check.ok("and gives it the focus", !app.ext.is_panel_focused);
+        type_text(app, "\x17h");
+        check.ok("<C-w>h goes back to the tree", app.ext.is_panel_focused);
+        type_text(app, "\x17l");
+        check.ok("<C-w>l leaves it", !app.ext.is_panel_focused);
+        type_text(app, ":Neotree close\n");
+        check.eq_int("closed: no columns", app.ext.panel_columns(80), 0);
+        type_text(app, ":Neotree reveal\n");
+        check.ok("reveal opens it again", app.ext.panel_columns(80) > 0);
+        type_text(app, "i");
+        check.eq_str("and selects the current file", app.notice, side + "/main.txt");
+        type_text(app, ":Neotree close\n");
+    }
+}
+rm_tree(side);
+check.finish("t_explorer");

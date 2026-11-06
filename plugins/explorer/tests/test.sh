@@ -2,3 +2,4 @@
 # letters, a throw-away git repository); the golden screens file_tree and git_tree_letters, the e2e tree scenarios and the transparent
 # surfaces drive the whole panel.
 unit t_tree plugins/explorer/tests/t_tree.m31
+unit t_explorer plugins/explorer/tests/t_explorer.m31

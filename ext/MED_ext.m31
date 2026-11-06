@@ -1529,12 +1529,7 @@ pub int Registry.panel_columns(int screen_width) {
     if (!is_panel_live()) {
         return 0;
     }
-    int columns = panel.columns(screen_width);
-    if (columns <= 0) {
-        is_panel_focused = false;
-        return 0;
-    }
-    return columns;
+    return panel.columns(screen_width);
 }
 
 /** Give the finder the preview of entries whose `detail` is of kind `kind` (0.5.0): the core asks for `kind` "commit"
