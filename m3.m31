@@ -1,20 +1,20 @@
-// m3: a terminal modal editor in m31.
-//
-//   m3 FILE...   open the files as buffers (a new buffer when one does not exist yet)
-//   m3           the files the project had open at its last exit (a session), else an empty buffer
-//   m3 --no-session   start with an empty buffer
-//   m3 --keymap FILE  read FILE as the keymap file (--keymap NONE reads none)
-//   m3 --no-mouse     do not ask the terminal for mouse reports
-//   m3 --no-anim      no animation (also $M3_NO_ANIM=1, TERM=dumb, or :set noanimate)
-//   m3 --theme NAME   start with that colour theme
-//   m3 --version      print the version, the API version and the compiled plugins, and exit; --help is generated, --completions SHELL
-//   m3 --list-plugins print the compiled plugins (tab separated) and exit
-//
-// The keymap file holds ex lines (`nnoremap`, `let mapleader`, `set` ...); by
-// default it is $XDG_CONFIG_HOME/m3/keymap.vim (~/.config/...).
-//
-// Vim keys (the engine is checked against nvim, see DESIGN.md), `:w` writes,
-// `:q` quits (`:q!` discards, `:wq` / `ZZ` write and quit).
+/* m3: a terminal modal editor in m31.
+ *
+ *   m3 FILE...   open the files as buffers (a new buffer when one does not exist yet)
+ *   m3           the files the project had open at its last exit (a session), else an empty buffer
+ *   m3 --no-session   start with an empty buffer
+ *   m3 --keymap FILE  read FILE as the keymap file (--keymap NONE reads none)
+ *   m3 --no-mouse     do not ask the terminal for mouse reports
+ *   m3 --no-anim      no animation (also $M3_NO_ANIM=1, TERM=dumb, or :set noanimate)
+ *   m3 --theme NAME   start with that colour theme
+ *   m3 --version      print the version, the API version and the compiled plugins, and exit; --help is generated, --completions SHELL
+ *   m3 --list-plugins print the compiled plugins (tab separated) and exit
+ *
+ * The keymap file holds ex lines (`nnoremap`, `let mapleader`, `set` ...); by
+ * default it is $XDG_CONFIG_HOME/m3/keymap.vim (~/.config/...).
+ *
+ * Vim keys (the engine is checked against nvim, see DESIGN.md), `:w` writes,
+ * `:q` quits (`:q!` discards, `:wq` / `ZZ` write and quit). */
 
 import args;
 import engine.MED_profile;
@@ -35,9 +35,9 @@ import ui.MED_sample;
 import ui.MED_session;
 import ui.MED_state;
 
-// How many colours the terminal has: truecolor when it says so (COLORTERM,
-// or a terminal program known to), 256 for a *256color TERM (Terminal.app),
-// else the 16 ANSI colours.
+/* How many colours the terminal has: truecolor when it says so (COLORTERM,
+ * or a terminal program known to), 256 for a *256color TERM (Terminal.app),
+ * else the 16 ANSI colours. */
 TUI_style.Depth colour_depth() {
     str colour_term = os.env("COLORTERM").or("");
     if (colour_term == "truecolor" || colour_term == "24bit") {
@@ -91,11 +91,11 @@ void say(str text) {
     }
 }
 
-// The command line is Oro's `args` grammar (m31's docs/cli-conventions.md):
-// `--keymap FILE`, `--keymap=FILE`, `--k FILE`; `-word` would be a command and
-// there are none. vim's `-u` was the one single-dash option; it, `-v` and `-h`
-// still work for this one release (each warns) and are then deleted.
-// What is built in: `--version` names the API and the plugins, `--list-plugins` prints them.
+/* The command line is Oro's `args` grammar (m31's docs/cli-conventions.md):
+ * `--keymap FILE`, `--keymap=FILE`, `--k FILE`; `-word` would be a command and
+ * there are none. vim's `-u` was the one single-dash option; it, `-v` and `-h`
+ * still work for this one release (each warns) and are then deleted.
+ * What is built in: `--version` names the API and the plugins, `--list-plugins` prints them. */
 MED_ext.Registry compiled = MED_ext.Registry();
 MED_ext_enabled.install(compiled);
 compiled.finish_install();
@@ -121,9 +121,9 @@ table.completions();
 table.epilog = "keys: Vim; <Space> leader (which-key), <Space>ff files, <Space>e file tree, <Space>? all keys, :Plugins, :q quits\nexit status: 0 ok, 1 could not start (no terminal, unreadable file), 2 usage error";
 List<str> raw = os.arguments();
 raw.remove_at(0);
-// vi's command line, taken out before the grammar sees it: `-c CMD` and `+CMD` (`+` is `$`, `+N` is line N) run an ex
-// line after the files are read, `-t TAG` is `:tag TAG`, `-R` and `-r` are `:set readonly` and `:recover`, `-e` and
-// `-E` start in Ex mode (docs/VI-CORE.md)
+/* vi's command line, taken out before the grammar sees it: `-c CMD` and `+CMD` (`+` is `$`, `+N` is line N) run an ex
+ * line after the files are read, `-t TAG` is `:tag TAG`, `-R` and `-r` are `:set readonly` and `:recover`, `-e` and
+ * `-E` start in Ex mode (docs/VI-CORE.md) */
 List<str> startup_lines = [];
 List<str> kept = [];
 bool is_ex_start = false;
@@ -215,8 +215,8 @@ if (given.is_flag_set("clean")) {
 bool is_mouse = os.env("M3_NO_MOUSE").or("") == "" && !given.is_flag_set("no-mouse");
 bool is_session = !given.is_flag_set("no-session") && !given.is_flag_set("clean");
 bool is_no_anim = given.is_flag_set("no-anim");
-// `m3` with no file starts the project's session (the files it had open at its last exit) when there is one;
-// a clean run (--keymap NONE) and --no-session start with an empty buffer
+/* `m3` with no file starts the project's session (the files it had open at its last exit) when there is one;
+ * a clean run (--keymap NONE) and --no-session start with an empty buffer */
 bool is_project_session = files.size() == 0 && keymap != "" && is_session;
 MED_session.Session saved = MED_session.Session();
 if (is_project_session) {

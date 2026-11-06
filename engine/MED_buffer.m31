@@ -1,23 +1,23 @@
-// The text of one buffer: a list of lines, and the single mutation primitive.
-//
-// API
+/* The text of one buffer: a list of lines, and the single mutation primitive.
+ *
+ * API */
 // ---
-//   MED_buffer.Pos(row, col)          a position: 0-based row, byte column
-//   MED_buffer.Buffer                 the lines (never empty: one "" for an empty file)
-//     buffer.line_count()  buffer.line(row)  buffer.line_size(row)
-//     buffer.text(from, to)           the text between two positions, "\n" between lines
-//     buffer.splice(from, to, new_text) replace that range; returns the Edit that was applied
-//   MED_buffer.advance(from, text)    where the end of `text` lands if it starts at `from`
-//   MED_buffer.Edit                   one splice, enough to apply it again or undo it
-//   MED_buffer.load(text)             a Buffer from file text
-//   MED_buffer.Buffer.dump()          file text back (with the final newline the file had)
-//
-// Nothing outside this module indexes `lines`: a different store (a rope, a
-// gap buffer) can replace it behind these methods. `splice` is the only
-// mutator, so every change is an `Edit` the undo tree can reverse.
+/*   MED_buffer.Pos(row, col)          a position: 0-based row, byte column
+ *   MED_buffer.Buffer                 the lines (never empty: one "" for an empty file)
+ *     buffer.line_count()  buffer.line(row)  buffer.line_size(row)
+ *     buffer.text(from, to)           the text between two positions, "\n" between lines
+ *     buffer.splice(from, to, new_text) replace that range; returns the Edit that was applied
+ *   MED_buffer.advance(from, text)    where the end of `text` lands if it starts at `from`
+ *   MED_buffer.Edit                   one splice, enough to apply it again or undo it
+ *   MED_buffer.load(text)             a Buffer from file text
+ *   MED_buffer.Buffer.dump()          file text back (with the final newline the file had)
+ *
+ * Nothing outside this module indexes `lines`: a different store (a rope, a
+ * gap buffer) can replace it behind these methods. `splice` is the only
+ * mutator, so every change is an `Edit` the undo tree can reverse. */
 
-/// A position in a buffer. `col` is a byte offset on a grapheme boundary and
-/// may equal the line's size (the position after the last character).
+/** A position in a buffer. `col` is a byte offset on a grapheme boundary and
+ * may equal the line's size (the position after the last character). */
 pub type Pos {
     pub int row;
     pub int col;
@@ -70,11 +70,11 @@ pub type Buffer {
     pub bool is_modified = false;
     /// Vim's ML_EMPTY: every line was deleted (linewise), nothing typed since.
     pub bool is_empty = false;
-    /// 'iskeyword' as a table over the code points below 256 (1: a keyword
-    /// character); empty for the default value.
+    /** 'iskeyword' as a table over the code points below 256 (1: a keyword
+     * character); empty for the default value. */
     pub List<int> keywords = [];
-    /// The first row changed since the highlighter last looked (a big number
-    /// when none): lines above it keep their syntax state.
+    /** The first row changed since the highlighter last looked (a big number
+     * when none): lines above it keep their syntax state. */
     pub int dirty_row = 1000000000;
 }
 
@@ -104,8 +104,8 @@ pub str Buffer.text(Pos from, Pos position) {
     return parts.join("\n");
 }
 
-/// Replace the text between `from` and `position` with `text` (which may hold
-/// "\n"). The one way to change a buffer.
+/** Replace the text between `from` and `position` with `text` (which may hold
+ * "\n"). The one way to change a buffer. */
 pub Edit Buffer.splice(Pos from, Pos position, str replacement) {
     str removed = text(from, position);
     tick = tick + 1;
@@ -175,8 +175,8 @@ pub Pos advance(Pos from, str text) {
     return Pos(from.row + newlines, size - last_break - 1);
 }
 
-/// A buffer holding file text. A trailing newline is the end of the last
-/// line, not an extra empty line; an empty file is one empty line.
+/** A buffer holding file text. A trailing newline is the end of the last
+ * line, not an extra empty line; an empty file is one empty line. */
 pub Buffer load(str text) {
     Buffer buffer = Buffer();
     if (text.size() == 0) {

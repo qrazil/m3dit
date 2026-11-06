@@ -445,7 +445,7 @@ one source per dependency, so bump them together).
 
     M31_ROOT=... LANGC=... bash tests/test.sh
 
-`tests/test.sh` is the single entry point: `m31c fmt --check -r .`, `m31c lint .`, the plugin checks
+`tests/test.sh` is the single entry point: `m31c -fmt --check --recursive .`, `m31c -lint .`, the plugin checks
 (`tests/test_plugins.sh`: the generated registry, `plugin.txt` against the Spec, `scripts/check_plugins.sh`, builds with
 the fixture plugins and `tests/plugins_pty.py`, and `tests/core_only.sh`, the `--no-plugins` build), the golden
 screens (`tests/screen_pty.py` against `tests/golden/screens.json`, recorded from 0.15.0),

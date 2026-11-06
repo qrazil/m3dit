@@ -1,9 +1,9 @@
-// The `session` plugin: m3 remembers where you were. The cursor position of each file (put back when the file is opened),
-// the list of recent files (`<Space>fr`, the finder's `recent` source reads it) and the visits the finder's frecency
-// ordering uses. It was `App.note_state`, `remember_position`, `restore_position` and a 1 s timer in the core; now it is a
-// `BufferOpen` handler (restore), a `Tick` handler (note the file in front and its cursor row), and `BufferClose` and
-// `Shutdown` handlers (write the position down). The state files are the ones the core wrote (`recent`, `positions` in
-// `$XDG_STATE_HOME/m3`), so nothing is lost on upgrade. `:Session` (named sessions of buffers and layout) stays in the core.
+/* The `session` plugin: m3 remembers where you were. The cursor position of each file (put back when the file is opened),
+ * the list of recent files (`<Space>fr`, the finder's `recent` source reads it) and the visits the finder's frecency
+ * ordering uses. It was `App.note_state`, `remember_position`, `restore_position` and a 1 s timer in the core; now it is a
+ * `BufferOpen` handler (restore), a `Tick` handler (note the file in front and its cursor row), and `BufferClose` and
+ * `Shutdown` handlers (write the position down). The state files are the ones the core wrote (`recent`, `positions` in
+ * `$XDG_STATE_HOME/m3`), so nothing is lost on upgrade. `:Session` (named sessions of buffers and layout) stays in the core. */
 
 import engine.MED_buffer;
 import ext.MED_ext;

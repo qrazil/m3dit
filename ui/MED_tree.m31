@@ -1,22 +1,22 @@
-// The file tree sidebar (neo-tree's filesystem source, in a terminal).
-//
-// This module is the model: the folders shown open, the rows they make, git
-// status for every row, and the file operations (add, delete, rename, copy,
-// move, paste). It never draws and never reads a key; MED_app does both.
-//
-// API
+/* The file tree sidebar (neo-tree's filesystem source, in a terminal).
+ *
+ * This module is the model: the folders shown open, the rows they make, git
+ * status for every row, and the file operations (add, delete, rename, copy,
+ * move, paste). It never draws and never reads a key; MED_app does both.
+ *
+ * API */
 // ---
-//   Tree.refresh()           rebuild `entries` from the disk (keeps the selection by path)
-//   Tree.refresh_status()    read git status again
-//   Tree.current()           the entry under the cursor row, if any
-//   Tree.toggle(path)        open or close a folder
-//   Tree.did_reveal(file)        open every folder above `file` and select it
-//   Tree.collapse_all()      close every folder
-//   add / remove_path / rename_path / copy_path / paste_into   file operations;
-//                            each returns "" or the error text
-//
-// Paths are spelled as the rest of the editor spells them: relative to the
-// working directory ("." is the root of a project), joined with `/`.
+/*   Tree.refresh()           rebuild `entries` from the disk (keeps the selection by path)
+ *   Tree.refresh_status()    read git status again
+ *   Tree.current()           the entry under the cursor row, if any
+ *   Tree.toggle(path)        open or close a folder
+ *   Tree.did_reveal(file)        open every folder above `file` and select it
+ *   Tree.collapse_all()      close every folder
+ *   add / remove_path / rename_path / copy_path / paste_into   file operations;
+ *                            each returns "" or the error text
+ *
+ * Paths are spelled as the rest of the editor spells them: relative to the
+ * working directory ("." is the root of a project), joined with `/`. */
 
 import fs;
 import io;
@@ -97,9 +97,9 @@ bool Tree.is_expanded(str path) {
     return false;
 }
 
-// Rows of the folder `directory` (its path relative to the root is `relative`),
-// appended to `out`. With a filter, every folder is searched and a folder shows
-// only when something inside it matches. True when anything was added.
+/* Rows of the folder `directory` (its path relative to the root is `relative`),
+ * appended to `out`. With a filter, every folder is searched and a folder shows
+ * only when something inside it matches. True when anything was added. */
 bool Tree.did_collect(str directory, str relative, int depth, List<Entry> out) {
     bool did_add = false;
     for (str listed in MED_files.list_directory(directory, is_hidden_shown)) {
@@ -233,8 +233,8 @@ pub bool Tree.is_below(str file) {
     return file.starts_with(root + "/");
 }
 
-/// Open every folder above `file` and put the cursor on it. False when the
-/// file is not below the root or is hidden by the filter.
+/** Open every folder above `file` and put the cursor on it. False when the
+ * file is not below the root or is hidden by the filter. */
 pub bool Tree.did_reveal(str file) {
     if (!is_below(file)) {
         return false;
@@ -283,8 +283,8 @@ pub void Tree.scroll_to(int height) {
     }
 }
 
-/// Paste the clipboard path into the folder `directory` (a move when it was
-/// cut). Returns "" or the error text; `made` gets the new path.
+/** Paste the clipboard path into the folder `directory` (a move when it was
+ * cut). Returns "" or the error text; `made` gets the new path. */
 pub str Tree.paste_into(str directory, List<str> made) {
     if (clipboard.size() == 0) {
         return "Nothing to paste";
@@ -382,9 +382,9 @@ pub bool is_fuzzy(str needle, str text) {
 
 // ------------------------------------------------------------ file operations
 
-/// Create `name` below the folder `directory`: a trailing `/` makes a folder
-/// (with its parents), anything else an empty file (with its folders).
-/// Returns "" or the error text; `made` is the path created.
+/** Create `name` below the folder `directory`: a trailing `/` makes a folder
+ * (with its parents), anything else an empty file (with its folders).
+ * Returns "" or the error text; `made` is the path created. */
 pub str add(str directory, str name, List<str> made) {
     str given = name.trim();
     if (given.size() == 0) {

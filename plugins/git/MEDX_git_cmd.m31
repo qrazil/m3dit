@@ -1,21 +1,21 @@
-// `:Git` read commands: log (project, file, line range), show, diff (working tree, index, HEAD) and blame as
-// a list. They read through the m31git library (`MEDX_git_lib`) and fall back to the `git` binary when the
-// library cannot read the repository. Nothing here writes: staging and resetting stay hunk commands.
-//
-// API
+/* `:Git` read commands: log (project, file, line range), show, diff (working tree, index, HEAD) and blame as
+ * a list. They read through the m31git library (`MEDX_git_lib`) and fall back to the `git` binary when the
+ * library cannot read the repository. Nothing here writes: staging and resetting stay hunk commands.
+ *
+ * API */
 // ---
-//   MEDX_git_cmd.run(arg, path, buffer, row)   Out: what `:Git ARG` shows
-//
-// `Out` is a message (`error`), a list for the picker (`entries`, with a commit in `detail` so the preview shows
-// `git show`) or text for a scratch buffer (`lines`). The App opens them with the facilities it has: the
-// finder list and `open_scratch`.
-//
-//   :Git log [FILE | %]        commits of the project, of FILE, or of the current file (`%`)
-//   :Git log -L A,B [FILE]     commits that touched lines A to B of FILE (default the current file)
-//   :Git show [REV]            a commit's message and patch (default HEAD)
-//   :Git diff [working|index|head]   index against the work tree (default), HEAD against the index, HEAD against
-//                              the work tree; `cached` and `staged` mean `index`
-//   :Git blame                 the current file, one entry per line, `Enter` jumps to the line
+/*   MEDX_git_cmd.run(arg, path, buffer, row)   Out: what `:Git ARG` shows
+ *
+ * `Out` is a message (`error`), a list for the picker (`entries`, with a commit in `detail` so the preview shows
+ * `git show`) or text for a scratch buffer (`lines`). The App opens them with the facilities it has: the
+ * finder list and `open_scratch`.
+ *
+ *   :Git log [FILE | %]        commits of the project, of FILE, or of the current file (`%`)
+ *   :Git log -L A,B [FILE]     commits that touched lines A to B of FILE (default the current file)
+ *   :Git show [REV]            a commit's message and patch (default HEAD)
+ *   :Git diff [working|index|head]   index against the work tree (default), HEAD against the index, HEAD against
+ *                              the work tree; `cached` and `staged` mean `index`
+ *   :Git blame                 the current file, one entry per line, `Enter` jumps to the line */
 
 import date;
 import fs;

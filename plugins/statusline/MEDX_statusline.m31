@@ -1,9 +1,9 @@
-// The `statusline` plugin: the parts of the status line beyond the core's minimal one (mode, file name, filetype,
-// position) and the buffer line. It was `is_plugin_on("statusline")` branches in `App.draw_statusline` and `App.tabline_rows`;
-// now the host answers `Ctx.status()` (branch, hunk counts against HEAD, language server errors and warnings and what it
-// is busy with), this plugin turns it into the segment `statusline.status` every Tick, and gives the buffer line
-// (` 1 name + ` labels, shown from two buffers, switched by `:set nobufferline`) with `did_bar`. The text is the one the
-// core drew before: `main +1 ~2 -0  E:1 W:0  LSP: indexing`. Changes show within one Tick (250 ms).
+/* The `statusline` plugin: the parts of the status line beyond the core's minimal one (mode, file name, filetype,
+ * position) and the buffer line. It was `is_plugin_on("statusline")` branches in `App.draw_statusline` and `App.tabline_rows`;
+ * now the host answers `Ctx.status()` (branch, hunk counts against HEAD, language server errors and warnings and what it
+ * is busy with), this plugin turns it into the segment `statusline.status` every Tick, and gives the buffer line
+ * (` 1 name + ` labels, shown from two buffers, switched by `:set nobufferline`) with `did_bar`. The text is the one the
+ * core drew before: `main +1 ~2 -0  E:1 W:0  LSP: indexing`. Changes show within one Tick (250 ms). */
 
 import ext.MED_ext;
 

@@ -1,9 +1,9 @@
-// How long the finder's ranking takes on a big tree: 100,000 synthetic paths.
-//
-//   m31c -emit-c bench/finder_bench.m31 --out finder_bench.c   (then link as tests/test.sh does)
-//
-// Prints milliseconds for: a full rescore per query, typing a query one character at a time
-// without narrowing and with it (the pool of the previous keystroke), and the old generic scorer.
+/* How long the finder's ranking takes on a big tree: 100,000 synthetic paths.
+ *
+ *   m31c -emit-c bench/finder_bench.m31 --out finder_bench.c   (then link as tests/test.sh does)
+ *
+ * Prints milliseconds for: a full rescore per query, typing a query one character at a time
+ * without narrowing and with it (the pool of the previous keystroke), and the old generic scorer. */
 
 import io;
 import os;

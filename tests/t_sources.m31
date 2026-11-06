@@ -1,5 +1,5 @@
-// Unit checks for MED_sources (parsers of what the pickers list) and
-// MED_shell (the child-process helpers).
+/* Unit checks for MED_sources (parsers of what the pickers list) and
+ * MED_shell (the child-process helpers). */
 
 import tests.MED_check;
 import ui.MED_picker;

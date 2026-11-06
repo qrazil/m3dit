@@ -1,6 +1,6 @@
-// The listings of `:marks`, `:registers` (`:display`), `:jumps` and
-// `:changes`, laid out the way Vim prints them. Each returns the lines; the
-// front end shows them in the "Press ENTER" overlay.
+/* The listings of `:marks`, `:registers` (`:display`), `:jumps` and
+ * `:changes`, laid out the way Vim prints them. Each returns the lines; the
+ * front end shows them in the "Press ENTER" overlay. */
 
 import engine.MED_buffer;
 import engine.MED_editor;

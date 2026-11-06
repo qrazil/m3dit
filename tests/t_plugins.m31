@@ -1,7 +1,7 @@
-// Unit checks for the plugin half of the extension API (MED_ext 0.2): the Spec, `did_plugin`, `requires` and
-// `wants`, eager and lazy activation (event, command, file type), command stubs, maps as data, hook ids, the
-// run-time switch, and the App's `:Plugins` and `:PluginDisable`. The plugins here are test doubles; the real
-// plugin.txt files are checked by tests/test_plugins.sh.
+/* Unit checks for the plugin half of the extension API (MED_ext 0.2): the Spec, `did_plugin`, `requires` and
+ * `wants`, eager and lazy activation (event, command, file type), command stubs, maps as data, hook ids, the
+ * run-time switch, and the App's `:Plugins` and `:PluginDisable`. The plugins here are test doubles; the real
+ * plugin.txt files are checked by tests/test_plugins.sh. */
 
 import tests.MED_check;
 import ui.MED_app;

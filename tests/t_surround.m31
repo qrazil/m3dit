@@ -1,6 +1,6 @@
-// Unit checks for MED_surround through the engine (the differential check
-// against the surround.vim plugin is tests/oracles/corpus/88_ to 90_, which
-// needs the plugin; these run anywhere).
+/* Unit checks for MED_surround through the engine (the differential check
+ * against the surround.vim plugin is tests/oracles/corpus/88_ to 90_, which
+ * needs the plugin; these run anywhere). */
 
 import engine.MED_editor;
 import engine.MED_ex;

@@ -1,9 +1,9 @@
-// Sample extension: strip trailing blanks when a buffer is written, and on demand with `:TrimTrailing`.
-//
-// It is built in only when asked for: `bash scripts/build.sh --ext MEDX_trim_whitespace`. The editor has its
-// own `trimtrailing` option (EditorConfig's trim_trailing_whitespace); this one exists to show the API: an
-// event handler (BufWritePre), a command, edits through the same primitive the editor uses (so `u` undoes
-// them as one step and `.` is untouched), and a message.
+/* Sample extension: strip trailing blanks when a buffer is written, and on demand with `:TrimTrailing`.
+ *
+ * It is built in only when asked for: `bash scripts/build.sh --ext MEDX_trim_whitespace`. The editor has its
+ * own `trimtrailing` option (EditorConfig's trim_trailing_whitespace); this one exists to show the API: an
+ * event handler (BufWritePre), a command, edits through the same primitive the editor uses (so `u` undoes
+ * them as one step and `.` is untouched), and a message. */
 
 import engine.MED_buffer;
 import ext.MED_ext;

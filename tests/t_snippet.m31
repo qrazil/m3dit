@@ -1,7 +1,7 @@
-// Snippets: the grammar, the expansion, transforms, the session's ranges and the editor flow (Tab, Select mode,
-// mirrors, user snippets). What nvim can answer is checked against nvim by tests/oracles/oracle_snippet.py; this
-// covers the rest (nested placeholders, transforms, choices, the variables nvim lacks, user snippet files) and
-// everything that must run without nvim.
+/* Snippets: the grammar, the expansion, transforms, the session's ranges and the editor flow (Tab, Select mode,
+ * mirrors, user snippets). What nvim can answer is checked against nvim by tests/oracles/oracle_snippet.py; this
+ * covers the rest (nested placeholders, transforms, choices, the variables nvim lacks, user snippet files) and
+ * everything that must run without nvim. */
 
 import engine.MED_editor;
 import engine.MED_ex;

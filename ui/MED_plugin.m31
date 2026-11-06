@@ -1,29 +1,29 @@
-// Built-in plugins: the registry.
-//
-// A built-in plugin is an ordinary module of this program behind one small
-// interface: a name, a one-line summary, and what it contributes -- keymap
-// rows (MED_keymap rows carry the plugin's name), ex commands and UI. This
-// module holds the names and the switch; the behaviour lives in the modules
-// the front end calls when the plugin is on.
-//
-//   MED_plugin.all()              every plugin, in the order `:Plugins` lists them
-//   MED_plugin.find(name)         the Plugin, or one with an empty name when unknown
-//   MED_plugin.is_core(name)      core cannot be switched off
-//
-// Switching is by name (`:PluginDisable NAME`, `:PluginEnable NAME`, or the same
-// lines in the keymap file): a disabled plugin's keymap rows leave the leader
-// tree, which-key, the palette and `:Keys`, and its UI (statusline extras,
-// signs, guides ...) is not drawn. A plugin that is an engine feature (surround,
-// autopairs, comment, git signs) is switched through its option, so `:set
-// nosurround` and `:PluginDisable surround` are one switch.
+/* Built-in plugins: the registry.
+ *
+ * A built-in plugin is an ordinary module of this program behind one small
+ * interface: a name, a one-line summary, and what it contributes -- keymap
+ * rows (MED_keymap rows carry the plugin's name), ex commands and UI. This
+ * module holds the names and the switch; the behaviour lives in the modules
+ * the front end calls when the plugin is on.
+ *
+ *   MED_plugin.all()              every plugin, in the order `:Plugins` lists them
+ *   MED_plugin.find(name)         the Plugin, or one with an empty name when unknown
+ *   MED_plugin.is_core(name)      core cannot be switched off
+ *
+ * Switching is by name (`:PluginDisable NAME`, `:PluginEnable NAME`, or the same
+ * lines in the keymap file): a disabled plugin's keymap rows leave the leader
+ * tree, which-key, the palette and `:Keys`, and its UI (statusline extras,
+ * signs, guides ...) is not drawn. A plugin that is an engine feature (surround,
+ * autopairs, comment, git signs) is switched through its option, so `:set
+ * nosurround` and `:PluginDisable surround` are one switch. */
 
 pub type Plugin {
     pub str name;
     pub str summary;
     /// The engine option that holds the switch ("" when the front end holds it).
     pub str option = "";
-    /// A compiled plugin (plugins/NAME) provides the feature: the row is listed, and its keys shown, only when the
-    /// build contains that plugin (`--without NAME` and `--no-plugins` leave both out).
+    /** A compiled plugin (plugins/NAME) provides the feature: the row is listed, and its keys shown, only when the
+     * build contains that plugin (`--without NAME` and `--no-plugins` leave both out). */
     pub bool is_compiled_only = false;
 }
 

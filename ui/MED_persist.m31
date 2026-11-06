@@ -1,15 +1,15 @@
-// What the front end keeps on disk for a buffer between sessions (besides the recent-file and
-// cursor lists of MED_state): the undo file. Everything takes the state directory as an argument and
-// does nothing when it is "" (tests and `-u NONE` stay hermetic). Failures are silent: persistence is a
-// convenience and must never get in the way of editing.
+/* What the front end keeps on disk for a buffer between sessions (besides the recent-file and
+ * cursor lists of MED_state): the undo file. Everything takes the state directory as an argument and
+ * does nothing when it is "" (tests and `-u NONE` stay hermetic). Failures are silent: persistence is a
+ * convenience and must never get in the way of editing. */
 
 import engine.MED_editor;
 import engine.MED_undofile;
 import fs;
 import io;
 
-/// Load the saved undo tree of the file at absolute path `file` into `editor` when the buffer still
-/// holds the text it was saved for. True when a tree was loaded.
+/** Load the saved undo tree of the file at absolute path `file` into `editor` when the buffer still
+ * holds the text it was saved for. True when a tree was loaded. */
 pub bool did_restore_undo(str directory, str file, MED_editor.Editor editor) {
     if (directory.size() == 0 || file.size() == 0 || editor.nodes.size() != 1) {
         return false;
@@ -28,8 +28,8 @@ pub bool did_restore_undo(str directory, str file, MED_editor.Editor editor) {
     }
 }
 
-/// Write the undo tree of `editor`, which holds the text just written to the file at absolute path
-/// `file`. An editor without history removes a stale undo file.
+/** Write the undo tree of `editor`, which holds the text just written to the file at absolute path
+ * `file`. An editor without history removes a stale undo file. */
 pub void save_undo(str directory, str file, MED_editor.Editor editor) {
     if (directory.size() == 0 || file.size() == 0) {
         return;
@@ -77,14 +77,14 @@ pub str disk_stamp(str file) {
     }
 }
 
-/// The recovery file of the buffer at absolute path `file`: the text as it was when the editor last sat idle, so a
-/// `kill -9`, a power cut or a crash loses at most the last moments. `directory/recover/` + the path with `/` as `%`.
+/** The recovery file of the buffer at absolute path `file`: the text as it was when the editor last sat idle, so a
+ * `kill -9`, a power cut or a crash loses at most the last moments. `directory/recover/` + the path with `/` as `%`. */
 pub str recovery_file(str directory, str file) {
     return directory + "/recover/" + file.split("/").join("%");
 }
 
-/// Write the recovery file. `stamp` is the disk stamp of the file the text started from (the header tells
-/// `:recover` whether the file changed meanwhile). Silent on failure: this must never get in the way of editing.
+/** Write the recovery file. `stamp` is the disk stamp of the file the text started from (the header tells
+ * `:recover` whether the file changed meanwhile). Silent on failure: this must never get in the way of editing. */
 pub void save_recovery(str directory, str file, str stamp, str text) {
     if (directory.size() == 0 || file.size() == 0) {
         return;
@@ -120,8 +120,8 @@ pub void remove_recovery(str directory, str file) {
     }
 }
 
-/// The text a recovery file holds; "" when there is none or it is not ours. A buffer with no text at all is
-/// "\n"-less, so "no recovery" and "recovered an empty buffer" are told apart by `has_recovery`.
+/** The text a recovery file holds; "" when there is none or it is not ours. A buffer with no text at all is
+ * "\n"-less, so "no recovery" and "recovered an empty buffer" are told apart by `has_recovery`. */
 pub str read_recovery(str directory, str file) {
     if (directory.size() == 0 || file.size() == 0) {
         return "";

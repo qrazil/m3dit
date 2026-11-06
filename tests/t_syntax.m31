@@ -1,6 +1,6 @@
-// Unit checks for MED_hl (the adapter over the `syntax` library): the
-// language of a buffer, the classes of a line, incremental updates after
-// edits, ten languages opened as files, and a speed check on 20k lines.
+/* Unit checks for MED_hl (the adapter over the `syntax` library): the
+ * language of a buffer, the classes of a line, incremental updates after
+ * edits, ten languages opened as files, and a speed check on 20k lines. */
 
 import engine.MED_buffer;
 import engine.MED_editor;

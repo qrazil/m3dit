@@ -1,9 +1,9 @@
-// The `notify` plugin: toast notifications. Language server messages (`window/showMessage`) and what other plugins `notify`
-// come to it as `Message` events (the editor's own errors stay in the message line); it keeps them as boxes in the
-// top right corner for a few seconds (a Tick handler ages them; the host draws what `set_toasts` gives it) and in a
-// history that `:Notifications` lists in the finder. `:Notify [info|warn|error] TEXT` sends one by hand, `:NotifyClear`
-// dismisses the boxes. With the plugin off (or not built in) a message goes to the message line, as before. Lazy:
-// nothing exists until the first message. Behaviour follows nox-notify (timeout 3000 ms, width 48, at most five boxes).
+/* The `notify` plugin: toast notifications. Language server messages (`window/showMessage`) and what other plugins `notify`
+ * come to it as `Message` events (the editor's own errors stay in the message line); it keeps them as boxes in the
+ * top right corner for a few seconds (a Tick handler ages them; the host draws what `set_toasts` gives it) and in a
+ * history that `:Notifications` lists in the finder. `:Notify [info|warn|error] TEXT` sends one by hand, `:NotifyClear`
+ * dismisses the boxes. With the plugin off (or not built in) a message goes to the message line, as before. Lazy:
+ * nothing exists until the first message. Behaviour follows nox-notify (timeout 3000 ms, width 48, at most five boxes). */
 
 import ext.MED_ext;
 

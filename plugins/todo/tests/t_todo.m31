@@ -1,5 +1,5 @@
-// The `todo` plugin through the App: ]t and [t (the `bracketed` plugin's keys, :Todo next and prev) jump between
-// TODO words, the badge is drawn only in comments, `:Todo` opens the finder, and :PluginDisable takes the badge away.
+/* The `todo` plugin through the App: ]t and [t (the `bracketed` plugin's keys, :Todo next and prev) jump between
+ * TODO words, the badge is drawn only in comments, `:Todo` opens the finder, and :PluginDisable takes the badge away. */
 
 import tests.MED_check;
 import ui.MED_app;

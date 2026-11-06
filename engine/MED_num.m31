@@ -1,9 +1,9 @@
-// Small integer helpers the language does not ship.
-//
-// API
+/* Small integer helpers the language does not ship.
+ *
+ * API */
 // ---
-//   MED_num.smaller(a, b), MED_num.larger(a, b)
-//   MED_num.clamp(value, low, high)
+/*   MED_num.smaller(a, b), MED_num.larger(a, b)
+ *   MED_num.clamp(value, low, high) */
 
 /// The smaller of two ints.
 pub int smaller(int left, int right) {

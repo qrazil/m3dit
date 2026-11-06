@@ -1,7 +1,7 @@
-// The git status letters of the file tree: `git status --porcelain` as a map from path to M A D R ? !.
-//
-//   MED_gitstatus.status_map(directory)   path (relative to `directory`) -> letter, folders carry the worst one
-//   MED_gitstatus.status_rank(letter)     how much a letter matters
+/* The git status letters of the file tree: `git status --porcelain` as a map from path to M A D R ? !.
+ *
+ *   MED_gitstatus.status_map(directory)   path (relative to `directory`) -> letter, folders carry the worst one
+ *   MED_gitstatus.status_rank(letter)     how much a letter matters */
 
 import engine.MED_shell;
 
@@ -25,10 +25,10 @@ pub int status_rank(str letter) {
     return 0;
 }
 
-/// The status of every changed path below `directory`, keyed by the path
-/// relative to it (`git status --porcelain`): M modified, A added, D deleted,
-/// R renamed, ? untracked, ! conflicted. Folders carry the worst status of
-/// what is inside them. Empty outside a repository.
+/** The status of every changed path below `directory`, keyed by the path
+ * relative to it (`git status --porcelain`): M modified, A added, D deleted,
+ * R renamed, ? untracked, ! conflicted. Folders carry the worst status of
+ * what is inside them. Empty outside a repository. */
 pub Map<str, str> status_map(str directory) {
     Map<str, str> found = {};
     str text = "";

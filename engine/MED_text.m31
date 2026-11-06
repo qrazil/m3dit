@@ -1,26 +1,26 @@
-// Text helpers for one line: where the grapheme clusters are, how wide a
-// cluster is, and which class a character belongs to for the word motions.
-//
-// API
+/* Text helpers for one line: where the grapheme clusters are, how wide a
+ * cluster is, and which class a character belongs to for the word motions.
+ *
+ * API */
 // ---
-//   MED_text.is_ascii(line)              -> bool
-//   MED_text.starts(line)                -> List<int>  start offset of every cluster, then line.size()
-//   MED_text.next_col(line, col)         -> int        start of the cluster after the one at `col`
-//   MED_text.prev_col(line, col)         -> int        start of the cluster before `col`
-//   MED_text.last_col(line)              -> int        start of the last cluster (0 for "")
-//   MED_text.snap(line, col)             -> int        the cluster start at or before `col`
-//   MED_text.end_col(line, col)          -> int        end offset of the cluster that starts at `col`
-//   MED_text.cp_at(line, col)            -> int        first code point there, or -1 at the end
-//   MED_text.class_of(cp)                -> int        0 blank, 1 punctuation, 2 word, 3 emoji, 4.. scripts
-//   MED_text.class_at(line, col)         -> int
-//   MED_text.display_col(line, col, tab) -> int        screen column where the cluster at `col` starts
-//   MED_text.cell_width(line, col, at, tab) -> int     width of the cluster at `col` when it starts at screen column `at`
-//   MED_text.col_at_display(line, want, tab) -> int    the cluster start covering screen column `want`
-//   MED_text.line_width(line, tab)       -> int
-//   MED_text.first_nonblank(line)        -> int        offset of the first non-blank, or the end
-//
-// Offsets are bytes, always on a cluster boundary. Lines are all-ASCII most of
-// the time, and then none of this touches the Unicode tables.
+/*   MED_text.is_ascii(line)              -> bool
+ *   MED_text.starts(line)                -> List<int>  start offset of every cluster, then line.size()
+ *   MED_text.next_col(line, col)         -> int        start of the cluster after the one at `col`
+ *   MED_text.prev_col(line, col)         -> int        start of the cluster before `col`
+ *   MED_text.last_col(line)              -> int        start of the last cluster (0 for "")
+ *   MED_text.snap(line, col)             -> int        the cluster start at or before `col`
+ *   MED_text.end_col(line, col)          -> int        end offset of the cluster that starts at `col`
+ *   MED_text.cp_at(line, col)            -> int        first code point there, or -1 at the end
+ *   MED_text.class_of(cp)                -> int        0 blank, 1 punctuation, 2 word, 3 emoji, 4.. scripts
+ *   MED_text.class_at(line, col)         -> int
+ *   MED_text.display_col(line, col, tab) -> int        screen column where the cluster at `col` starts
+ *   MED_text.cell_width(line, col, at, tab) -> int     width of the cluster at `col` when it starts at screen column `at`
+ *   MED_text.col_at_display(line, want, tab) -> int    the cluster start covering screen column `want`
+ *   MED_text.line_width(line, tab)       -> int
+ *   MED_text.first_nonblank(line)        -> int        offset of the first non-blank, or the end
+ *
+ * Offsets are bytes, always on a cluster boundary. Lines are all-ASCII most of
+ * the time, and then none of this touches the Unicode tables. */
 
 import engine.MED_charclass;
 import text.unicode;
@@ -160,8 +160,8 @@ pub int cp_at(str line, int col) {
     return ((lead & 7) << 18) | ((line.byte_at(col + 1) & 63) << 12) | ((line.byte_at(col + 2) & 63) << 6) | (line.byte_at(col + 3) & 63);
 }
 
-/// Word class for the word motions (nvim's `utf_class`): 0 blank,
-/// 1 punctuation, 2 word, 3 emoji, 4 and up per-script classes.
+/** Word class for the word motions (nvim's `utf_class`): 0 blank,
+ * 1 punctuation, 2 word, 3 emoji, 4 and up per-script classes. */
 pub int class_of(int code_point) {
     if (code_point < 256) {
         if (code_point == 32 || code_point == 9 || code_point == 0 || code_point == 160) {
@@ -189,9 +189,9 @@ pub int class_of(int code_point) {
     return 2;
 }
 
-/// `class_of` with an 'iskeyword' table (see `keyword_table`): below 256 a
-/// character is a word character when the table says so; an empty table is
-/// the default value.
+/** `class_of` with an 'iskeyword' table (see `keyword_table`): below 256 a
+ * character is a word character when the table says so; an empty table is
+ * the default value. */
 pub int class_in(int code_point, List<int> keywords) {
     if (keywords.size() == 0 || code_point >= 256) {
         return class_of(code_point);
@@ -235,8 +235,8 @@ int keyword_code(str text) {
     return -1;
 }
 
-/// Parse an 'iskeyword' value into a table of 256 entries (1: keyword).
-/// Items are `@` (letters), `N`, `N-M`, `c`, `c-d` and `^item` to remove.
+/** Parse an 'iskeyword' value into a table of 256 entries (1: keyword).
+ * Items are `@` (letters), `N`, `N-M`, `c`, `c-d` and `^item` to remove. */
 pub List<int> keyword_table(str value) {
     List<int> table = [];
     for (int code in 0 .. 256) {
@@ -314,8 +314,8 @@ pub int first_nonblank(str line) {
     return size;
 }
 
-/// The first 512 bytes of a line: all that file type detection (a shebang, a modeline) may look at, so a minified
-/// one-line file is not scanned whole every time the status line or a tick asks what the language is.
+/** The first 512 bytes of a line: all that file type detection (a shebang, a modeline) may look at, so a minified
+ * one-line file is not scanned whole every time the status line or a tick asks what the language is. */
 pub str head(str line) {
     if (line.size() > 512) {
         return line.substr(0, 512);
@@ -379,9 +379,9 @@ pub int line_width(str line, int tab) {
     return display_col(line, line.size(), tab);
 }
 
-/// The byte offsets where each screen row of `line` starts when it wraps at
-/// `width` cells (the first is 0). A character that does not fit starts the
-/// next row.
+/** The byte offsets where each screen row of `line` starts when it wraps at
+ * `width` cells (the first is 0). A character that does not fit starts the
+ * next row. */
 pub List<int> wrap_breaks(str line, int width, int tab) {
     List<int> breaks = [0];
     if (width <= 0) {
@@ -447,9 +447,9 @@ pub List<int> spots_of(str line, List<int> offsets, int tab) {
     return spots;
 }
 
-/// The cluster start whose cells cover screen column `want`; the last
-/// cluster when `want` is past the end (callers decide whether that is
-/// allowed), 0 for the empty line.
+/** The cluster start whose cells cover screen column `want`; the last
+ * cluster when `want` is past the end (callers decide whether that is
+ * allowed), 0 for the empty line. */
 pub int col_at_display(str line, int want, int tab) {
     int spot = 0;
     int last = 0;

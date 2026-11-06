@@ -35,8 +35,8 @@ MEDX_git_hunk.Hunks by_remove = MEDX_git_hunk.diff(["a", "b", "c"], ["a", "c"]);
 check.eq_str("remove patch", MEDX_git_hunk.hunk_patch(by_remove, 0, ["a", "b", "c"], ["a", "c"], "f.txt"), "--- a/f.txt\n+++ b/f.txt\n@@ -2,1 +1,0 @@\n-b\n");
 check.eq_int("removal hunk found from the row below", MEDX_git_hunk.hunk_at(by_remove, 1), 0);
 check.eq_str("preview header", MEDX_git_hunk.hunk_preview(by_change, 0, ["a", "b", "c"], ["a", "x", "c"])[0], "@@ -2,1 +2,1 @@");
-// large files: the common head and tail are cut off first, so one edit in
-// 100000 lines is cheap, and a middle too big for the exact diff is one hunk
+/* large files: the common head and tail are cut off first, so one edit in
+ * 100000 lines is cheap, and a middle too big for the exact diff is one hunk */
 List<str> big_base = [];
 List<str> big_current = [];
 for (int row in 0 .. 100000) {

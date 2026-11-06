@@ -1,5 +1,5 @@
-// The `move` plugin through the App: Alt-j/k/h/l move or shift the line and the Visual selection, a boundary is a no-op,
-// and :PluginDisable move takes the keys away.
+/* The `move` plugin through the App: Alt-j/k/h/l move or shift the line and the Visual selection, a boundary is a no-op,
+ * and :PluginDisable move takes the keys away. */
 
 import tests.MED_check;
 import ui.MED_app;

@@ -1,8 +1,8 @@
-// Per-user state files: the recent-files list, last cursor positions and the
-// per-project harpoon lists. One small text file each under
-// $XDG_STATE_HOME/m3 (default ~/.local/state/m3); nothing here runs
-// unless the front end was given a state directory, so tests and `-u NONE`
-// stay hermetic.
+/* Per-user state files: the recent-files list, last cursor positions and the
+ * per-project harpoon lists. One small text file each under
+ * $XDG_STATE_HOME/m3 (default ~/.local/state/m3); nothing here runs
+ * unless the front end was given a state directory, so tests and `-u NONE`
+ * stay hermetic. */
 
 import fs;
 import io;
@@ -86,8 +86,8 @@ pub str project_key(str root) {
     return root.split("/").join("%");
 }
 
-/// `row` and `col` of `path` in a positions list ("PATH\tROW\tCOL" lines), or
-/// (-1, 0) when it is not there.
+/** `row` and `col` of `path` in a positions list ("PATH\tROW\tCOL" lines), or
+ * (-1, 0) when it is not there. */
 pub List<int> position_of(List<str> positions, str path) {
     for (str line in positions) {
         List<str> parts = line.split("\t");

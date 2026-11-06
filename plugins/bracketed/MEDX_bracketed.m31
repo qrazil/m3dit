@@ -1,7 +1,7 @@
-// The `bracketed` plugin: `[b ]b [B ]B` (buffers), `[q ]q [Q ]Q` (quickfix), `[t ]t` (TODO comments), `[h ]h` and
-// `[c ]c` (git hunks), `[d ]d` (diagnostics). It was `App.did_bracketed` and two special cases in `App.handle`; now it
-// is data: Normal-mode maps that run the ex command of the same job (`:bnext`, `:cnext`, `:Todo next`, `:Hunk next`,
-// `:Lsp next_diag`). Nothing runs at activation. `wants: todo` only so that `:Todo` exists when `[t` is typed.
+/* The `bracketed` plugin: `[b ]b [B ]B` (buffers), `[q ]q [Q ]Q` (quickfix), `[t ]t` (TODO comments), `[h ]h` and
+ * `[c ]c` (git hunks), `[d ]d` (diagnostics). It was `App.did_bracketed` and two special cases in `App.handle`; now it
+ * is data: Normal-mode maps that run the ex command of the same job (`:bnext`, `:cnext`, `:Todo next`, `:Hunk next`,
+ * `:Lsp next_diag`). Nothing runs at activation. `wants: todo` only so that `:Todo` exists when `[t` is typed. */
 
 import ext.MED_ext;
 

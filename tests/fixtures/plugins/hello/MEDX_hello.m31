@@ -1,5 +1,5 @@
-// Fixture plugin for tests/test_plugins.sh: lazy (it wakes on `:Hello`), one command, one key, one hook (it writes hello.log after a write).
-// It is built only with `--plugin-dir tests/fixtures/plugins --plugins hello`; it is not part of any profile.
+/* Fixture plugin for tests/test_plugins.sh: lazy (it wakes on `:Hello`), one command, one key, one hook (it writes hello.log after a write).
+ * It is built only with `--plugin-dir tests/fixtures/plugins --plugins hello`; it is not part of any profile. */
 
 import ext.MED_ext;
 import io;

@@ -1,5 +1,5 @@
-// Unit checks for MED_anim: the scroll scheduler, the pacer, colour blends.
-// Everything is driven with a made-up clock, so every run is the same.
+/* Unit checks for MED_anim: the scroll scheduler, the pacer, colour blends.
+ * Everything is driven with a made-up clock, so every run is the same. */
 
 import tests.MED_check;
 import tui.core.TUI_buffer;
@@ -11,8 +11,8 @@ MED_check.Check check = MED_check.Check();
 
 const int NS_PER_MS = 1000000;
 
-// Run the scheduler `frames` frames of `step_ms` after `start_ms`, the engine
-// holding on `top` throughout; returns every top drawn.
+/* Run the scheduler `frames` frames of `step_ms` after `start_ms`, the engine
+ * holding on `top` throughout; returns every top drawn. */
 List<int> run_frames(MED_anim.Scroll scroll, int top, int start_ms, int step_ms, int frames) {
     List<int> drawn = [];
     for (int frame in 1 .. frames + 1) {

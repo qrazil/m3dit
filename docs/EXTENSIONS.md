@@ -295,7 +295,7 @@ Every handler runs on the thread that reads keys and draws frames; nothing can i
   `tests/ext_pty.py` does: a temp project directory (realpath'd, passed as cwd and `PWD`),
   `GIT_CEILING_DIRECTORIES`, non-blocking writes, results read from the files on disk.
 * Name your test `tests/t_<name>.m31` and add it to `tests/test_units.sh` (in-repo extensions); the repo gate also
-  runs `m31c -fmt --check -r .` and `m31c -lint .` over `ext/`.
+  runs `m31c -fmt --check --recursive .` and `m31c -lint .` over `ext/`.
 
 ## 9. Example 1: trim trailing whitespace on save (built, `ext/MEDX_trim_whitespace.m31`)
 

@@ -1,5 +1,5 @@
-// The `bracketed` plugin through the App: [b ]b [B ]B walk the buffers, the keys are the plugin's (they go with
-// :PluginDisable), and which-key labels come from the plugin's maps.
+/* The `bracketed` plugin through the App: [b ]b [B ]B walk the buffers, the keys are the plugin's (they go with
+ * :PluginDisable), and which-key labels come from the plugin's maps. */
 
 import tests.MED_check;
 import ui.MED_app;

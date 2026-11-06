@@ -1,13 +1,13 @@
-// Option table: the names, short names, kinds and defaults of Neovim's options.
-//
-// API
+/* Option table: the names, short names, kinds and defaults of Neovim's options.
+ *
+ * API */
 // ---
-//   MED_option.find(word)    the Spec of an option name or short name; Spec.name is "" when unknown
-//   MED_option.SPECS         every known option
-//
-// Kinds are "bool", "num" and "str". Defaults are the text `:set name?` would
-// show for a fresh Neovim started with `-u NONE`. This module knows no editor;
-// MED_ex stores the values.
+/*   MED_option.find(word)    the Spec of an option name or short name; Spec.name is "" when unknown
+ *   MED_option.SPECS         every known option
+ *
+ * Kinds are "bool", "num" and "str". Defaults are the text `:set name?` would
+ * show for a fresh Neovim started with `-u NONE`. This module knows no editor;
+ * MED_ex stores the values. */
 
 pub type Spec {
     pub str name = "";

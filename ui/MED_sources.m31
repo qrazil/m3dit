@@ -1,17 +1,17 @@
-// What the pickers list: the command lines that produce it and the parsers of
-// what those commands print. No terminal and no editor state here, so the
-// parsers have unit tests (tests/t_sources.m31).
-//
-// A source is an external command when one is installed (`rg`, `fd`, `git`),
-// run through MED_shell as a stream so a large tree does not block typing;
-// when none is, the front end falls back to the built-in walker (MED_files)
-// and searcher (MED_grep).
+/* What the pickers list: the command lines that produce it and the parsers of
+ * what those commands print. No terminal and no editor state here, so the
+ * parsers have unit tests (tests/t_sources.m31).
+ *
+ * A source is an external command when one is installed (`rg`, `fd`, `git`),
+ * run through MED_shell as a stream so a large tree does not block typing;
+ * when none is, the front end falls back to the built-in walker (MED_files)
+ * and searcher (MED_grep). */
 
 import ui.MED_picker;
 import engine.MED_shell;
 
-/// The command that lists the files below the current directory, one relative
-/// path a line; empty when no tool is installed (use the built-in walker).
+/** The command that lists the files below the current directory, one relative
+ * path a line; empty when no tool is installed (use the built-in walker). */
 pub List<str> files_command(bool is_hidden_shown, bool is_ignore_used, bool is_git_repository) {
     if (MED_shell.which("rg").is_some()) {
         List<str> argv = ["rg", "--files", "--color", "never", "--glob", "!.git"];
@@ -39,9 +39,9 @@ pub List<str> files_command(bool is_hidden_shown, bool is_ignore_used, bool is_g
     return [];
 }
 
-/// The command that searches the files below the current directory for
-/// `query` (smart case); output lines are `path:line:column:text`. Empty when
-/// `rg` is not installed.
+/** The command that searches the files below the current directory for
+ * `query` (smart case); output lines are `path:line:column:text`. Empty when
+ * `rg` is not installed. */
 pub List<str> grep_command(str query, bool is_fixed, bool is_hidden_shown, bool is_ignore_used) {
     if (MED_shell.which("rg").is_none()) {
         return [];
@@ -63,8 +63,8 @@ pub List<str> grep_command(str query, bool is_fixed, bool is_hidden_shown, bool 
     return argv;
 }
 
-/// One `path:line:column:text` line of `rg --column`; the entry's `path` is
-/// relative to the search directory, `line` and `column` are 0-based.
+/** One `path:line:column:text` line of `rg --column`; the entry's `path` is
+ * relative to the search directory, `line` and `column` are 0-based. */
 pub MED_picker.Entry parse_grep_line(str line) {
     List<str> parts = line.split(":");
     if (parts.size() < 4) {
@@ -81,8 +81,8 @@ pub MED_picker.Entry parse_grep_line(str line) {
     return entry;
 }
 
-/// `git branch --format=%(HEAD)%(refname:short)` lines as entries; the current
-/// branch is marked and its action is empty.
+/** `git branch --format=%(HEAD)%(refname:short)` lines as entries; the current
+ * branch is marked and its action is empty. */
 pub List<MED_picker.Entry> parse_branches(List<str> lines, bool is_remote) {
     List<MED_picker.Entry> out = [];
     for (str line in lines) {
@@ -111,8 +111,8 @@ pub List<MED_picker.Entry> parse_branches(List<str> lines, bool is_remote) {
     return out;
 }
 
-/// `git log --pretty=format:%h%x09%s%x09%an%x09%ar` lines as entries; the hash
-/// is in `detail` for the preview.
+/** `git log --pretty=format:%h%x09%s%x09%an%x09%ar` lines as entries; the hash
+ * is in `detail` for the preview. */
 pub List<MED_picker.Entry> parse_commits(List<str> lines) {
     List<MED_picker.Entry> out = [];
     for (str line in lines) {
@@ -126,8 +126,8 @@ pub List<MED_picker.Entry> parse_commits(List<str> lines) {
     return out;
 }
 
-/// `git status --porcelain=v1 -z` output as entries (`XY path`); `root` is the
-/// repository's top-level directory.
+/** `git status --porcelain=v1 -z` output as entries (`XY path`); `root` is the
+ * repository's top-level directory. */
 pub List<MED_picker.Entry> parse_status(str text, str root) {
     List<MED_picker.Entry> out = [];
     List<str> fields = text.split("\u{0}");
@@ -164,12 +164,12 @@ pub List<MED_picker.Entry> line_entries(List<str> lines, str path) {
 /// Comment markers a TODO may follow.
 const List<str> TODO_WORDS = ["TODO", "FIXME", "HACK", "XXX", "NOTE", "WARN", "PERF", "BUG"];
 
-/// The first TODO-style word of `line` that stands as a word (an upper-case
-/// keyword followed by `:` or `(` or a blank or the end), with its byte offset;
-/// the word is "" when there is none.
+/** The first TODO-style word of `line` that stands as a word (an upper-case
+ * keyword followed by `:` or `(` or a blank or the end), with its byte offset;
+ * the word is "" when there is none. */
 pub MED_picker.Entry todo_in(str whole_line) {
-    // the drawing code asks for every line it paints on every frame: a minified one-line file must not be
-    // searched to its end each time (a TODO that far out is not on the screen anyway)
+    /* the drawing code asks for every line it paints on every frame: a minified one-line file must not be
+     * searched to its end each time (a TODO that far out is not on the screen anyway) */
     str line = whole_line;
     if (line.size() > 4096) {
         line = line.substr(0, 4096);
@@ -209,8 +209,8 @@ pub List<MED_picker.Entry> todo_entries(List<str> lines, str path) {
     return out;
 }
 
-/// Declarations of a file by simple line patterns (no parser): functions,
-/// types, classes, headings. `lang` is the syntax name ("" when unknown).
+/** Declarations of a file by simple line patterns (no parser): functions,
+ * types, classes, headings. `lang` is the syntax name ("" when unknown). */
 pub List<MED_picker.Entry> symbol_entries(List<str> lines, str path, str lang) {
     List<MED_picker.Entry> out = [];
     for (int row in 0 .. lines.size()) {

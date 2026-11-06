@@ -1,28 +1,28 @@
-// Auto pairs: typing an opening bracket or quote inserts the closing one,
-// typing the closing one steps over it, <BS> inside an empty pair deletes
-// both, <Space> pads and <CR> between brackets opens a line.
-//
-// A port of the decisions of jiangmiao/auto-pairs 2.0.0 with its default
-// pairs ( [ { ' " ` and the ``` """ ''' triples, checked against the plugin
-// itself (tests/oracles/corpus/91_autopairs.txt). Pure text work: the
-// functions get the text around the cursor and return the keys the plugin
-// would have inserted; MED_vim types those keys.
-//
-// API
+/* Auto pairs: typing an opening bracket or quote inserts the closing one,
+ * typing the closing one steps over it, <BS> inside an empty pair deletes
+ * both, <Space> pads and <CR> between brackets opens a line.
+ *
+ * A port of the decisions of jiangmiao/auto-pairs 2.0.0 with its default
+ * pairs ( [ { ' " ` and the ``` """ ''' triples, checked against the plugin
+ * itself (tests/oracles/corpus/91_autopairs.txt). Pure text work: the
+ * functions get the text around the cursor and return the keys the plugin
+ * would have inserted; MED_vim types those keys.
+ *
+ * API */
 // ---
-//   MED_autopair.on_key(key, before, after, line_rest, row_is_return)
-//   MED_autopair.on_backspace(before, after)
-//   MED_autopair.on_space(before, after)
-//   MED_autopair.is_return_pair(previous_line, line_rest)
+/*   MED_autopair.on_key(key, before, after, line_rest, row_is_return)
+ *   MED_autopair.on_backspace(before, after)
+ *   MED_autopair.on_space(before, after)
+ *   MED_autopair.is_return_pair(previous_line, line_rest) */
 
 /// The keys of a decision, and what else is to happen first.
 pub type Decision {
     /// The plugin returned something else than the key: type `keys`.
     pub bool is_handled = false;
     pub List<int> keys = [];
-    /// Jump over a closing pair on a later line: delete the blank line the
-    /// last <CR> made (when `is_blank_line_delete`), search for `search` and
-    /// step over it.
+    /** Jump over a closing pair on a later line: delete the blank line the
+     * last <CR> made (when `is_blank_line_delete`), search for `search` and
+     * step over it. */
     pub bool is_search = false;
     pub str search = "";
     pub bool is_blank_line_delete = false;
@@ -77,8 +77,8 @@ int length_of(str text) {
     return text.chars().size();
 }
 
-// Whether `text` ends with the opening of `pair`; the single quote only
-// opens after the start of the text or a non-word character.
+/* Whether `text` ends with the opening of `pair`; the single quote only
+ * opens after the start of the text or a non-word character. */
 bool is_open_end(str text, Pair pair) {
     if (!text.ends_with(pair.open)) {
         return false;
@@ -92,8 +92,8 @@ bool is_open_end(str text, Pair pair) {
     return true;
 }
 
-// `^\s*` then `close`: the text after the optional blanks, or "" if it does
-// not start with the close.
+/* `^\s*` then `close`: the text after the optional blanks, or "" if it does
+ * not start with the close. */
 str close_after_blanks(str text, str close) {
     int index = 0;
     while (index < text.size() && (text.byte_at(index) == 32 || text.byte_at(index) == 9)) {
@@ -153,10 +153,10 @@ str last_char(str text) {
     return str.from_chars([codes[codes.size() - 1]]);
 }
 
-/// AutoPairsInsert(key). `before` is the line up to the cursor, `after` the
-/// rest of the line and the following lines up to a non-blank one (joined with
-/// a space), `line_rest` the rest of the line only. `is_return_row` says the
-/// cursor is on the line the last <CR> opened between a pair.
+/** AutoPairsInsert(key). `before` is the line up to the cursor, `after` the
+ * rest of the line and the following lines up to a non-blank one (joined with
+ * a space), `line_rest` the rest of the line only. `is_return_row` says the
+ * cursor is on the line the last <CR> opened between a pair. */
 pub Decision on_key(int key, str before_text, str after, str line_rest_in, bool is_return_row, bool is_row_blank) {
     Decision decision = Decision();
     str key_text = str.from_chars([key]);
@@ -265,8 +265,8 @@ pub Decision on_key(int key, str before_text, str after, str line_rest_in, bool 
     return decision;
 }
 
-// `before =~ open . '\s*$'`: the text before the cursor ends with the open
-// pair and blanks.
+/* `before =~ open . '\s*$'`: the text before the cursor ends with the open
+ * pair and blanks. */
 bool is_before_ending_open(str before, Pair pair) {
     int stop = before.size();
     while (stop > 0 && (before.byte_at(stop - 1) == 32 || before.byte_at(stop - 1) == 9)) {
@@ -337,8 +337,8 @@ pub List<int> on_space(str before, str after) {
     return keys;
 }
 
-/// AutoPairsReturn(): whether the line before ends with an open pair and the
-/// rest of this line starts with its close.
+/** AutoPairsReturn(): whether the line before ends with an open pair and the
+ * rest of this line starts with its close. */
 pub bool is_return_pair(str previous_line, str line_rest) {
     for (Pair pair in pairs()) {
         if (pair.close == "") {

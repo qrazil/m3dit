@@ -1,7 +1,7 @@
-// Unit checks for the pure parts of the in-process git: the hunk byte operations, the row maps, the relative
-// dates, the range tracing behind `:Git log -L`, the `ih` / `ah` objects and the `:Git` argument parsing. What
-// needs a repository (the library reading real objects, staging, blame) is checked against real `git` by
-// tests/oracles/oracle_git.py.
+/* Unit checks for the pure parts of the in-process git: the hunk byte operations, the row maps, the relative
+ * dates, the range tracing behind `:Git log -L`, the `ih` / `ah` objects and the `:Git` argument parsing. What
+ * needs a repository (the library reading real objects, staging, blame) is checked against real `git` by
+ * tests/oracles/oracle_git.py. */
 
 import engine.MED_buffer;
 import ext.MED_ext;

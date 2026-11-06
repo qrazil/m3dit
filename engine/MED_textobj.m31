@@ -1,15 +1,15 @@
-// Text objects (`iw aw iW aW ip ap i" a" i( a( ...`), ported from Vim's
-// textobject.c and checked against nvim.
-//
-// API
+/* Text objects (`iw aw iW aW ip ap i" a" i( a( ...`), ported from Vim's
+ * textobject.c and checked against nvim.
+ *
+ * API */
 // ---
-//   MED_textobj.select(buf, cursor, vis, vstart, vmode, obj, include, count) -> Sel
-//
-// Every object works in operator-pending mode and in Visual mode. In
-// operator-pending mode (`vis` false) the result is the range `start`..`end`
-// with `inclusive` and `linewise` set. In Visual mode `start` is the new
-// Visual anchor, `end` the new cursor, and `vmode` the mode the selection
-// must switch to (-1 keeps the current one).
+/*   MED_textobj.select(buf, cursor, vis, vstart, vmode, obj, include, count) -> Sel
+ *
+ * Every object works in operator-pending mode and in Visual mode. In
+ * operator-pending mode (`vis` false) the result is the range `start`..`end`
+ * with `inclusive` and `linewise` set. In Visual mode `start` is the new
+ * Visual anchor, `end` the new cursor, and `vmode` the mode the selection
+ * must switch to (-1 keeps the current one). */
 
 import engine.MED_buffer;
 import engine.MED_motion;
@@ -148,9 +148,9 @@ int backslashes(str line, int col) {
     return count;
 }
 
-/// Vim's findmatchlimit for a bracket with the quotes ignored (the 'cpo'
-/// "%" flag): starting just past `pos`, the first `findc` not matched by an
-/// `initc` met on the way. `is_backwards` picks the direction.
+/** Vim's findmatchlimit for a bracket with the quotes ignored (the 'cpo'
+ * "%" flag): starting just past `pos`, the first `findc` not matched by an
+ * `initc` met on the way. `is_backwards` picks the direction. */
 pub Sel find_unmatched(MED_buffer.Buffer buffer, MED_buffer.Pos from, int initc, int findc, bool is_backwards) {
     int row = from.row;
     int col = from.col;
@@ -199,8 +199,8 @@ pub Sel find_unmatched(MED_buffer.Buffer buffer, MED_buffer.Pos from, int initc,
     }
 }
 
-// findmatch(NULL, what): `what` is a bracket, the search is for its pair in
-// the direction implied (an opener searches back, a closer forward).
+/* findmatch(NULL, what): `what` is a bracket, the search is for its pair in
+ * the direction implied (an opener searches back, a closer forward). */
 Sel findmatch(MED_buffer.Buffer buffer, MED_buffer.Pos from, int what) {
     if (what == 40) {
         return find_unmatched(buffer, from, 41, 40, true);
@@ -558,8 +558,8 @@ bool is_linewhite(MED_buffer.Buffer buffer, int row) {
     return MED_text.first_nonblank(line) >= line.size();
 }
 
-// An empty line or a form feed starts a paragraph (nroff macros are not
-// recognised).
+/* An empty line or a form feed starts a paragraph (nroff macros are not
+ * recognised). */
 bool is_start_ps(MED_buffer.Buffer buffer, int row) {
     str line = buffer.line(row);
     return line.size() == 0 || line.byte_at(0) == 12;
@@ -892,8 +892,8 @@ MED_buffer.Pos find_gt(MED_buffer.Buffer buffer, int row, int col) {
     return MED_buffer.Pos(-1, 0);
 }
 
-// Whether the `>` at q ends a tag whose whitespace is at (row, p): the char
-// before it is not `/` (and, when `is_plain`, not a line break).
+/* Whether the `>` at q ends a tag whose whitespace is at (row, p): the char
+ * before it is not `/` (and, when `is_plain`, not a line break). */
 bool is_tag_close_ok(MED_buffer.Buffer buffer, int row, int offset, bool is_plain) {
     MED_buffer.Pos position = find_gt(buffer, row, offset);
     if (position.row < 0) {
@@ -1241,9 +1241,9 @@ Sel current_tag(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visible
 
 // ---- ih ah: the git hunk under the cursor (m3 addition, no Vim equivalent; gitsigns has `ih`) ----
 
-/// `hunks` holds pairs (first row, row count) of the buffer's changes against the index, ascending. `ih` is the
-/// hunk's rows; `ah` adds the blank rows right after it. A hunk that only removed lines has no rows, so there
-/// is nothing to select and the object fails.
+/** `hunks` holds pairs (first row, row count) of the buffer's changes against the index, ascending. `ih` is the
+ * hunk's rows; `ah` adds the blank rows right after it. A hunk that only removed lines has no rows, so there
+ * is nothing to select and the object fails. */
 Sel current_hunk(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visible, List<int> hunks, bool is_include) {
     int last = buffer.line_count() - 1;
     int pair = 0;
@@ -1270,8 +1270,8 @@ Sel current_hunk(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visibl
     return failed();
 }
 
-/// The object `obj` (`w W p ( ) b { } B [ ] < > " ' `` `` s t`, and h for a git hunk) with `i` or
-/// `a`. `vmode` is the Visual mode key (v, V or CTRL-V) when `is_visible`.
+/** The object `obj` (`w W p ( ) b { } B [ ] < > " ' `` `` s t`, and h for a git hunk) with `i` or
+ * `a`. `vmode` is the Visual mode key (v, V or CTRL-V) when `is_visible`. */
 pub Sel select(MED_buffer.Buffer buffer, MED_buffer.Pos cursor, bool is_visible, MED_buffer.Pos vstart, int vmode, int obj, bool is_include, int count, List<int> hunks = []) {
     int total = count;
     if (total < 1) {

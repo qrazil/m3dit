@@ -1,13 +1,13 @@
-// The `harpoon` plugin: pin the files you keep going back to and jump to them by number. It was `App.run_harpoon`,
-// `load_harpoon`, the `harpoon` picker and fifteen keymap rows; now it is six commands and fifteen maps over the
-// per-project state file the host keeps (`Ctx.state_lines("harpoon")`, the file the core wrote before, so existing
-// lists carry over). Lazy: nothing is read until a command runs.
+/* The `harpoon` plugin: pin the files you keep going back to and jump to them by number. It was `App.run_harpoon`,
+ * `load_harpoon`, the `harpoon` picker and fifteen keymap rows; now it is six commands and fifteen maps over the
+ * per-project state file the host keeps (`Ctx.state_lines("harpoon")`, the file the core wrote before, so existing
+ * lists carry over). Lazy: nothing is read until a command runs. */
 
 import ext.MED_ext;
 import fs;
 
-/// What survives between commands: the index last jumped to (next and previous start from it when the current file
-/// is not pinned).
+/** What survives between commands: the index last jumped to (next and previous start from it when the current file
+ * is not pinned). */
 type Pins {
     int index = -1;
 }

@@ -1,6 +1,6 @@
-// The `move` plugin: Alt-j and Alt-k move the line (or the Visual selection) down and up, Alt-h and Alt-l shift it
-// left and right. It was `App.did_alt_move` in the core; now it is data: eight key maps that type the same keys the
-// core typed (`:m +1`, `:m '>+1` then `gv`, `<<`, `>>`). Nothing runs at activation.
+/* The `move` plugin: Alt-j and Alt-k move the line (or the Visual selection) down and up, Alt-h and Alt-l shift it
+ * left and right. It was `App.did_alt_move` in the core; now it is data: eight key maps that type the same keys the
+ * core typed (`:m +1`, `:m '>+1` then `gv`, `<<`, `>>`). Nothing runs at activation. */
 
 import ext.MED_ext;
 

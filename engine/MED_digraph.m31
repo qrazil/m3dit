@@ -1,11 +1,11 @@
-// Digraphs: the two-key combinations of CTRL-K, from Vim's default RFC1345 table.
-//
-// API
+/* Digraphs: the two-key combinations of CTRL-K, from Vim's default RFC1345 table.
+ *
+ * API */
 // ---
-//   MED_digraph.lookup(first, second)   the character code, or -1 when there is no digraph
-//
-// Vim looks a pair up as typed and then reversed; a pair that is not a digraph
-// gives the second key.
+/*   MED_digraph.lookup(first, second)   the character code, or -1 when there is no digraph
+ *
+ * Vim looks a pair up as typed and then reversed; a pair that is not a digraph
+ * gives the second key. */
 
 // Seven characters per entry: the two keys, then the code in five digits.
 const List<str> TABLE = [

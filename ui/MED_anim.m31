@@ -1,31 +1,31 @@
-// Motion: the pure part. Nothing here touches a terminal, an editor or a
-// clock: every function is given the time (monotonic nanoseconds) and the
-// state it works on, so a test can drive it with a made-up clock and get the
-// same frames every time.
-//
-// What moves, and the one rule behind all of it: **an animation is only ever a
-// path to a state the editor already computed.** The engine decides the final
-// state (where the window's top line is, where the cursor is) exactly as it
-// does with animation off; this module only decides what to draw on the way
-// there, and the last frame is always the engine's own. So an animation can
-// make a scroll take 100 ms; it can never make it end somewhere else.
-//
-//   Scroll   the window's top line chases the engine's top line. Each frame
-//            closes a fixed share of what is left (an exponential ease-out,
-//            `tau_ms`), so a long jump is quick at first and settles softly, a
-//            second scroll while the first is running just moves the goal (no
-//            restart, no jump in speed), a mouse wheel's burst of notches
-//            accumulates, and the whole thing is over in about 100-150 ms
-//            whatever the distance (a hard cap, `max_ms`, lands it exactly).
-//   Pacer    watches how long frames take to draw and slows the animation down,
-//            or switches it off, on a terminal (or ssh link) that cannot keep up.
-//   blend    colour mixing in a gamma-2 space (the average of two sRGB colours
-//            is too dark if the channels are averaged as they are), for fades
-//            and flashes in 24-bit colour.
-//
-// Display rows follow the animated top (`clamp_row`) with 'scrolloff' kept at
-// every frame, so the cursor line slides with the text instead of vanishing
-// off the edge and reappearing.
+/* Motion: the pure part. Nothing here touches a terminal, an editor or a
+ * clock: every function is given the time (monotonic nanoseconds) and the
+ * state it works on, so a test can drive it with a made-up clock and get the
+ * same frames every time.
+ *
+ * What moves, and the one rule behind all of it: **an animation is only ever a
+ * path to a state the editor already computed.** The engine decides the final
+ * state (where the window's top line is, where the cursor is) exactly as it
+ * does with animation off; this module only decides what to draw on the way
+ * there, and the last frame is always the engine's own. So an animation can
+ * make a scroll take 100 ms; it can never make it end somewhere else.
+ *
+ *   Scroll   the window's top line chases the engine's top line. Each frame
+ *            closes a fixed share of what is left (an exponential ease-out,
+ *            `tau_ms`), so a long jump is quick at first and settles softly, a
+ *            second scroll while the first is running just moves the goal (no
+ *            restart, no jump in speed), a mouse wheel's burst of notches
+ *            accumulates, and the whole thing is over in about 100-150 ms
+ *            whatever the distance (a hard cap, `max_ms`, lands it exactly).
+ *   Pacer    watches how long frames take to draw and slows the animation down,
+ *            or switches it off, on a terminal (or ssh link) that cannot keep up.
+ *   blend    colour mixing in a gamma-2 space (the average of two sRGB colours
+ *            is too dark if the channels are averaged as they are), for fades
+ *            and flashes in 24-bit colour.
+ *
+ * Display rows follow the animated top (`clamp_row`) with 'scrolloff' kept at
+ * every frame, so the cursor line slides with the text instead of vanishing
+ * off the edge and reappearing. */
 
 import math;
 import timer;
@@ -46,9 +46,9 @@ pub const int MIN_SCROLL_LINES = 2;
 
 // ----------------------------------------------------------------- settings
 
-/// The switches (`:set animate`, `animatetime`, `animatescroll`, `animatefade`,
-/// `animateflash`), plus what the terminal can do. Built by the front end from
-/// the options and the environment, once per frame.
+/** The switches (`:set animate`, `animatetime`, `animatescroll`, `animatefade`,
+ * `animateflash`), plus what the terminal can do. Built by the front end from
+ * the options and the environment, once per frame. */
 pub type Config {
     /// `animate`: the master switch.
     pub bool is_on = true;
@@ -63,8 +63,8 @@ pub type Config {
     pub bool is_dark = true;
 }
 
-/// The time constant of the scroll ease-out for an `animatetime`: the time to
-/// settle is about `tau * ln(distance * 2)`, ~4 time constants for 30 lines.
+/** The time constant of the scroll ease-out for an `animatetime`: the time to
+ * settle is about `tau * ln(distance * 2)`, ~4 time constants for 30 lines. */
 pub int tau_for(int time_ms) {
     int tau = time_ms / 4;
     if (tau < 8) {
@@ -78,14 +78,14 @@ pub int tau_for(int time_ms) {
 
 // ---------------------------------------------------------------- scrolling
 
-/// The scroll of one window. The front end calls `observe` for the active
-/// window every frame with the top line the engine settled on; `observe` answers
-/// the top line to draw.
+/** The scroll of one window. The front end calls `observe` for the active
+ * window every frame with the top line the engine settled on; `observe` answers
+ * the top line to draw. */
 pub type Scroll {
     /// A scroll is under way: the next frame is due.
     pub bool is_active = false;
-    /// What was scrolled last frame (window and buffer, as one number): a
-    /// different one starts over rather than animating between two documents.
+    /** What was scrolled last frame (window and buffer, as one number): a
+     * different one starts over rather than animating between two documents. */
     pub int key = -1;
     /// The buffer's change counter last frame: an edit is shown at once.
     pub int version = -1;
@@ -106,17 +106,17 @@ pub type Scroll {
     pub int max_ms = 160;
 }
 
-/// Stop and forget nothing but the animation: the next frame shows the engine's
-/// state (`observe` returns the target).
+/** Stop and forget nothing but the animation: the next frame shows the engine's
+ * state (`observe` returns the target). */
 pub void Scroll.stop() {
     is_active = false;
     position = float(target);
     shown = target;
 }
 
-/// The goal moved to `top`, `now` being the time. Starts an animation from the
-/// line last drawn (`shown`, which is the old goal when nothing was running), or
-/// redirects the one that is running.
+/** The goal moved to `top`, `now` being the time. Starts an animation from the
+ * line last drawn (`shown`, which is the old goal when nothing was running), or
+ * redirects the one that is running. */
 void Scroll.aim(int top, int now) {
     bool is_fresh = !is_active;
     if (!is_active) {
@@ -129,8 +129,8 @@ void Scroll.aim(int top, int now) {
     }
     target = top;
     is_active = true;
-    // A very long jump starts one and a bit screens away: the last stretch is
-    // the animation, the rest of the distance would be a blur.
+    /* A very long jump starts one and a bit screens away: the last stretch is
+     * the animation, the rest of the distance would be a blur. */
     float cap = float(rows + rows / 4 + 1);
     float distance = float(target) - position;
     if (distance > cap) {
@@ -147,8 +147,8 @@ void Scroll.aim(int top, int now) {
     }
 }
 
-/// Bring `position` up to `now`. True when the line to draw changed, or the animation
-/// ended, so a frame is worth drawing.
+/** Bring `position` up to `now`. True when the line to draw changed, or the animation
+ * ended, so a frame is worth drawing. */
 pub bool Scroll.did_advance(int now) {
     if (!is_active) {
         return false;
@@ -179,13 +179,13 @@ pub bool Scroll.did_advance(int now) {
     return shown != before;
 }
 
-/// The engine settled on top line `top` for window/buffer `new_key` whose text
-/// is at `new_version`; `rows` is the window's height. Returns the top line to
-/// draw. `is_allowed` false (animation off, a macro replaying, input queued,
-/// paste...) shows `top` at once and ends any animation in progress. A change of
-/// window or buffer, or of the text, also shows `top` at once. A move of fewer
-/// than `MIN_SCROLL_LINES` is instant too, unless an animation is already
-/// running, which it simply redirects.
+/** The engine settled on top line `top` for window/buffer `new_key` whose text
+ * is at `new_version`; `rows` is the window's height. Returns the top line to
+ * draw. `is_allowed` false (animation off, a macro replaying, input queued,
+ * paste...) shows `top` at once and ends any animation in progress. A change of
+ * window or buffer, or of the text, also shows `top` at once. A move of fewer
+ * than `MIN_SCROLL_LINES` is instant too, unless an animation is already
+ * running, which it simply redirects. */
 pub int Scroll.observe(int new_key, int new_version, int top, int new_rows, bool is_allowed, int now) {
     rows = new_rows;
     bool is_same = new_key == key && new_version == version;
@@ -231,10 +231,10 @@ pub int round_to_int(float x) {
     return -int(0.5 - x);
 }
 
-/// The row to draw the cursor on while the window shows `top`: the engine's row
-/// when it is inside the window honouring `margin` lines of 'scrolloff' (fewer at
-/// the start and end of the buffer, where the window cannot scroll further),
-/// else the nearest row that does.
+/** The row to draw the cursor on while the window shows `top`: the engine's row
+ * when it is inside the window honouring `margin` lines of 'scrolloff' (fewer at
+ * the start and end of the buffer, where the window cannot scroll further),
+ * else the nearest row that does. */
 pub int clamp_row(int row, int top, int rows, int margin, int line_count) {
     int low = top + margin;
     if (top == 0) {
@@ -259,11 +259,11 @@ pub int clamp_row(int row, int top, int rows, int margin, int line_count) {
 
 // ------------------------------------------------------------------- pacing
 
-/// Watches how long frames take (microseconds, from the start of drawing to the
-/// end of the write) and answers how often animation frames may be asked for.
-/// A smoothed time under 8 ms keeps 16 ms frames; slower halves the rate and then
-/// halves it again; a terminal that takes 30 ms or more per frame gets no
-/// animation, because every frame is already late.
+/** Watches how long frames take (microseconds, from the start of drawing to the
+ * end of the write) and answers how often animation frames may be asked for.
+ * A smoothed time under 8 ms keeps 16 ms frames; slower halves the rate and then
+ * halves it again; a terminal that takes 30 ms or more per frame gets no
+ * animation, because every frame is already late. */
 pub type Pacer {
     pub int average_us = 0;
 }
@@ -276,8 +276,8 @@ pub void Pacer.note(int frame_us) {
         average_us = frame_us;
         return;
     }
-    // new samples count a quarter: one slow frame (a big redraw) does not
-    // switch animation off, several in a row do
+    /* new samples count a quarter: one slow frame (a big redraw) does not
+     * switch animation off, several in a row do */
     average_us = (average_us * 3 + frame_us) / 4;
 }
 
@@ -313,8 +313,8 @@ int from_linear(int linear) {
     return root;
 }
 
-/// One channel of the mix of `from` and `to`, `permille` of the way (0 is
-/// `from`, 1000 is `target`), mixed in gamma-2 space.
+/** One channel of the mix of `from` and `to`, `permille` of the way (0 is
+ * `from`, 1000 is `target`), mixed in gamma-2 space. */
 pub int blend_channel(int from, int target, int permille) {
     if (permille <= 0) {
         return from;
@@ -334,8 +334,8 @@ pub int blend_rgb(int from, int target, int permille) {
     return red * 65536 + green * 256 + blue;
 }
 
-/// The RGB a colour stands for on screen; `fallback` for the terminal's own
-/// default colour, which a program cannot know.
+/** The RGB a colour stands for on screen; `fallback` for the terminal's own
+ * default colour, which a program cannot know. */
 pub int colour_rgb(TUI_style.Colour colour, int fallback) {
     match (colour) {
         case Default: {
@@ -350,20 +350,20 @@ pub int colour_rgb(TUI_style.Colour colour, int fallback) {
     }
 }
 
-/// `colour` mixed `permille` of the way towards `target` (an RGB), as a 24-bit
-/// colour. `fallback` stands in for a default colour.
+/** `colour` mixed `permille` of the way towards `target` (an RGB), as a 24-bit
+ * colour. `fallback` stands in for a default colour. */
 pub TUI_style.Colour mix_towards(TUI_style.Colour colour, int target, int permille, int fallback) {
     int rgb = blend_rgb(colour_rgb(colour, fallback), target, permille);
     return TUI_style.Colour.Rgb(rgb / 65536, rgb / 256 % 256, rgb % 256);
 }
 
-/// What to draw for a popup that is fading in: every cell of `rect` of `frame`
-/// (the finished popup) is given colours `permille` of the way from what
-/// `under` (the frame as it was before the popup) showed there. The glyphs are
-/// the popup's own; their colour rises out of the background they sit on, so the
-/// text appears rather than the box snapping in. At 1000 nothing changes.
-/// `default_fg` / `default_bg` stand in for the terminal's own colours (the
-/// theme's `ui.text` and `ui.background`).
+/** What to draw for a popup that is fading in: every cell of `rect` of `frame`
+ * (the finished popup) is given colours `permille` of the way from what
+ * `under` (the frame as it was before the popup) showed there. The glyphs are
+ * the popup's own; their colour rises out of the background they sit on, so the
+ * text appears rather than the box snapping in. At 1000 nothing changes.
+ * `default_fg` / `default_bg` stand in for the terminal's own colours (the
+ * theme's `ui.text` and `ui.background`). */
 pub void fade_in(TUI_buffer.Buffer frame, TUI_buffer.Buffer under, TUI_geometry.Rect rect, int permille, int default_fg, int default_bg) {
     if (permille >= 1000) {
         return;
@@ -387,11 +387,11 @@ pub void fade_in(TUI_buffer.Buffer frame, TUI_buffer.Buffer under, TUI_geometry.
     }
 }
 
-/// `fade_in` for a transparent theme (docs/TRANSPARENCY.md): there is no
-/// background to blend from and the colour of the desktop behind the popup is
-/// not known, so nothing may be mixed with it. The popup's cells are drawn dim
-/// for the first half of the fade and as they are after that; no colour is
-/// invented, and a cell with the terminal's own background keeps it.
+/** `fade_in` for a transparent theme (docs/TRANSPARENCY.md): there is no
+ * background to blend from and the colour of the desktop behind the popup is
+ * not known, so nothing may be mixed with it. The popup's cells are drawn dim
+ * for the first half of the fade and as they are after that; no colour is
+ * invented, and a cell with the terminal's own background keeps it. */
 pub void fade_in_dim(TUI_buffer.Buffer frame, TUI_buffer.Buffer under, TUI_geometry.Rect rect, int permille) {
     if (permille >= 500) {
         return;
@@ -407,8 +407,8 @@ pub void fade_in_dim(TUI_buffer.Buffer frame, TUI_buffer.Buffer under, TUI_geome
     }
 }
 
-/// How far a one-shot effect that began at `started_ns` has run at `now`, over
-/// `duration_ms`, as permille (0 at the start, 1000 when over); eased out.
+/** How far a one-shot effect that began at `started_ns` has run at `now`, over
+ * `duration_ms`, as permille (0 at the start, 1000 when over); eased out. */
 pub int progress(int started_ns, int now, int duration_ms) {
     if (duration_ms <= 0) {
         return 1000;

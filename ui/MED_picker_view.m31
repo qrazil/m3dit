@@ -1,6 +1,6 @@
-// Drawing a picker: a bordered box over the text with the prompt on top, the
-// ranked list under it (matched characters highlighted) and, when the box is
-// wide enough, a preview of the selected file on the right.
+/* Drawing a picker: a bordered box over the text with the prompt on top, the
+ * ranked list under it (matched characters highlighted) and, when the box is
+ * wide enough, a preview of the selected file on the right. */
 
 import tui.core.TUI_buffer;
 import tui.core.TUI_geometry;
@@ -18,15 +18,15 @@ const int SIDE_WIDTH = 36;
 /// Rows of the screen left uncovered below the box (status and command line).
 const int FOOTER = 2;
 
-/// The preview pane's text: lines of a file from `first`, with `focus` (a line
-/// index, or -1) marked.
+/** The preview pane's text: lines of a file from `first`, with `focus` (a line
+ * index, or -1) marked. */
 pub type Preview {
     pub str title = "";
     pub List<str> lines = [];
     pub int first = 0;
     pub int focus = -1;
-    /// The preview pane has been shown for this picker: it keeps its place (an empty
-    /// pane) when a query has no match, so the list does not jump between widths.
+    /** The preview pane has been shown for this picker: it keeps its place (an empty
+     * pane) when a query has no match, so the list does not jump between widths. */
     pub bool is_pane = false;
 }
 
@@ -55,10 +55,10 @@ pub int list_rows(TUI_geometry.Rect area) {
     return rows;
 }
 
-/// Draw `text` with the characters at `matched` (code point indices) highlighted,
-/// `max` columns at most. It goes one grapheme cluster at a time: a combining mark, a
-/// joiner or a flag is part of the cell before it, not a cell of its own, and a
-/// two-column cluster that does not fit is left out whole.
+/** Draw `text` with the characters at `matched` (code point indices) highlighted,
+ * `max` columns at most. It goes one grapheme cluster at a time: a combining mark, a
+ * joiner or a flag is part of the cell before it, not a cell of its own, and a
+ * two-column cluster that does not fit is left out whole. */
 void draw_matched(TUI_buffer.Buffer buffer, int x, int y, str text, List<int> matched, TUI_style.Style base, TUI_style.Style hot, int max) {
     int spot = x;
     int index = 0;
@@ -233,10 +233,10 @@ str flag(bool is_on) {
     return "off";
 }
 
-/// `line` with each tab expanded to the next multiple of `stops` columns (clusters are
-/// measured in columns, so a wide character moves the next stop), cut after `limit`
-/// columns: a preview line is only ever drawn that far, and a minified file may have a
-/// single line of megabytes.
+/** `line` with each tab expanded to the next multiple of `stops` columns (clusters are
+ * measured in columns, so a wide character moves the next stop), cut after `limit`
+ * columns: a preview line is only ever drawn that far, and a minified file may have a
+ * single line of megabytes. */
 pub str expand_tabs(str line, int stops, int limit) {
     if (!line.contains("\t") && line.size() <= limit) {
         return line;

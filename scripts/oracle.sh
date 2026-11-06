@@ -13,7 +13,7 @@ cd "$(dirname "$0")/.."
 LANGC=${LANGC:-$M31_ROOT/m31c}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-"$LANGC" --emit-c tests/t_oracle_run.m31 -o "$WORK/run.c"
+"$LANGC" -emit-c tests/t_oracle_run.m31 --out "$WORK/run.c"
 cc -O2 -I "$M31_ROOT/runtime" -pthread -o "$WORK/run" "$WORK/run.c" \
    "$M31_ROOT/runtime/rt.c" "$M31_ROOT/runtime/scheduler.c" "$M31_ROOT/$RT_REACTOR_C" "$M31_ROOT/$RT_CTX_ASM"
 python3 tests/oracles/oracle_nvim.py --runner "$WORK/run" "$@"

@@ -1,15 +1,15 @@
-// The git gutter: where the buffer differs from HEAD.
-//
-// API
+/* The git gutter: where the buffer differs from HEAD.
+ *
+ * API */
 // ---
-//   MEDX_git_hunk.head_lines(path)       Option<List<str>>: the file as HEAD has it, None when untracked or no repo
-//   MEDX_git_hunk.diff(base, current)    Hunks: a sign per buffer row and where each hunk starts
-//
-// `kinds[row]` is NONE, ADDED, CHANGED, or REMOVED (lines were removed just
-// below this row; row 0 also stands for removals above the first line).
-// The text in between is compared with a longest common subsequence after the
-// common head and tail are cut off; a middle too big for that counts as one
-// changed block.
+/*   MEDX_git_hunk.head_lines(path)       Option<List<str>>: the file as HEAD has it, None when untracked or no repo
+ *   MEDX_git_hunk.diff(base, current)    Hunks: a sign per buffer row and where each hunk starts
+ *
+ * `kinds[row]` is NONE, ADDED, CHANGED, or REMOVED (lines were removed just
+ * below this row; row 0 also stands for removals above the first line).
+ * The text in between is compared with a longest common subsequence after the
+ * common head and tail are cut off; a middle too big for that counts as one
+ * changed block. */
 
 import fs;
 import io;
@@ -26,8 +26,8 @@ pub type Hunks {
     pub List<int> kinds = [];
     /// The first row of every hunk, ascending.
     pub List<int> starts = [];
-    /// Per hunk: where its new lines start in the buffer, how many there are,
-    /// and where its old lines start in the base and how many there are.
+    /** Per hunk: where its new lines start in the buffer, how many there are,
+     * and where its old lines start in the base and how many there are. */
     pub List<int> froms = [];
     pub List<int> counts = [];
     pub List<int> base_froms = [];
@@ -61,11 +61,11 @@ pub str name_of(str path) {
     return path.substr(slash + 1, path.size());
 }
 
-/// The file as the index has it (what the working tree is compared with), or
-/// as the last commit has it when the index has no entry. None when git is
-/// missing, the directory is no repository or the file is untracked. Read in
-/// process through the m31git library; a repository the library cannot read
-/// (a version 4 index, a missing object of a partial clone) goes to `git`.
+/** The file as the index has it (what the working tree is compared with), or
+ * as the last commit has it when the index has no entry. None when git is
+ * missing, the directory is no repository or the file is untracked. Read in
+ * process through the m31git library; a repository the library cannot read
+ * (a version 4 index, a missing object of a partial clone) goes to `git`. */
 pub Option<List<str>> head_lines(MEDX_git_lib.Shell shell, str path) {
     str directory = directory_of(path);
     str name = name_of(path);
@@ -100,9 +100,9 @@ pub Option<List<str>> head_lines(MEDX_git_lib.Shell shell, str path) {
     }
 }
 
-/// The branch HEAD names, read from `.git/HEAD` (no process), looking in
-/// `directory` and its parents; "" outside a repository. A detached HEAD is
-/// the first eight characters of the commit.
+/** The branch HEAD names, read from `.git/HEAD` (no process), looking in
+ * `directory` and its parents; "" outside a repository. A detached HEAD is
+ * the first eight characters of the commit. */
 pub str branch_of(str directory) {
     str current = directory;
     if (current.size() == 0) {
@@ -310,8 +310,8 @@ pub Hunks diff(List<str> base, List<str> current) {
     return hunks;
 }
 
-/// The first hunk start after `row` (or the last one before it, for
-/// `is_forward` false); -1 when there is none.
+/** The first hunk start after `row` (or the last one before it, for
+ * `is_forward` false); -1 when there is none. */
 pub int next_start(Hunks hunks, int row, bool is_forward) {
     if (is_forward) {
         for (int start in hunks.starts) {
@@ -330,8 +330,8 @@ pub int next_start(Hunks hunks, int row, bool is_forward) {
     return found;
 }
 
-/// The index of the hunk that contains buffer `row` (a removal hunk is the row
-/// above the gap and the row below it), or -1.
+/** The index of the hunk that contains buffer `row` (a removal hunk is the row
+ * above the gap and the row below it), or -1. */
 pub int hunk_at(Hunks hunks, int row) {
     for (int index in 0 .. hunks.froms.size()) {
         int from = hunks.froms[index];
@@ -347,9 +347,9 @@ pub int hunk_at(Hunks hunks, int row) {
     return -1;
 }
 
-/// A zero-context unified diff of hunk `index` against `base`, for `git apply
-/// --cached --unidiff-zero` (stage) with `relative` the path from the
-/// repository root. `current` is the buffer.
+/** A zero-context unified diff of hunk `index` against `base`, for `git apply
+ * --cached --unidiff-zero` (stage) with `relative` the path from the
+ * repository root. `current` is the buffer. */
 pub str hunk_patch(Hunks hunks, int index, List<str> base, List<str> current, str relative) {
     int base_from = hunks.base_froms[index];
     int base_count = hunks.base_counts[index];
@@ -389,8 +389,8 @@ pub List<str> hunk_preview(Hunks hunks, int index, List<str> base, List<str> cur
     return out;
 }
 
-/// The row of HEAD's file that buffer row `row` is, given the hunks of the buffer against HEAD; -1 for a row
-/// the buffer added or changed.
+/** The row of HEAD's file that buffer row `row` is, given the hunks of the buffer against HEAD; -1 for a row
+ * the buffer added or changed. */
 pub int head_row_of(Hunks hunks, int row) {
     int shift = 0;
     for (int index in 0 .. hunks.froms.size()) {
@@ -410,8 +410,8 @@ pub int head_row_of(Hunks hunks, int row) {
     return row - shift;
 }
 
-/// `git blame` of buffer row `row`, in process: `^abcdef01 (Author 3 days ago 12) text`, or "Not committed yet"
-/// for a row the buffer changed. None when the library cannot answer (the caller then runs `git blame`).
+/** `git blame` of buffer row `row`, in process: `^abcdef01 (Author 3 days ago 12) text`, or "Not committed yet"
+ * for a row the buffer changed. None when the library cannot answer (the caller then runs `git blame`). */
 pub Option<str> blame_row(str path, List<str> buffer, int row) {
     str directory = directory_of(path);
     str name = name_of(path);
@@ -446,8 +446,8 @@ pub Option<str> blame_row(str path, List<str> buffer, int row) {
 
 // ---- hunk operations on bytes (stage, unstage), used with the library or for tests ----
 
-/// The index of the hunk whose lines in the BASE contain `row` (a hunk that only adds lines to the other
-/// side counts for the row above and below its gap); -1 when none.
+/** The index of the hunk whose lines in the BASE contain `row` (a hunk that only adds lines to the other
+ * side counts for the row above and below its gap); -1 when none. */
 pub int hunk_at_base(Hunks hunks, int row) {
     for (int index in 0 .. hunks.base_froms.size()) {
         int from = hunks.base_froms[index];
@@ -463,9 +463,9 @@ pub int hunk_at_base(Hunks hunks, int row) {
     return -1;
 }
 
-/// `target` (the lines of a file, each with its terminator) with the base lines of hunk `index` replaced by the
-/// hunk's lines in `source`. `hunks` compares `target` as base with `source` as current. A final line that
-/// `target` had without a terminator stays without one when the hunk reaches the end.
+/** `target` (the lines of a file, each with its terminator) with the base lines of hunk `index` replaced by the
+ * hunk's lines in `source`. `hunks` compares `target` as base with `source` as current. A final line that
+ * `target` had without a terminator stays without one when the hunk reaches the end. */
 pub bytes take_hunk(Hunks hunks, int index, List<bytes> target, List<bytes> source) {
     int base_from = hunks.base_froms[index];
     int base_count = hunks.base_counts[index];
@@ -484,8 +484,8 @@ pub bytes take_hunk(Hunks hunks, int index, List<bytes> target, List<bytes> sour
     return out;
 }
 
-/// `lines` (the buffer, no terminators) as bytes with "\n" ended lines, the last one left bare when
-/// `is_last_bare`.
+/** `lines` (the buffer, no terminators) as bytes with "\n" ended lines, the last one left bare when
+ * `is_last_bare`. */
 pub List<bytes> ended_lines(List<str> lines, bool is_last_bare) {
     List<bytes> out = [];
     for (int position in 0 .. lines.size()) {
@@ -523,14 +523,14 @@ pub bytes staged_content(Hunks hunks, int index, bytes index_bytes, List<str> bu
     return take_hunk(hunks, index, target, ended_lines(buffer, is_bare));
 }
 
-/// The index content after unstaging one hunk: `hunks` compares the index (base) with HEAD (current), and
-/// the hunk's lines come from HEAD's bytes.
+/** The index content after unstaging one hunk: `hunks` compares the index (base) with HEAD (current), and
+ * the hunk's lines come from HEAD's bytes. */
 pub bytes unstaged_content(Hunks hunks, int index, bytes index_bytes, bytes head_bytes) {
     return take_hunk(hunks, index, split_ended(index_bytes), split_ended(head_bytes));
 }
 
-/// The index row that buffer row `row` is, given the hunks of the buffer against the index; -1 for a row inside
-/// an added or changed block (it has no index row of its own).
+/** The index row that buffer row `row` is, given the hunks of the buffer against the index; -1 for a row inside
+ * an added or changed block (it has no index row of its own). */
 pub int index_row_of(Hunks hunks, int row) {
     int shift = 0;
     for (int index in 0 .. hunks.froms.size()) {
@@ -550,8 +550,8 @@ pub int index_row_of(Hunks hunks, int row) {
     return row + shift;
 }
 
-/// Stage hunk `index` of `hunks` (the buffer against the index) in process: "" when done, "!" when the library
-/// cannot (the caller runs `git apply`), else why it failed.
+/** Stage hunk `index` of `hunks` (the buffer against the index) in process: "" when done, "!" when the library
+ * cannot (the caller runs `git apply`), else why it failed. */
 pub str stage_hunk(str path, Hunks hunks, int index, List<str> buffer) {
     str directory = directory_of(path);
     match (MEDX_git_lib.open(directory)) {
@@ -572,8 +572,8 @@ pub str stage_hunk(str path, Hunks hunks, int index, List<str> buffer) {
     }
 }
 
-/// Unstage the staged hunk that buffer row `row` is in (`unstaged`: the buffer against the index), in process:
-/// "" when done, "!" when the library cannot, else why not.
+/** Unstage the staged hunk that buffer row `row` is in (`unstaged`: the buffer against the index), in process:
+ * "" when done, "!" when the library cannot, else why not. */
 pub str unstage_hunk_at(str path, Hunks unstaged, int row) {
     str directory = directory_of(path);
     match (MEDX_git_lib.open(directory)) {

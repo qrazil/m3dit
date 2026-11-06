@@ -1,5 +1,5 @@
-// Unit checks for MED_semtok: decoding the relative token encoding (the example of the LSP specification),
-// UTF-16 columns, the class of a token, the overlay on lexical classes, and stale rows.
+/* Unit checks for MED_semtok: decoding the relative token encoding (the example of the LSP specification),
+ * UTF-16 columns, the class of a token, the overlay on lexical classes, and stale rows. */
 
 import syntax.core.SYN_class;
 import tests.MED_check;

@@ -1,19 +1,19 @@
-// Child processes for the front end, over the stdlib `proc` module (pipes, no
-// shell, no temp files).
-//
-// API
+/* Child processes for the front end, over the stdlib `proc` module (pipes, no
+ * shell, no temp files).
+ *
+ * API */
 // ---
-//   MED_shell.which(program)               Option<str>: the first PATH entry that has it
-//   MED_shell.output(argv, cwd, input)     Option<str>: standard output of a run that exited 0
-//   MED_shell.lines(argv, cwd)             Option<List<str>>: the same, as lines
-//   MED_shell.Stream                       a running child whose output is read a little each tick
-//   MED_shell.start(argv, cwd)             a Stream (finished at once when it cannot start)
-//   stream.poll(max_lines)                 the lines that have arrived (never blocks)
-//   stream.stop()                          kill the child
-//
-// A Stream is how the pickers stay responsive on a big tree: the tick reads
-// whatever the pipe has (a read with a deadline that has already passed fails
-// at once when nothing is there) and hands the lines to the list.
+/*   MED_shell.which(program)               Option<str>: the first PATH entry that has it
+ *   MED_shell.output(argv, cwd, input)     Option<str>: standard output of a run that exited 0
+ *   MED_shell.lines(argv, cwd)             Option<List<str>>: the same, as lines
+ *   MED_shell.Stream                       a running child whose output is read a little each tick
+ *   MED_shell.start(argv, cwd)             a Stream (finished at once when it cannot start)
+ *   stream.poll(max_lines)                 the lines that have arrived (never blocks)
+ *   stream.stop()                          kill the child
+ *
+ * A Stream is how the pickers stay responsive on a big tree: the tick reads
+ * whatever the pipe has (a read with a deadline that has already passed fails
+ * at once when nothing is there) and hands the lines to the list. */
 
 import fs;
 import io;
@@ -64,16 +64,16 @@ pub Option<str> output(List<str> argv, str cwd, str input = "", int timeout_ms =
     }
 }
 
-/// What a run printed and whether it exited 0, for commands whose failure
-/// message matters (`:!`, filters). `code` is -1 when it did not start.
+/** What a run printed and whether it exited 0, for commands whose failure
+ * message matters (`:!`, filters). `code` is -1 when it did not start. */
 pub type Ran {
     pub int code = -1;
     pub str text = "";
     pub str errors = "";
 }
 
-/// Run `argv` with `input`, keeping standard output and error (lossy UTF-8:
-/// invalid bytes are dropped by `utf8()` failing, so those give an empty text).
+/** Run `argv` with `input`, keeping standard output and error (lossy UTF-8:
+ * invalid bytes are dropped by `utf8()` failing, so those give an empty text). */
 pub Ran run(List<str> argv, str cwd, str input, int timeout_ms = 30000) {
     Ran answer = Ran();
     match (proc.run(argv, input: input.to_bytes(), cwd: cwd, timeout_ms: timeout_ms, should_check: false, is_quiet: true)) {
@@ -122,8 +122,8 @@ pub type Stream {
     pub int total = 0;
 }
 
-/// The complete lines that have arrived, at most `max_lines`; never waits for
-/// more than a moment.
+/** The complete lines that have arrived, at most `max_lines`; never waits for
+ * more than a moment. */
 pub List<str> Stream.poll(int max_lines) {
     List<str> out = [];
     if (is_done || children.size() == 0) {

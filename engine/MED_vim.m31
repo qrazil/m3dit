@@ -1,13 +1,13 @@
-// The Vim command layer: motions, operators, insert mode, Visual mode and
-// dot-repeat on top of `MED_editor`. `feed(ed, key)` is the whole interface.
-//
-// API
+/* The Vim command layer: motions, operators, insert mode, Visual mode and
+ * dot-repeat on top of `MED_editor`. `feed(ed, key)` is the whole interface.
+ *
+ * API */
 // ---
-//   MED_vim.feed(ed, key)           process one key in whatever mode `ed` is in
-//   MED_vim.feed_keys(ed, keys)     many keys, in order
-//
-// Behaviour is checked against nvim (`tests/oracles/`): each command below
-// follows the corresponding Vim source routine named in its comment.
+/*   MED_vim.feed(ed, key)           process one key in whatever mode `ed` is in
+ *   MED_vim.feed_keys(ed, keys)     many keys, in order
+ *
+ * Behaviour is checked against nvim (`tests/oracles/`): each command below
+ * follows the corresponding Vim source routine named in its comment. */
 
 import engine.MED_buffer;
 import engine.MED_complete;
@@ -363,9 +363,9 @@ MED_motion.Motion goto_line(MED_editor.Editor editor, int count, int default_row
     return motion;
 }
 
-// nvim's coladvance() leaves the column it was asked for as the cursor's virtual column unless the cursor is on a
-// Tab, so after g0, gm and gM the wanted column is that request, even when the cursor landed to the right of it
-// (inside a head, past the end of a short line).
+/* nvim's coladvance() leaves the column it was asked for as the cursor's virtual column unless the cursor is on a
+ * Tab, so after g0, gm and gM the wanted column is that request, even when the cursor landed to the right of it
+ * (inside a head, past the end of a short line). */
 int wanted_after_coladvance(MED_editor.Editor editor, int col, int requested) {
     str line = editor.buffer.line(editor.row);
     if (col < line.size() && line.byte_at(col) == 9) {
@@ -650,10 +650,10 @@ MED_motion.Motion percent_motion(MED_editor.Editor editor, int count) {
     return motion;
 }
 
-// `]'` `['` `]\`` `[\``: the next / previous lowercase mark (nvim's
-// getnextmark). With the line forms a mark on the cursor line does not count;
-// when there is none the cursor stays (a line form still goes to the first
-// non-blank).
+/* `]'` `['` `]\`` `[\``: the next / previous lowercase mark (nvim's
+ * getnextmark). With the line forms a mark on the cursor line does not count;
+ * when there is none the cursor stays (a line form still goes to the first
+ * non-blank). */
 MED_motion.Motion next_mark_motion(MED_editor.Editor editor, bool is_forward, bool is_linewise, int count) {
     int row = editor.row;
     int col = editor.col;
@@ -761,8 +761,8 @@ MED_motion.Motion bracket_motion(MED_editor.Editor editor, int first, int second
     return motion;
 }
 
-// `{` and `}` with closed folds (nvim's findpar): a closed fold under the cursor counts as one line, so the motion
-// starts beyond it.
+/* `{` and `}` with closed folds (nvim's findpar): a closed fold under the cursor counts as one line, so the motion
+ * starts beyond it. */
 MED_motion.Motion paragraph_in_folds(MED_editor.Editor editor, int directory, int count) {
     int curr = editor.row;
     int left = count;
@@ -819,8 +819,8 @@ MED_motion.Motion paragraph_in_folds(MED_editor.Editor editor, int directory, in
     return motion;
 }
 
-/// The nroff macros that end a paragraph or a section: 'sections', and with `is_paragraph` also 'paragraphs'.
-/// Lookups only happen at a line that starts with a dot.
+/** The nroff macros that end a paragraph or a section: 'sections', and with `is_paragraph` also 'paragraphs'.
+ * Lookups only happen at a line that starts with a dot. */
 str nroff_macros(MED_editor.Editor editor, bool is_paragraph) {
     str sections = editor.opts.get("sections").or("SHNHH HUnhsh");
     if (is_paragraph) {
@@ -990,14 +990,14 @@ MED_motion.Motion next_match(MED_editor.Editor editor, bool is_reverse, int coun
     return search_result(editor, outcome);
 }
 
-/// Execute the motion `keys` from the cursor. `operator` is the pending operator
-/// name ("" for none). The result says where it lands and how an operator
-/// should treat the range.
+/** Execute the motion `keys` from the cursor. `operator` is the pending operator
+ * name ("" for none). The result says where it lands and how an operator
+ * should treat the range. */
 pub MED_motion.Motion run_motion(MED_editor.Editor editor, List<int> keys, int count, str operator) {
     MED_motion.Motion motion = run_motion_raw(editor, keys, count, operator);
     if (!motion.is_ok && did_sets_curswant(keys)) {
-        // these motions ask for the wanted column to follow the cursor even
-        // when they fail (Vim's w_set_curswant)
+        /* these motions ask for the wanted column to follow the cursor even
+         * when they fail (Vim's w_set_curswant) */
         editor.want_from_cursor();
     }
     return motion;
@@ -1442,8 +1442,8 @@ void op_yank(MED_editor.Editor editor, Oap oap) {
     }
 }
 
-// Tell the front end a yank happened and over what: the first and last
-// character yanked (the yank flash).
+/* Tell the front end a yank happened and over what: the first and last
+ * character yanked (the yank flash). */
 void note_yank(MED_editor.Editor editor, MED_buffer.Pos first, MED_buffer.Pos last, bool is_lines) {
     editor.yank_serial = editor.yank_serial + 1;
     editor.yank_start = first;
@@ -1451,8 +1451,8 @@ void note_yank(MED_editor.Editor editor, MED_buffer.Pos first, MED_buffer.Pos la
     editor.is_yank_lines = is_lines;
 }
 
-// Vim's op_delete (also the first half of op_change). Returns false if the
-// operation did not happen.
+/* Vim's op_delete (also the first half of op_change). Returns false if the
+ * operation did not happen. */
 bool did_op_delete(MED_editor.Editor editor, Oap oap) {
     MED_buffer.Buffer buffer = editor.buffer;
     if (buffer.is_empty && oap.is_linewise) {
@@ -1565,8 +1565,8 @@ pub str with_indent(MED_editor.Editor editor, str line, int width) {
     return "\t".repeat(width / editor.tab) + " ".repeat(width % editor.tab) + rest;
 }
 
-// Vim's shift_line(): the indent `width` becomes after shifting `amount`
-// 'shiftwidth's, rounded to a multiple with 'shiftround'.
+/* Vim's shift_line(): the indent `width` becomes after shifting `amount`
+ * 'shiftwidth's, rounded to a multiple with 'shiftround'. */
 int shifted_width(MED_editor.Editor editor, int width, bool is_left, int amount, bool is_round) {
     int unit = editor.shift_size();
     if (!is_round) {
@@ -1623,10 +1623,10 @@ void op_shift(MED_editor.Editor editor, Oap oap) {
     }
 }
 
-// The indent (columns) Vim's C indenter gives `row` in text without a language:
-// the new indent of the nearest non-blank line above, one level deeper after a
-// line that ends in `{`, and a line starting with `}` lines up with the line
-// that holds its `{`. (Full cindent is not modelled.)
+/* The indent (columns) Vim's C indenter gives `row` in text without a language:
+ * the new indent of the nearest non-blank line above, one level deeper after a
+ * line that ends in `{`, and a line starting with `}` lines up with the line
+ * that holds its `{`. (Full cindent is not modelled.) */
 int reindent_width(MED_editor.Editor editor, int row) {
     int above = row - 1;
     while (above >= 0 && is_blank_line(editor.buffer.line(above))) {
@@ -1711,8 +1711,8 @@ int wrap_width(MED_editor.Editor editor) {
     return 0;
 }
 
-// 'textwidth' for formatting (Vim's comp_textwidth): 0 means the window width
-// less one, at most 79.
+/* 'textwidth' for formatting (Vim's comp_textwidth): 0 means the window width
+ * less one, at most 79. */
 int format_width(MED_editor.Editor editor) {
     int width = wrap_width(editor);
     if (width <= 0) {
@@ -1724,9 +1724,9 @@ int format_width(MED_editor.Editor editor) {
     return MED_num.larger(width, 1);
 }
 
-/// The comment leader of a line (Vim's get_leader_len): `length` bytes with
-/// the blanks before and after it, 0 when the line has none; `is_first` for
-/// the `f` flag (only the first line of a paragraph has it).
+/** The comment leader of a line (Vim's get_leader_len): `length` bytes with
+ * the blanks before and after it, 0 when the line has none; `is_first` for
+ * the `f` flag (only the first line of a paragraph has it). */
 type Leader {
     pub int length = 0;
     pub bool is_first = false;
@@ -1736,8 +1736,8 @@ str default_comments() {
     return "s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-,fb:" + str.from_chars([8226]);
 }
 
-// Single-piece and middle leaders of 'comments' (three-piece starts and
-// ends are not modelled).
+/* Single-piece and middle leaders of 'comments' (three-piece starts and
+ * ends are not modelled). */
 Leader comment_leader(MED_editor.Editor editor, str line) {
     Leader found = Leader();
     str parts = default_comments();
@@ -1833,9 +1833,9 @@ bool is_same_leader(str line, Leader first, str next, Leader second) {
     return index2 == second.length && index1 == first.length;
 }
 
-// Break `line` into lines of at most `width` columns at blanks (Vim's
-// internal_format): the break is the last blank run that starts within the
-// width, or the first one when there is none. `indent` starts every new line.
+/* Break `line` into lines of at most `width` columns at blanks (Vim's
+ * internal_format): the break is the last blank run that starts within the
+ * width, or the first one when there is none. `indent` starts every new line. */
 List<str> wrap_line(MED_editor.Editor editor, str text, int width, str indent, int lead_length) {
     List<str> out = [];
     str line = text;
@@ -1889,9 +1889,9 @@ List<str> wrap_line(MED_editor.Editor editor, str text, int width, str indent, i
     }
 }
 
-// The lines of one paragraph joined (do_join with a space) and wrapped. The
-// comment leader of the first line starts every new line ('f' leaders become
-// blanks of the same width); the leaders of the joined lines are dropped.
+/* The lines of one paragraph joined (do_join with a space) and wrapped. The
+ * comment leader of the first line starts every new line ('f' leaders become
+ * blanks of the same width); the leaders of the joined lines are dropped. */
 List<str> format_paragraph(MED_editor.Editor editor, List<str> lines, int width) {
     bool is_comments = has_format_flag(editor, "q");
     Leader lead = Leader();
@@ -1952,10 +1952,10 @@ int nonblank_before(MED_editor.Editor editor, int from, int row, int col) {
     return total;
 }
 
-// Format one paragraph into `out` and note where nvim's `.` mark ends up. format_lines() joins the lines of a
-// paragraph one by one (each do_join leaves `.` at column 0 of the line after the joined one) and then splits the
-// long line at 'textwidth' (each break leaves `.` at the end of the line it cut). So the last change is the last
-// break when there was one, else the last join. A lone line that needs nothing changes nothing.
+/* Format one paragraph into `out` and note where nvim's `.` mark ends up. format_lines() joins the lines of a
+ * paragraph one by one (each do_join leaves `.` at column 0 of the line after the joined one) and then splits the
+ * long line at 'textwidth' (each break leaves `.` at the end of the line it cut). So the last change is the last
+ * break when there was one, else the last join. A lone line that needs nothing changes nothing. */
 void format_into(MED_editor.Editor editor, List<str> paragraph, int width, List<str> out, int first, MED_buffer.Pos dot_spot) {
     int start = out.size();
     List<str> formatted = format_paragraph(editor, paragraph, width);
@@ -2064,8 +2064,8 @@ void op_format(MED_editor.Editor editor, Oap oap, bool is_keep_cursor) {
             editor.row = MED_num.smaller(row, editor.buffer.line_count() - 1);
             editor.col = saved.col;
         } else {
-            // a cursor on blank text stays that far after the last word before it
-            // (nvim keeps the saved position through a join)
+            /* a cursor on blank text stays that far after the last word before it
+             * (nvim keeps the saved position through a join) */
             int white_gap = 0;
             bool is_on_white = false;
             if (keep_count > 0 && saved.row >= first && saved.row <= last) {
@@ -2168,10 +2168,10 @@ void op_case(MED_editor.Editor editor, Oap oap) {
     MED_buffer.Pos from = copy_position(oap.start);
     MED_buffer.Pos position = exclusive_end(editor, oap);
     if (!oap.is_linewise && !oap.is_inclusive && oap.start.row == oap.end.row && oap.start.col == oap.end.col) {
-        // Vim's op_tilde steps the end back one position first: at the very
-        // start of the buffer that leaves one character, at column 0 of a later
-        // line it ends on the previous line and the whole start line changes,
-        // anywhere else nothing.
+        /* Vim's op_tilde steps the end back one position first: at the very
+         * start of the buffer that leaves one character, at column 0 of a later
+         * line it ends on the previous line and the whole start line changes,
+         * anywhere else nothing. */
         str here = editor.buffer.line(from.row);
         if (from.row == 0 && from.col == 0) {
             if (here.size() > 0) {
@@ -2283,8 +2283,8 @@ bool did_do_put(MED_editor.Editor editor, str regname, int directory, int count,
     }
 }
 
-// Put a block-wise register: each line goes into the same columns of the
-// lines below the cursor.
+/* Put a block-wise register: each line goes into the same columns of the
+ * lines below the cursor. */
 bool did_put_block(MED_editor.Editor editor, MED_register.Reg reg, int directory, int count, bool is_cursor_end) {
     int total = count1(count);
     MED_buffer.Buffer buffer = editor.buffer;
@@ -2371,8 +2371,8 @@ bool did_put_block(MED_editor.Editor editor, MED_register.Reg reg, int directory
     return true;
 }
 
-// PUT_FIXINDENT: the put lines keep their relative indent, the first one
-// getting `orig_indent`; empty lines get none.
+/* PUT_FIXINDENT: the put lines keep their relative indent, the first one
+ * getting `orig_indent`; empty lines get none. */
 void fix_put_indent(MED_editor.Editor editor, int first_row, int last_row, int orig_indent) {
     int diff = 0;
     bool is_first = true;
@@ -2395,8 +2395,8 @@ void fix_put_indent(MED_editor.Editor editor, int first_row, int last_row, int o
     }
 }
 
-// Vim's do_put with its flags (PUT_LINE and friends, used by Visual `p`).
-// `vi_row` is the row the Visual end was on, for PUT_LINE_FORWARD.
+/* Vim's do_put with its flags (PUT_LINE and friends, used by Visual `p`).
+ * `vi_row` is the row the Visual end was on, for PUT_LINE_FORWARD. */
 bool did_put_reg(MED_editor.Editor editor, MED_register.Reg reg0, int dir0, int count, bool is_cursor_end, int flags, int vi_row) {
     MED_register.Reg reg = reg0;
     int directory = dir0;
@@ -2590,8 +2590,8 @@ Range object_range(MED_editor.Editor editor, List<int> keys, int count) {
     return range;
 }
 
-// Vim's do_pending_operator for a normal-mode operator: find the range,
-// then run the operator on it. Returns false when the command failed.
+/* Vim's do_pending_operator for a normal-mode operator: find the range,
+ * then run the operator on it. Returns false when the command failed. */
 bool did_operate(MED_editor.Editor editor, str operator, str reg, int count, List<int> keys, bool is_doubled, int force) {
     Oap oap = Oap();
     oap.operator = operator;
@@ -2780,9 +2780,9 @@ bool did_operate(MED_editor.Editor editor, str operator, str reg, int count, Lis
 
 // ------------------------------------------------------------------ comment
 
-// `gc`: toggle line comments. This follows Neovim's vim._comment: the lines
-// are commented unless every non-blank line already is; the comment leader
-// goes at the smallest indent; blank lines get the bare, trimmed leader.
+/* `gc`: toggle line comments. This follows Neovim's vim._comment: the lines
+ * are commented unless every non-blank line already is; the comment leader
+ * goes at the smallest indent; blank lines get the bare, trimmed leader. */
 
 bool is_space_byte(int value) {
     return value == 32 || (value >= 9 && value <= 13);
@@ -3028,8 +3028,8 @@ bool did_run_op(MED_editor.Editor editor, Oap oap) {
 
 // ----------------------------------------------------------------- surround
 
-// `ys` / `yS`: the motion's text is remembered through the `[` `]` marks and
-// the surroundings are typed next (see `sur_feed`).
+/* `ys` / `yS`: the motion's text is remembered through the `[` `]` marks and
+ * the surroundings are typed next (see `sur_feed`). */
 bool did_op_surround(MED_editor.Editor editor, Oap oap) {
     if (!editor.is_option_on("surround", true)) {
         return false;
@@ -3075,8 +3075,8 @@ void sur_cancel(MED_editor.Editor editor) {
     editor.is_failed = true;
 }
 
-// What a replacement character asks for next: 1 a tag, 2 a function name, 3 a
-// LaTeX environment, 0 nothing.
+/* What a replacement character asks for next: 1 a tag, 2 a function name, 3 a
+ * LaTeX environment, 0 nothing. */
 int sur_prompt_kind(str symbol) {
     str base = symbol;
     if (base.size() == 2 && base.byte_at(0) == 32) {
@@ -3140,8 +3140,8 @@ void sur_feed(MED_editor.Editor editor, int key) {
         }
         editor.sur_input = "";
         if (editor.sur_command == "cs" || editor.sur_command == "cS") {
-            // the prompt only comes when there is something to change: take
-            // the surroundings out first (`\x04surround-begin`)
+            /* the prompt only comes when there is something to change: take
+             * the surroundings out first (`\x04surround-begin`) */
             editor.sur_stage = 7;
             editor.ex_queue.push("\x04surround-begin");
             return;
@@ -3188,8 +3188,8 @@ void sur_feed(MED_editor.Editor editor, int key) {
     }
 }
 
-// `ds` / `cs` / `cS` after the `d` or `c` was typed: `pending` holds a count
-// and register prefix, then the operator key.
+/* `ds` / `cs` / `cS` after the `d` or `c` was typed: `pending` holds a count
+ * and register prefix, then the operator key. */
 bool did_begin_surround_command(MED_editor.Editor editor, int key) {
     if (!editor.is_option_on("surround", true) || editor.mode != MED_editor.NORMAL) {
         return false;
@@ -3273,9 +3273,9 @@ void visual_surround(MED_editor.Editor editor, MED_parse.Parsed parsed, bool is_
 
 // -------------------------------------------------------------- insert mode
 
-// Whitespace for an indent of `width` columns.
-// The indent of the line a split creates: the line's own, cut short when the
-// cursor is inside the indent (Vim's open_line).
+/* Whitespace for an indent of `width` columns.
+ * The indent of the line a split creates: the line's own, cut short when the
+ * cursor is inside the indent (Vim's open_line). */
 int split_indent(MED_editor.Editor editor, str line, int col) {
     int width = indent_width(editor, line);
     int vcol = MED_text.display_col(line, col, editor.tab);
@@ -3348,9 +3348,9 @@ int matching_open_row(MED_editor.Editor editor, int row, int col, int open_char,
     return -1;
 }
 
-// 'smartindent' for a line opened after the text `before` (what precedes the
-// cursor): the indent width it gets, from `base` (the autoindent). Sets
-// `did_si` when a level was added.
+/* 'smartindent' for a line opened after the text `before` (what precedes the
+ * cursor): the indent width it gets, from `base` (the autoindent). Sets
+ * `did_si` when a level was added. */
 int smart_width(MED_editor.Editor editor, str before, int base, int row, str after) {
     editor.did_si = false;
     editor.can_si = false;
@@ -3448,8 +3448,8 @@ void start_insert(MED_editor.Editor editor, int cmd, int count, bool is_replace)
     }
 }
 
-// Type one printable character (or a literal control character).
-// Whether 'formatoptions' (default "tcqj") has the flag `flag`.
+/* Type one printable character (or a literal control character).
+ * Whether 'formatoptions' (default "tcqj") has the flag `flag`. */
 bool has_format_flag(MED_editor.Editor editor, str flag) {
     str flags = "tcqj";
     match (editor.opts.get("formatoptions")) {
@@ -3462,10 +3462,10 @@ bool has_format_flag(MED_editor.Editor editor, str flag) {
     return flags.contains(flag);
 }
 
-// Vim's internal_format for one typed non-blank character: while the cursor
-// column plus the character is past 'textwidth', break the line at the last
-// blank run that starts within the width (or the first one), and carry what
-// follows to a new line with the same indent ('autoindent').
+/* Vim's internal_format for one typed non-blank character: while the cursor
+ * column plus the character is past 'textwidth', break the line at the last
+ * blank run that starts within the width (or the first one), and carry what
+ * follows to a new line with the same indent ('autoindent'). */
 void ins_auto_wrap(MED_editor.Editor editor, int code_point) {
     int width = wrap_width(editor);
     str typed = str.from_chars([code_point]);
@@ -3537,9 +3537,9 @@ void ins_auto_wrap(MED_editor.Editor editor, int code_point) {
             indent = line.substr(0, MED_text.first_nonblank(line));
         }
         if (editor.is_autoindent) {
-            // the blanks the break skips go on past the cursor: what 'autoindent' leaves
-            // of a space under the cursor is deleted with them (with 'noautoindent' Vim
-            // protects it)
+            /* the blanks the break skips go on past the cursor: what 'autoindent' leaves
+             * of a space under the cursor is deleted with them (with 'noautoindent' Vim
+             * protects it) */
             while (end_found < line.size() && is_white_byte(line.byte_at(end_found))) {
                 end_found = end_found + 1;
             }
@@ -3621,8 +3621,8 @@ void ins_char(MED_editor.Editor editor, int code_point) {
     str line = editor.buffer.line(editor.row);
     MED_buffer.Pos position = MED_buffer.Pos(editor.row, editor.col);
     if (editor.mode == MED_editor.REPLACE && editor.is_virtual) {
-        // Virtual Replace: the new character covers screen cells; whole
-        // characters under them go (a TAB that reaches further stays)
+        /* Virtual Replace: the new character covers screen cells; whole
+         * characters under them go (a TAB that reaches further stays) */
         int vcol = MED_text.display_col(line, editor.col, editor.tab);
         int width = MED_text.cell_width(text, 0, vcol, editor.tab);
         if (code_point == 9) {
@@ -3696,8 +3696,8 @@ void ins_cr(MED_editor.Editor editor) {
         }
     }
     if (editor.mode == MED_editor.REPLACE && editor.is_virtual) {
-        // Virtual Replace: the rest of the line goes and replacing goes on
-        // at the start of the next line
+        /* Virtual Replace: the rest of the line goes and replacing goes on
+         * at the start of the next line */
         int size = line.size();
         editor.replaced.push("\x01" + line.substr(cut, size));
         editor.change(MED_buffer.Pos(editor.row, cut), MED_buffer.Pos(editor.row, size), "");
@@ -3733,8 +3733,8 @@ bool is_space_cp(int code_point) {
     return code_point == 32 || code_point == 9;
 }
 
-// CTRL-H / <BS> (mode 0), CTRL-W (1) and CTRL-U (2).
-// Whether everything before `col` is blank (Vim's inindent).
+/* CTRL-H / <BS> (mode 0), CTRL-W (1) and CTRL-U (2).
+ * Whether everything before `col` is blank (Vim's inindent). */
 bool is_in_indent_before(str line, int col) {
     for (int i in 0 .. col) {
         if (!is_white_byte(line.byte_at(i))) {
@@ -3800,9 +3800,9 @@ bool did_ins_bs(MED_editor.Editor editor, int mode) {
         }
     }
     if (step > 0) {
-        // 'smarttab' in the indent and 'softtabstop' elsewhere: <BS> steps back one
-        // 'shiftwidth' or 'softtabstop' (Vim's ins_bs). In Replace mode the
-        // characters that were replaced come back; plain text is only passed.
+        /* 'smarttab' in the indent and 'softtabstop' elsewhere: <BS> steps back one
+         * 'shiftwidth' or 'softtabstop' (Vim's ins_bs). In Replace mode the
+         * characters that were replaced come back; plain text is only passed. */
         int vcol = MED_text.display_col(line, editor.col, editor.tab);
         int start_vcol = vcol;
         int want = ((vcol - 1) / step) * step;
@@ -3986,8 +3986,8 @@ void finish_insert(MED_editor.Editor editor) {
         editor.is_ins_at_eol = editor.col >= line.size();
         editor.o_lnum = editor.row;
     }
-    // CTRL-O at the end of the line before anything was typed: the wanted
-    // column stays that of the end of the line
+    /* CTRL-O at the end of the line before anything was typed: the wanted
+     * column stays that of the end of the line */
     bool is_eol_kept = editor.is_ins_ctrl_o && !editor.is_ins_dirty && !editor.is_ins_restart && editor.col > 0 && editor.col >= line.size();
     if (is_eol_kept) {
         editor.want_from_cursor();
@@ -4011,8 +4011,8 @@ void finish_insert(MED_editor.Editor editor) {
     editor.end_block();
     editor.clamp();
     if (was_autoindent && editor.col == 0 && want_at_esc > 0 && !is_eol_kept) {
-        // the autoindent went and the cursor stayed in column 0 (so Vim does not
-        // look at the cursor again): up and down still use the column it had
+        /* the autoindent went and the cursor stayed in column 0 (so Vim does not
+         * look at the cursor again): up and down still use the column it had */
         editor.want = want_at_esc;
     } else if (!is_eol_kept) {
         editor.want_from_cursor();
@@ -4049,8 +4049,8 @@ void insert_key_raw(MED_editor.Editor editor, int key) {
     editor.ins_previous = key;
 }
 
-// CTRL-T / CTRL-D in insert mode (Vim's ins_shift and change_indent): shift
-// the line's indent and keep the cursor on the same character.
+/* CTRL-T / CTRL-D in insert mode (Vim's ins_shift and change_indent): shift
+ * the line's indent and keep the cursor on the same character. */
 void ins_shift(MED_editor.Editor editor, int key, int last_key) {
     stop_arrow(editor);
     str line = editor.buffer.line(editor.row);
@@ -4115,8 +4115,8 @@ bool is_cursor_in_indent(MED_editor.Editor editor) {
     return is_in_indent_before(editor.buffer.line(editor.row), editor.col) || editor.col == 0;
 }
 
-// <Tab> in insert mode (Vim's ins_tab): a tab, or spaces to the next
-// 'shiftwidth' / 'softtabstop' / 'tabstop', turned into tabs when 'expandtab' is off.
+/* <Tab> in insert mode (Vim's ins_tab): a tab, or spaces to the next
+ * 'shiftwidth' / 'softtabstop' / 'tabstop', turned into tabs when 'expandtab' is off. */
 void ins_tab(MED_editor.Editor editor) {
     bool is_indent = is_cursor_in_indent(editor);
     int soft = editor.soft_width();
@@ -4174,12 +4174,12 @@ void ins_tab(MED_editor.Editor editor) {
     }
 }
 
-// Move the cursor with an arrow key: that ends the undo block and the
-// insert restarts as a fresh `i`.
+/* Move the cursor with an arrow key: that ends the undo block and the
+ * insert restarts as a fresh `i`. */
 void ins_move(MED_editor.Editor editor, int key) {
     str line = editor.buffer.line(editor.row);
-    // 'whichwrap' is "b,s": no wrapping in insert mode, and a move that cannot
-    // happen is only a beep (it does not count as an arrow key).
+    /* 'whichwrap' is "b,s": no wrapping in insert mode, and a move that cannot
+     * happen is only a beep (it does not count as an arrow key). */
     if (key == 63234 && editor.col == 0 && !(has_whichwrap(editor, "[") && editor.row > 0)) {
         return;
     }
@@ -4192,8 +4192,8 @@ void ins_move(MED_editor.Editor editor, int key) {
     if (key == 63233 && editor.row + 1 >= editor.buffer.line_count()) {
         return;
     }
-    // Vim's stop_insert() only removes the autoindent when the cursor leaves
-    // the line, which Up and Down do and the sideways keys do not.
+    /* Vim's stop_insert() only removes the autoindent when the cursor leaves
+     * the line, which Up and Down do and the sideways keys do not. */
     if (editor.did_ai && (key == 63232 || key == 63233)) {
         strip_autoindent(editor);
         line = editor.buffer.line(editor.row);
@@ -4201,8 +4201,8 @@ void ins_move(MED_editor.Editor editor, int key) {
     editor.is_uline_off = false;
     editor.end_block();
     if (!editor.is_ins_arrow && editor.ins_text.size() > 0 && !editor.is_in_dot) {
-        // stop_insert(): what was typed so far is the last inserted text
-        // and, with the command, what `.` repeats
+        /* stop_insert(): what was typed so far is the last inserted text
+         * and, with the command, what `.` repeats */
         editor.regs.set_special(".", editor.ins_text);
         List<int> typed_so_far = editor.ins_keys.slice(0, editor.ins_keys.size());
         typed_so_far.push(27);
@@ -4224,8 +4224,8 @@ void ins_move(MED_editor.Editor editor, int key) {
             editor.col = MED_text.next_col(line, editor.col);
         }
     } else if (key == 63232 || key == 63233) {
-        // up and down use the wanted column, which typing and sideways moves
-        // update but opening a line does not
+        /* up and down use the wanted column, which typing and sideways moves
+         * update but opening a line does not */
         if (key == 63232) {
             editor.row = editor.row - 1;
         } else {
@@ -4270,9 +4270,9 @@ void ins_move(MED_editor.Editor editor, int key) {
     editor.is_ins_moved = true;
 }
 
-// CTRL-R: type a register's text as if it were typed. `kind` 0 is CTRL-R,
-// 1 CTRL-R CTRL-R (literally), 2 CTRL-R CTRL-O (no auto-indent, a line-wise
-// register goes above the line), 3 CTRL-R CTRL-P (as 2, fixing the indent).
+/* CTRL-R: type a register's text as if it were typed. `kind` 0 is CTRL-R,
+ * 1 CTRL-R CTRL-R (literally), 2 CTRL-R CTRL-O (no auto-indent, a line-wise
+ * register goes above the line), 3 CTRL-R CTRL-P (as 2, fixing the indent). */
 void ins_register(MED_editor.Editor editor, str name, int kind) {
     Option<MED_register.Reg> found = editor.regs.get(name);
     if (kind >= 2) {
@@ -4316,9 +4316,9 @@ void ins_register(MED_editor.Editor editor, str name, int kind) {
     }
 }
 
-// Insert `text` as if typed (a newline starts a line, <Esc> leaves Insert
-// mode and what follows is typed in Normal mode). With `is_literal` control
-// characters other than <Tab> are inserted as themselves.
+/* Insert `text` as if typed (a newline starts a line, <Esc> leaves Insert
+ * mode and what follows is typed in Normal mode). With `is_literal` control
+ * characters other than <Tab> are inserted as themselves. */
 void ins_text_typed(MED_editor.Editor editor, str text, bool is_literal) {
     for (int code_point in text.chars()) {
         bool is_insert = editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE;
@@ -4340,9 +4340,9 @@ void ins_text(MED_editor.Editor editor, str text) {
     ins_text_typed(editor, text, false);
 }
 
-/// A pasted text typed in one go (Insert mode, 'textwidth' 0): no autoindent,
-/// no pairs, tabs as they are; `.` repeats it. The text uses "\n" for line
-/// breaks. The same as typing every character, only faster.
+/** A pasted text typed in one go (Insert mode, 'textwidth' 0): no autoindent,
+ * no pairs, tabs as they are; `.` repeats it. The text uses "\n" for line
+ * breaks. The same as typing every character, only faster. */
 pub void paste_plain(MED_editor.Editor editor, str body) {
     stop_arrow(editor);
     if (body.size() == 0) {
@@ -4377,8 +4377,8 @@ pub void paste_plain(MED_editor.Editor editor, str body) {
     }
 }
 
-// Typing after an arrow key starts a fresh insert (Vim's stop_arrow): only
-// now does the insert start move to the cursor.
+/* Typing after an arrow key starts a fresh insert (Vim's stop_arrow): only
+ * now does the insert start move to the cursor. */
 void stop_arrow(MED_editor.Editor editor) {
     if (editor.is_ins_arrow) {
         if (editor.is_ins_restart) {
@@ -4421,10 +4421,10 @@ int hex_value(int char_code) {
     return -1;
 }
 
-// One key after CTRL-V (Vim's get_literal): a decimal, octal (o), hex (x), or
-// Unicode (u, U) number, or the key itself. Returns the character once it is
-// complete and -1 while more keys are needed; `is_lit_reuse` is set when the
-// last key ended a number and has to be handled again.
+/* One key after CTRL-V (Vim's get_literal): a decimal, octal (o), hex (x), or
+ * Unicode (u, U) number, or the key itself. Returns the character once it is
+ * complete and -1 while more keys are needed; `is_lit_reuse` is set when the
+ * last key ended a number and has to be handled again. */
 int literal_step(MED_editor.Editor editor, int next_col) {
     bool is_done = false;
     bool is_reuse = false;
@@ -4556,8 +4556,8 @@ bool is_occurrence_before(Occurrence item, int row, int col) {
     return item.row < row || (item.row == row && item.col < col);
 }
 
-// Begin CTRL-N / CTRL-P completion at the cursor; false when there is
-// nothing to complete with.
+/* Begin CTRL-N / CTRL-P completion at the cursor; false when there is
+ * nothing to complete with. */
 bool did_start_completion(MED_editor.Editor editor, bool is_forward) {
     str line = editor.buffer.line(editor.row);
     int start = editor.col;
@@ -4622,8 +4622,8 @@ bool did_start_completion(MED_editor.Editor editor, bool is_forward) {
         return false;
     }
     if (!is_forward) {
-        // the list is kept in forward order: the nearest match before the
-        // cursor is the last item
+        /* the list is kept in forward order: the nearest match before the
+         * cursor is the last item */
         List<str> reversed = [base];
         int index = items.size();
         while (index > 1) {
@@ -4675,8 +4675,8 @@ void end_completion(MED_editor.Editor editor, bool is_keep) {
 
 // -------------------------------------------------------------- auto pairs
 
-// The rest of the line and the lines after it up to a non-blank one, joined
-// with spaces (the plugin's `after`).
+/* The rest of the line and the lines after it up to a non-blank one, joined
+ * with spaces (the plugin's `after`). */
 str text_after_cursor(MED_editor.Editor editor) {
     str line = editor.buffer.line(editor.row);
     str after = line.substr(editor.col, line.size());
@@ -4701,8 +4701,8 @@ void type_keys(MED_editor.Editor editor, List<int> keys) {
     editor.is_autopair_busy = was_busy;
 }
 
-// The keys the auto-pairs plugin would have typed for `key`; true when it
-// took the key over.
+/* The keys the auto-pairs plugin would have typed for `key`; true when it
+ * took the key over. */
 bool did_autopair_key(MED_editor.Editor editor, int key) {
     if (editor.mode != MED_editor.INSERT || editor.is_autopair_busy || editor.ins_wait != 0 || editor.is_completing || editor.is_in_dot) {
         return false;
@@ -4819,8 +4819,8 @@ bool did_autopair_return(MED_editor.Editor editor) {
     return true;
 }
 
-// CTRL-Y / CTRL-E: the character of the line above / below at the cursor's
-// screen column, or 0.
+/* CTRL-Y / CTRL-E: the character of the line above / below at the cursor's
+ * screen column, or 0. */
 int copy_char(MED_editor.Editor editor, int step) {
     int target = editor.row + step;
     if (target < 0 || target >= editor.buffer.line_count()) {
@@ -4849,14 +4849,14 @@ bool is_alnum_code(int code_point) {
     return (code_point >= 48 && code_point <= 57) || (code_point >= 65 && code_point <= 90) || (code_point >= 97 && code_point <= 122);
 }
 
-// Vim's check_abbr(): typing a non-keyword character (not <Tab>) or <Esc>, <CR>, CTRL-]
-// after an Insert-mode abbreviation replaces it by its right-hand side, as if
-// the left-hand side had been backspaced and the right-hand side typed (so `.`
-// and a count repeat the expanded text). A full-id abbreviation (all keyword
-// characters) needs a non-keyword before it or the start of the typed text; an
-// end-id one (ends in a keyword character) matches anywhere; one that ends in
-// a non-keyword character only expands on <Esc>, <CR> and CTRL-] (what nvim
-// does; the probes are in corpus 104).
+/* Vim's check_abbr(): typing a non-keyword character (not <Tab>) or <Esc>, <CR>, CTRL-]
+ * after an Insert-mode abbreviation replaces it by its right-hand side, as if
+ * the left-hand side had been backspaced and the right-hand side typed (so `.`
+ * and a count repeat the expanded text). A full-id abbreviation (all keyword
+ * characters) needs a non-keyword before it or the start of the typed text; an
+ * end-id one (ends in a keyword character) matches anywhere; one that ends in
+ * a non-keyword character only expands on <Esc>, <CR> and CTRL-] (what nvim
+ * does; the probes are in corpus 104). */
 bool did_abbreviate(MED_editor.Editor editor, int key) {
     if (editor.abbr_lhs.size() == 0 || editor.is_abbr_busy || editor.is_in_dot) {
         return false;
@@ -4890,8 +4890,8 @@ bool did_abbreviate(MED_editor.Editor editor, int key) {
     return true;
 }
 
-// The abbreviation (for `mode`, "i" or "c") whose left-hand side ends the
-// typed text `before`, or -1.
+/* The abbreviation (for `mode`, "i" or "c") whose left-hand side ends the
+ * typed text `before`, or -1. */
 int abbreviation_at(MED_editor.Editor editor, List<int> before, bool is_end, str mode) {
     int total = before.size();
     for (int index in 0 .. editor.abbr_lhs.size()) {
@@ -4935,8 +4935,8 @@ int abbreviation_at(MED_editor.Editor editor, List<int> before, bool is_end, str
     return -1;
 }
 
-// Whether the command line is an `:unabbreviate`, `:iunabbrev` or `:cunabbrev`,
-// whose argument is not expanded.
+/* Whether the command line is an `:unabbreviate`, `:iunabbrev` or `:cunabbrev`,
+ * whose argument is not expanded. */
 bool is_unabbreviate_line(str line) {
     int index = 0;
     while (index < line.size() && (line.byte_at(index) == 32 || line.byte_at(index) == 58)) {
@@ -4956,8 +4956,8 @@ bool is_unabbreviate_line(str line) {
     return false;
 }
 
-// The command line's abbreviations: typing a non-keyword character, <CR> or
-// CTRL-] after a left-hand side replaces it by the right-hand side.
+/* The command line's abbreviations: typing a non-keyword character, <CR> or
+ * CTRL-] after a left-hand side replaces it by the right-hand side. */
 bool did_cmd_abbreviate(MED_editor.Editor editor, int key) {
     if (editor.abbr_lhs.size() == 0 || editor.is_abbr_busy || editor.is_in_dot) {
         return false;
@@ -5319,9 +5319,9 @@ List<int> count_keys(int count) {
     return out;
 }
 
-// Run `keys` as if typed. A failing command stops the rest (macros, dot). A
-// command that queued an ex line also stops it: the keys after it are parked in
-// `ed.park` and MED_ex continues them once the ex line has run.
+/* Run `keys` as if typed. A failing command stops the rest (macros, dot). A
+ * command that queued an ex line also stops it: the keys after it are parked in
+ * `ed.park` and MED_ex continues them once the ex line has run. */
 pub bool did_replay(MED_editor.Editor editor, List<int> keys) {
     editor.replay_runs = editor.replay_runs + 1;
     bool is_saved = editor.is_replaying;
@@ -6007,11 +6007,11 @@ bool did_run_g(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> type
 
 // ------------------------------------------------------------------ mapping
 
-/// The table the next key is looked up in when mappings apply: "n", "x", "o"
-/// (an operator waits for its motion), "i" (Insert and Replace) or "c" (command
-/// line). "" when the next key is an argument of a command (`r`, `f`, `m`, `q`,
-/// the key after `g` or `z`, a text-object kind, CTRL-V in Insert...), which
-/// Vim never maps.
+/** The table the next key is looked up in when mappings apply: "n", "x", "o"
+ * (an operator waits for its motion), "i" (Insert and Replace) or "c" (command
+ * line). "" when the next key is an argument of a command (`r`, `f`, `m`, `q`,
+ * the key after `g` or `z`, a text-object kind, CTRL-V in Insert...), which
+ * Vim never maps. */
 pub str map_mode(MED_editor.Editor editor) {
     if (editor.sub_run.is_active) {
         return "";
@@ -6088,8 +6088,8 @@ pub void feed(MED_editor.Editor editor, int key) {
         MED_snipops.after_key(editor);
     }
     if (editor.buffer.tick != tick_before && editor.buffer.line_count() < lines_before && editor.mode == MED_editor.NORMAL && editor.folds.size() > 0 && editor.row == editor.buffer.line_count() - 1) {
-        // lines were deleted below the cursor: nvim's check_cursor_lnum() puts the cursor on the first line of a
-        // closed fold that ends the buffer
+        /* lines were deleted below the cursor: nvim's check_cursor_lnum() puts the cursor on the first line of a
+         * closed fold that ends the buffer */
         int fold_first = editor.fold_start_of(editor.row);
         if (fold_first >= 0) {
             editor.row = fold_first;
@@ -6102,8 +6102,8 @@ pub void feed(MED_editor.Editor editor, int key) {
 // ------------------------------------------------------------------------------------------------ snippets
 // engine/MED_snippet.m31 and MED_snipops.m31 hold the snippets; this is the part that needs the modes.
 
-/// Expand snippet `body` at the cursor (the insertion point in Insert mode, before the character in Normal mode) and
-/// jump to its first tabstop.
+/** Expand snippet `body` at the cursor (the insertion point in Insert mode, before the character in Normal mode) and
+ * jump to its first tabstop. */
 pub void expand_snippet(MED_editor.Editor editor, str body) {
     MED_snipops.Plan plan = MED_snipops.expand_at(editor, editor.row, editor.col, body);
     apply_snippet_plan(editor, plan);
@@ -6156,8 +6156,8 @@ void apply_snippet_plan(MED_editor.Editor editor, MED_snipops.Plan plan) {
     editor.snip.last_col = editor.col;
 }
 
-// Keys the snippet code takes over: Tab and Shift-Tab in Insert mode (jump, or expand the word before the cursor as a
-// user snippet) and everything in Select mode. False passes the key on.
+/* Keys the snippet code takes over: Tab and Shift-Tab in Insert mode (jump, or expand the word before the cursor as a
+ * user snippet) and everything in Select mode. False passes the key on. */
 bool did_handle_snippet_key(MED_editor.Editor editor, int key) {
     if (editor.mode != MED_editor.VISUAL) {
         editor.is_select = false;
@@ -6202,8 +6202,8 @@ bool did_handle_snippet_key(MED_editor.Editor editor, int key) {
     return false;
 }
 
-// A key in Select mode (a Visual selection a tabstop's placeholder left): Tab and Shift-Tab jump, a character or Enter
-// replaces the selection, Backspace and Delete remove it, Esc leaves; movement keys extend it like Visual mode.
+/* A key in Select mode (a Visual selection a tabstop's placeholder left): Tab and Shift-Tab jump, a character or Enter
+ * replaces the selection, Backspace and Delete remove it, Esc leaves; movement keys extend it like Visual mode. */
 bool did_handle_select_key(MED_editor.Editor editor, int key) {
     if (key == 27) {
         editor.is_select = false;
@@ -6244,8 +6244,8 @@ bool did_handle_select_key(MED_editor.Editor editor, int key) {
     return true;
 }
 
-// Back to Insert mode after the Normal command that CTRL-O allowed (Vim's
-// edit() with restart_edit).
+/* Back to Insert mode after the Normal command that CTRL-O allowed (Vim's
+ * edit() with restart_edit). */
 pub void try_restart(MED_editor.Editor editor) {
     if (editor.restart_edit == 0 || editor.is_restart_skip || editor.mode != MED_editor.NORMAL || editor.pending.size() > 0) {
         return;
@@ -6416,8 +6416,8 @@ void execute(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> typed)
     }
 }
 
-// The motions that open the closed fold they end in ('foldopen' "hor", "search",
-// "percent", "block" and "mark").
+/* The motions that open the closed fold they end in ('foldopen' "hor", "search",
+ * "percent", "block" and "mark"). */
 bool is_fold_opening_motion(List<int> keys) {
     int key = keys[0];
     List<int> plain = [104, 108, 32, 127, 8, 48, 94, 36, 119, 87, 98, 66, 101, 69, 102, 70, 116, 84, 59, 44, 47, 63, 110, 78, 42, 35, 37, 40, 41, 123, 125, 39, 96];
@@ -6491,8 +6491,8 @@ void execute_inner(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> 
             is_operate_doubled = false;
         }
         if (!is_operate_doubled && parsed.is_doubled && !editor.is_in_dot && (parsed.operator == "ys" || parsed.operator == "yS")) {
-            // the plugin maps yss to `^` and g@ g_: `.` repeats the operator
-            // and its motion from where the cursor is, without the `^`
+            /* the plugin maps yss to `^` and g@ g_: `.` repeats the operator
+             * and its motion from where the cursor is, without the `^` */
             List<int> repeat_body = [121, parsed.operator.byte_at(1)];
             for (int key_code in operate_keys) {
                 repeat_body.push(key_code);
@@ -6636,8 +6636,8 @@ bool did_reselect(MED_editor.Editor editor) {
     return true;
 }
 
-// The selection as an operator target (Vim's do_pending_operator with
-// VIsual_active).
+/* The selection as an operator target (Vim's do_pending_operator with
+ * VIsual_active). */
 Oap visual_oap(MED_editor.Editor editor, str operator, str reg) {
     Oap oap = Oap();
     oap.operator = operator;
@@ -6655,8 +6655,8 @@ Oap visual_oap(MED_editor.Editor editor, str operator, str reg) {
         position = MED_buffer.Pos(position.row, 0);
     }
     if (editor.folds.size() > 0 && !editor.is_fold_off) {
-        // a selection that starts in a closed fold takes the whole fold at its
-        // start, and all of it when it stays inside that fold
+        /* a selection that starts in a closed fold takes the whole fold at its
+         * start, and all of it when it stays inside that fold */
         bool is_ahead = !is_position_before(position_value, position);
         MED_buffer.Pos low = position;
         MED_buffer.Pos high = position_value;
@@ -6757,9 +6757,9 @@ Oap block_oap(MED_editor.Editor editor, Oap oap) {
     return oap;
 }
 
-/// How one line meets a block: the bytes of the characters it overlaps, the
-/// columns of a split character that fall outside the block, and the text a
-/// yank takes (a split character becomes spaces).
+/** How one line meets a block: the bytes of the characters it overlaps, the
+ * columns of a split character that fall outside the block, and the text a
+ * yank takes (a split character becomes spaces). */
 type BlockCut {
     bool is_too_short = false;
     bool is_ends_inside = false;
@@ -7063,9 +7063,9 @@ void record_visual_dot(MED_editor.Editor editor, Oap oap, int kind, int count, L
     editor.dot_vcols = oap.rvcol;
 }
 
-// An operator on the Visual area (Vim's do_pending_operator with VIsual_active).
-// `kind` is the selection kind the operator acts on (D, X, Y, S turn it into V).
-// The operator name for Visual `<C-a>` (1) / `<C-x>` (24), with `is_group` or not.
+/* An operator on the Visual area (Vim's do_pending_operator with VIsual_active).
+ * `kind` is the selection kind the operator acts on (D, X, Y, S turn it into V).
+ * The operator name for Visual `<C-a>` (1) / `<C-x>` (24), with `is_group` or not. */
 str nr_op(int key, bool is_group) {
     str name = "nra";
     if (key == 24) {
@@ -7250,8 +7250,8 @@ type BlockPrep {
     int textcol = 0;
 }
 
-// Vim's block_prep, for the operator `operator` ("I", "A", "c", "r", "<") on the
-// block `left_vcol`..`right_vcol`.
+/* Vim's block_prep, for the operator `operator` ("I", "A", "c", "r", "<") on the
+ * block `left_vcol`..`right_vcol`. */
 BlockPrep block_prep(MED_editor.Editor editor, str operator, int left_vcol, int right_vcol, int row, bool is_del) {
     BlockPrep block_prep_value = BlockPrep();
     str line = editor.buffer.line(row);
@@ -7557,8 +7557,8 @@ void block_insert_end(MED_editor.Editor editor) {
     }
 }
 
-// I and A on a Visual area that is not a block: insert at the start of the
-// first line / after the end.
+/* I and A on a Visual area that is not a block: insert at the start of the
+ * first line / after the end. */
 bool did_visual_insert(MED_editor.Editor editor, Oap oap) {
     if (oap.operator == "I") {
         editor.row = oap.start.row;
@@ -7919,8 +7919,8 @@ void visual_cmd(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> typ
             editor.is_failed = true;
         }
     } else if (key == 64) {
-        // characterwise and blockwise Visual stay active while the register
-        // runs (checked against nvim)
+        /* characterwise and blockwise Visual stay active while the register
+         * runs (checked against nvim) */
         if (editor.vkind == 86) {
             // `{Visual}@r` over lines is `:'<,'>normal @r`
             leave_visual(editor);
@@ -7933,8 +7933,8 @@ void visual_cmd(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> typ
             run_macro(editor, str.from_chars([parsed.keys[1]]), parsed.count);
         }
     } else if (key == 58 || key == 33) {
-        // `:` is an operator in Visual mode: the cursor goes to the start of the area
-        // (`!` is the same with the command line ending in the filter bang)
+        /* `:` is an operator in Visual mode: the cursor goes to the start of the area
+         * (`!` is the same with the command line ending in the filter bang) */
         Oap area = visual_oap(editor, ":", "");
         leave_visual(editor);
         editor.row = area.start.row;
@@ -8076,8 +8076,8 @@ void hist_add(MED_editor.Editor editor, str line) {
     }
 }
 
-// <Up> / <Down>: recall the older / newer history entry that starts with what
-// was typed before browsing began.
+/* <Up> / <Down>: recall the older / newer history entry that starts with what
+ * was typed before browsing began. */
 void hist_browse(MED_editor.Editor editor, bool is_older, bool is_prefix) {
     List<str> history = hist_for(editor);
     if (editor.hist_at < 0) {
@@ -8236,8 +8236,8 @@ int digraph_of(int first, int second) {
     return found;
 }
 
-// <Tab> / <S-Tab> on the command line: complete the word before the cursor
-// ('wildmode' "full": each press shows the next match, then the typed text).
+/* <Tab> / <S-Tab> on the command line: complete the word before the cursor
+ * ('wildmode' "full": each press shows the next match, then the typed text). */
 void cmdline_complete(MED_editor.Editor editor, bool is_backward) {
     if (editor.comp_items.size() == 0) {
         MED_complete.Completion found = MED_complete.complete(editor.cmdline, editor.cmd_position, editor.buffer_names, editor.extra_commands, themes: editor.theme_names);
@@ -8471,8 +8471,8 @@ void cmdline_key(MED_editor.Editor editor, int key) {
 }
 
 // ------------------------------------------------------------------ for ex
-// What MED_ex needs from this module: line operators with Vim's cursor rules.
-// Rows are 0-based and inclusive.
+/* What MED_ex needs from this module: line operators with Vim's cursor rules.
+ * Rows are 0-based and inclusive. */
 
 pub int first_nb(MED_editor.Editor editor, int row) {
     return first_nonblank_fix(editor.buffer.line(row));
@@ -8585,9 +8585,9 @@ pub bool did_ex_put(MED_editor.Editor editor, str regname, int row, bool is_abov
     }
 }
 
-// `:r` and `:{range}!`: put `lines` below `row` (above row 0 when `is_above`) as
-// whole lines. The cursor is left on the last new line (first non-blank) and
-// the `[` and `]` marks cover the new lines.
+/* `:r` and `:{range}!`: put `lines` below `row` (above row 0 when `is_above`) as
+ * whole lines. The cursor is left on the last new line (first non-blank) and
+ * the `[` and `]` marks cover the new lines. */
 pub bool did_ex_put_lines(MED_editor.Editor editor, List<str> lines, int row, bool is_above) {
     if (lines.size() == 0) {
         return true;

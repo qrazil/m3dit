@@ -1,8 +1,8 @@
-// A tiny assertion counter for the unit-test programs. Test-only.
-//
-//   MED_check.Check check = MED_check.Check();
-//   check.eq_int("name", actual, expected);
-//   check.finish();       // prints "<name>: N checks, F failed"
+/* A tiny assertion counter for the unit-test programs. Test-only.
+ *
+ *   MED_check.Check check = MED_check.Check();
+ *   check.eq_int("name", actual, expected);
+ *   check.finish();       // prints "<name>: N checks, F failed" */
 
 pub type Check {
     pub int total = 0;

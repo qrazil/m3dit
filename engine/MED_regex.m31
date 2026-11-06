@@ -1,32 +1,32 @@
-// Vim regular expressions: a parser for Vim's pattern syntax and a backtracking
-// matcher that runs straight over the buffer's lines (so `\n` can cross lines).
-//
-// Why not the stdlib `regex` module: it has no backreferences, no lookaround,
-// no word boundaries, no `\zs`, no lazy repeats and no multi-line matching, all
-// of which `/`, `:s` and `:g` need (DESIGN.md G6). This module is the same
-// kind of thing written for the editor, in m31 only.
-//
-// API
+/* Vim regular expressions: a parser for Vim's pattern syntax and a backtracking
+ * matcher that runs straight over the buffer's lines (so `\n` can cross lines).
+ *
+ * Why not the stdlib `regex` module: it has no backreferences, no lookaround,
+ * no word boundaries, no `\zs`, no lazy repeats and no multi-line matching, all
+ * of which `/`, `:s` and `:g` need (DESIGN.md G6). This module is the same
+ * kind of thing written for the editor, in m31 only.
+ *
+ * API */
 // ---
-//   MED_regex.compile(pattern, ignorecase, smartcase, tilde)  -> Regex
-//   re.ok / re.error                                          compile result
-//   re.search_line(buf, row, col)   -> Match   first match in `row` starting at byte col >= col
-//   re.match_at(buf, row, col)      -> Match   a match that starts exactly at (row, col)
-//   Match.ok  .srow .scol .erow .ecol  (byte columns; the end is exclusive; `\zs`/`\ze` applied)
-//   Match.groups                    -> List<str>  [whole, \1 .. \9]
-//
-// Supported: magic levels `\v \m \M \V`, `\c \C`, `. * \+ \= \? \{n,m} \{-n,m}`,
-// `\| \& \( \) \%(`, `^ $ \_^ \_$ \< \> \zs \ze \%^ \%$ \%23l \%23c \%23v`,
-// `\1 .. \9`, `\@= \@! \@<= \@<! \@>`, `\%[]`, `[]` collections with
-// `[:alpha:]` and `\d123 \x20 €`, the character classes `\s \S \d \D ...`
-// and their `\_x` forms, `\n`, `\t \e \r \b`, `\%d123 \%x2a \%u20AC`, `~`.
-// `\%V` (the Visual area) and `\%'m` / `\%<'m` / `\%>'m` (marks) look at what the caller put in the Regex
-// (MED_search.attach_context).
-// Not supported (reported as an error or never matching): `\%#`, `\%.l`, `\z(`, composing-character pattern syntax `\%C`, `\Z`.
-//
-// A pattern is matched code point by code point; a combining mark never starts
-// a match of `.` or a collection and a literal does not match a base character
-// that is followed by a mark the pattern does not name (as Vim does).
+/*   MED_regex.compile(pattern, ignorecase, smartcase, tilde)  -> Regex
+ *   re.ok / re.error                                          compile result
+ *   re.search_line(buf, row, col)   -> Match   first match in `row` starting at byte col >= col
+ *   re.match_at(buf, row, col)      -> Match   a match that starts exactly at (row, col)
+ *   Match.ok  .srow .scol .erow .ecol  (byte columns; the end is exclusive; `\zs`/`\ze` applied)
+ *   Match.groups                    -> List<str>  [whole, \1 .. \9]
+ *
+ * Supported: magic levels `\v \m \M \V`, `\c \C`, `. * \+ \= \? \{n,m} \{-n,m}`,
+ * `\| \& \( \) \%(`, `^ $ \_^ \_$ \< \> \zs \ze \%^ \%$ \%23l \%23c \%23v`,
+ * `\1 .. \9`, `\@= \@! \@<= \@<! \@>`, `\%[]`, `[]` collections with
+ * `[:alpha:]` and `\d123 \x20 €`, the character classes `\s \S \d \D ...`
+ * and their `\_x` forms, `\n`, `\t \e \r \b`, `\%d123 \%x2a \%u20AC`, `~`.
+ * `\%V` (the Visual area) and `\%'m` / `\%<'m` / `\%>'m` (marks) look at what the caller put in the Regex
+ * (MED_search.attach_context).
+ * Not supported (reported as an error or never matching): `\%#`, `\%.l`, `\z(`, composing-character pattern syntax `\%C`, `\Z`.
+ *
+ * A pattern is matched code point by code point; a combining mark never starts
+ * a match of `.` or a collection and a literal does not match a base character
+ * that is followed by a mark the pattern does not name (as Vim does). */
 
 import engine.MED_buffer;
 import engine.MED_case;
@@ -125,9 +125,9 @@ pub type Regex {
     pub int nguards = 0;
     /// A first literal character every match must start with, or -1.
     pub int first = -1;
-    /// What `\%V` and `\%'m` look at; the caller sets them (MED_search.attach_context): the Visual area as
-    /// kind (118 v, 86 V, 22 CTRL-V; 0: none), first and last position, the block's display columns,
-    /// and the marks by name.
+    /** What `\%V` and `\%'m` look at; the caller sets them (MED_search.attach_context): the Visual area as
+     * kind (118 v, 86 V, 22 CTRL-V; 0: none), first and last position, the block's display columns,
+     * and the marks by name. */
     pub int visible_kind = 0;
     pub int visible_row1 = 0;
     pub int visible_col1 = 0;
@@ -173,8 +173,8 @@ bool Regex.did_fail(str message) {
     return false;
 }
 
-// Look at the next token without consuming it: `tok`, whether it is magic
-// (`mg`) and how many pattern characters it spans (`len`). Vim's peekchr().
+/* Look at the next token without consuming it: `tok`, whether it is magic
+ * (`mg`) and how many pattern characters it spans (`len`). Vim's peekchr(). */
 void Regex.peek() {
     int count = codes.size();
     if (index >= count) {
@@ -876,8 +876,8 @@ bool Regex.is_named_class(List<int> lows, List<int> highs, str name) {
     return true;
 }
 
-// Parse a `[...]` collection; `i` is just after the `[`. Returns the node or
-// -1 (and leaves `i` where it was) when the collection is not closed.
+/* Parse a `[...]` collection; `i` is just after the `[`. Returns the node or
+ * -1 (and leaves `i` where it was) when the collection is not closed. */
 int Regex.parse_collection(bool is_newline) {
     int start = index;
     int total = codes.size();
@@ -1418,8 +1418,8 @@ bool has_upper(List<int> chars) {
     return false;
 }
 
-/// Compile `pattern`. `tilde` is the text `~` stands for (the last
-/// substitute string). Check `ok` before use.
+/** Compile `pattern`. `tilde` is the text `~` stands for (the last
+ * substitute string). Check `ok` before use. */
 pub Regex compile(str pattern, bool is_ignorecase, bool is_smartcase, str tilde) {
     Regex regex = Regex();
     regex.codes = pattern.chars();
@@ -1431,8 +1431,8 @@ pub Regex compile(str pattern, bool is_ignorecase, bool is_smartcase, str tilde)
             regex.did_fail("E55: Unmatched \\)");
         }
     }
-    // nvim reports a reference to a group that is not closed yet, except when
-    // a look-behind follows it (nvim's NFA engine accepts that).
+    /* nvim reports a reference to a group that is not closed yet, except when
+     * a look-behind follows it (nvim's NFA engine accepts that). */
     if (regex.is_ok && regex.bad_refs.size() > 0) {
         regex.did_fail("E65: Illegal back reference");
     }
@@ -1616,8 +1616,8 @@ bool Run.is_byte_col_ok(int cmp, int want, int value) {
     return value == want;
 }
 
-// Run the program from `pc0` at (r0, c0). True at OP_MATCH (or OP_SUBEND whose
-// position is `target`); the end is in `end_row`/`end_ci`.
+/* Run the program from `pc0` at (r0, c0). True at OP_MATCH (or OP_SUBEND whose
+ * position is `target`); the end is in `end_row`/`end_ci`. */
 bool Run.did_run_from(Regex regex, int pc0, int start_row, int first_char) {
     int base = stack.size();
     int from_col = pc0;

@@ -1,7 +1,7 @@
-// The fold structure of 'foldmethod' marker (engine/MED_autofold.m31). The expected values are what nvim shows: the folds
-// closed at 'foldlevel' 0 to 6 (foldclosed() / foldclosedend() with 'foldminlines' 0), so they fix the whole tree. A jump
-// level ({{{3, }}}2) raises or lowers the level; a fold runs on over lines below its level when a later line at the level
-// has no start marker of its own. tests/oracles/oracle_folds.py checks random texts against nvim.
+/* The fold structure of 'foldmethod' marker (engine/MED_autofold.m31). The expected values are what nvim shows: the folds
+ * closed at 'foldlevel' 0 to 6 (foldclosed() / foldclosedend() with 'foldminlines' 0), so they fix the whole tree. A jump
+ * level ({{{3, }}}2) raises or lowers the level; a fold runs on over lines below its level when a later line at the level
+ * has no start marker of its own. tests/oracles/oracle_folds.py checks random texts against nvim. */
 
 import engine.MED_editor;
 import engine.MED_buffer;

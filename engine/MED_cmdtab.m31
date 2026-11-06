@@ -1,11 +1,11 @@
-// The ex commands the engine hands to the front end.
-//
-// The engine parses every ex line but cannot carry out the commands that need files, buffers, windows or
-// the terminal: it leaves them in `Editor.requests` for the UI layer. This module is that list as data. The
-// editor starts with it (`Editor.ui_commands`); a plugin that moves out of the core takes its names out of
-// the list and registers them itself (docs/CORE-AND-PLUGINS.md 3.1, 7.2 step S0).
-//
-//   MED_cmdtab.core_ui_commands()   the names the core front end carries out
+/* The ex commands the engine hands to the front end.
+ *
+ * The engine parses every ex line but cannot carry out the commands that need files, buffers, windows or
+ * the terminal: it leaves them in `Editor.requests` for the UI layer. This module is that list as data. The
+ * editor starts with it (`Editor.ui_commands`); a plugin that moves out of the core takes its names out of
+ * the list and registers them itself (docs/CORE-AND-PLUGINS.md 3.1, 7.2 step S0).
+ *
+ *   MED_cmdtab.core_ui_commands()   the names the core front end carries out */
 
 /// The names of the core's UI commands.
 pub List<str> core_ui_commands() {

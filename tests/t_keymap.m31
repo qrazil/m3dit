@@ -1,5 +1,5 @@
-// Unit checks for MED_keymap and MED_plugin: the leader tree, prefix help,
-// plugin filtering, and that docs/KEYMAP.md is the generated table.
+/* Unit checks for MED_keymap and MED_plugin: the leader tree, prefix help,
+ * plugin filtering, and that docs/KEYMAP.md is the generated table. */
 
 import ext.MED_ext;
 import ext.MED_ext_enabled;

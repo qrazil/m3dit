@@ -1,14 +1,14 @@
-// File text on the way in and out: byte order mark, line ending and character encoding.
-//
-// A file is read as bytes. A UTF-8 byte order mark is dropped from the text and remembered ('bomb'); the line
-// endings are dropped when every line ends in CR LF ('fileformat' dos; one bare LF makes it unix, as nvim's
-// 'fileformats' "unix,dos" does); bytes that are not valid UTF-8 are read as Latin-1 ('fileencoding' latin1, the
-// last of nvim's default 'fileencodings'). Writing puts all three back, so a CRLF file stays CRLF, a BOM stays and
-// a Latin-1 file is not turned into UTF-8 behind the user's back. `:set ff=unix` / `fenc=utf-8` / `nobomb` change
-// what the next write does.
-//
-//   MED_fileio.decode(raw)                           -> Decoded   text plus the three attributes
-//   MED_fileio.encode(text, format, encoding, bomb)  -> Result<bytes, str>
+/* File text on the way in and out: byte order mark, line ending and character encoding.
+ *
+ * A file is read as bytes. A UTF-8 byte order mark is dropped from the text and remembered ('bomb'); the line
+ * endings are dropped when every line ends in CR LF ('fileformat' dos; one bare LF makes it unix, as nvim's
+ * 'fileformats' "unix,dos" does); bytes that are not valid UTF-8 are read as Latin-1 ('fileencoding' latin1, the
+ * last of nvim's default 'fileencodings'). Writing puts all three back, so a CRLF file stays CRLF, a BOM stays and
+ * a Latin-1 file is not turned into UTF-8 behind the user's back. `:set ff=unix` / `fenc=utf-8` / `nobomb` change
+ * what the next write does.
+ *
+ *   MED_fileio.decode(raw)                           -> Decoded   text plus the three attributes
+ *   MED_fileio.encode(text, format, encoding, bomb)  -> Result<bytes, str> */
 
 import engine.MED_buffer;
 

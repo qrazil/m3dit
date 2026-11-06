@@ -1,20 +1,20 @@
-// Keys as integers, and Vim's key notation (`<Esc>`, `<C-v>`, `<leader>`).
-//
-// API
+/* Keys as integers, and Vim's key notation (`<Esc>`, `<C-v>`, `<leader>`).
+ *
+ * API */
 // ---
-//   MED_key.parse(notation, leader)   -> List<int>   "dd<Esc>" -> [100, 100, 27]
-//   MED_key.name(key)                 -> str         27 -> "<Esc>"
-//   MED_key.show(keys)                -> str         a whole sequence, for help and logs
-//   MED_key.encode(keys)              -> str         keys as text (macro registers)
-//   MED_key.decode(text)              -> List<int>   and back
-//   MED_key.ctrl(letter)              -> int         ctrl("v") == 22
-//
-// A key is an `int`. A printable key is its code point; a control key is its
-// control code (<C-a> is 1, <Esc> is 27, <CR> is 13, <Tab> is 9, <C-h> is 8);
-// a key with no code of its own (arrows, <Del>, <F5>) is a code in the
-// private-use area starting at 0xF700, which is a valid scalar value, so a
-// macro register can hold it as ordinary text. Modifier bits for what the
-// control code cannot express (<M-x>, <C-Up>, <S-Tab>) live above bit 24.
+/*   MED_key.parse(notation, leader)   -> List<int>   "dd<Esc>" -> [100, 100, 27]
+ *   MED_key.name(key)                 -> str         27 -> "<Esc>"
+ *   MED_key.show(keys)                -> str         a whole sequence, for help and logs
+ *   MED_key.encode(keys)              -> str         keys as text (macro registers)
+ *   MED_key.decode(text)              -> List<int>   and back
+ *   MED_key.ctrl(letter)              -> int         ctrl("v") == 22
+ *
+ * A key is an `int`. A printable key is its code point; a control key is its
+ * control code (<C-a> is 1, <Esc> is 27, <CR> is 13, <Tab> is 9, <C-h> is 8);
+ * a key with no code of its own (arrows, <Del>, <F5>) is a code in the
+ * private-use area starting at 0xF700, which is a valid scalar value, so a
+ * macro register can hold it as ordinary text. Modifier bits for what the
+ * control code cannot express (<M-x>, <C-Up>, <S-Tab>) live above bit 24. */
 
 /// Modifier bits, above the code point.
 pub const int MOD_SHIFT = 16777216;
@@ -44,8 +44,8 @@ pub const int INSERT = 63241;
 pub const int FKEY_BASE = 63248;
 /// A key that does nothing: <Nop>.
 pub const int NOP = 63300;
-/// `<Cmd>` in a mapping's right-hand side: the keys up to the next <CR> are an ex command that runs without
-/// leaving the mode (nvim's K_COMMAND). It never comes from the terminal.
+/** `<Cmd>` in a mapping's right-hand side: the keys up to the next <CR> are an ex command that runs without
+ * leaving the mode (nvim's K_COMMAND). It never comes from the terminal. */
 pub const int CMD = 63302;
 const List<str> SPECIAL_NAMES = ["Up", "Down", "Left", "Right", "Home", "End", "PageUp", "PageDown", "Del", "Insert"];
 
@@ -207,8 +207,8 @@ int modified(str inner) {
     return result;
 }
 
-/// The keys `notation` spells. `<leader>` becomes `leader`'s keys; an
-/// unrecognised `<...>` is the literal characters.
+/** The keys `notation` spells. `<leader>` becomes `leader`'s keys; an
+ * unrecognised `<...>` is the literal characters. */
 pub List<int> parse(str notation, str leader = " ") {
     List<int> chars = notation.chars();
     List<int> keys = [];
@@ -311,11 +311,11 @@ pub str show(List<int> keys) {
     return parts.join("");
 }
 
-/// Nvim keeps a key with no character in a register as K_SPECIAL (0x80) and
-/// two more bytes. A `str` is UTF-8, so the first byte is U+0080 here.
+/** Nvim keeps a key with no character in a register as K_SPECIAL (0x80) and
+ * two more bytes. A `str` is UTF-8, so the first byte is U+0080 here. */
 pub const int SPECIAL = 128;
-/// What nvim records after the character of `f`, `t`, `r` ... when more keys
-/// follow: K_IGNORE, nothing when replayed.
+/** What nvim records after the character of `f`, `t`, `r` ... when more keys
+ * follow: K_IGNORE, nothing when replayed. */
 pub const int IGNORE = 63301;
 
 // The two characters after K_SPECIAL for a key, or "".
@@ -368,8 +368,8 @@ str special_tail(int key) {
     return "";
 }
 
-/// Keys as plain text, for a macro register. Keys with no character of their
-/// own are written the way nvim does, with U+0080 for its K_SPECIAL byte.
+/** Keys as plain text, for a macro register. Keys with no character of their
+ * own are written the way nvim does, with U+0080 for its K_SPECIAL byte. */
 pub str encode(List<int> keys) {
     str out = "";
     List<int> chars = [];

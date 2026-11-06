@@ -1,17 +1,17 @@
-// Snippet sessions on an Editor: expanding a snippet at a position, jumping between its tabstops, keeping the mirrors
-// of the tabstop being typed in up to date, and ending the session when the cursor leaves it. This follows nvim's
-// vim.snippet (runtime/lua/vim/snippet.lua); engine/MED_snippet.m31 has the parser and the ranges.
-//
-// What changes the mode (leaving Insert for Select mode, starting Insert at an empty tabstop) is for the caller:
-// `expand_at` and `jump` return a Plan that MED_vim applies with its own mode functions.
-//
-// API
+/* Snippet sessions on an Editor: expanding a snippet at a position, jumping between its tabstops, keeping the mirrors
+ * of the tabstop being typed in up to date, and ending the session when the cursor leaves it. This follows nvim's
+ * vim.snippet (runtime/lua/vim/snippet.lua); engine/MED_snippet.m31 has the parser and the ranges.
+ *
+ * What changes the mode (leaving Insert for Select mode, starting Insert at an empty tabstop) is for the caller:
+ * `expand_at` and `jump` return a Plan that MED_vim applies with its own mode functions.
+ *
+ * API */
 // ---
-//   MED_snipops.expand_at(editor, row, col, body)    Plan   insert the snippet at (row, col) and jump to its first stop
-//   MED_snipops.jump(editor, direction)               Plan   the next (1) or previous (-1) tabstop, kind NONE when there is none
-//   MED_snipops.after_key(editor)                            what nvim's CursorMoved / TextChanged handlers do
-//   MED_snipops.stop(editor)                                  end the session
-//   MED_snipops.find_prefix(editor)                   [entry, start column] of the user snippet the text before the cursor ends in, or []
+/*   MED_snipops.expand_at(editor, row, col, body)    Plan   insert the snippet at (row, col) and jump to its first stop
+ *   MED_snipops.jump(editor, direction)               Plan   the next (1) or previous (-1) tabstop, kind NONE when there is none
+ *   MED_snipops.after_key(editor)                            what nvim's CursorMoved / TextChanged handlers do
+ *   MED_snipops.stop(editor)                                  end the session
+ *   MED_snipops.find_prefix(editor)                   [entry, start column] of the user snippet the text before the cursor ends in, or [] */
 
 import engine.MED_editor;
 import engine.MED_snippet;
@@ -227,8 +227,8 @@ void sync(MED_editor.Editor editor) {
     }
 }
 
-/// What nvim's CursorMoved(I) and TextChanged(I) handlers do after a key: end the session when the cursor left the
-/// snippet or stands on no tabstop other than $0, or the snippet was deleted; else update the mirrors.
+/** What nvim's CursorMoved(I) and TextChanged(I) handlers do after a key: end the session when the cursor left the
+ * snippet or stands on no tabstop other than $0, or the snippet was deleted; else update the mirrors. */
 pub void after_key(MED_editor.Editor editor) {
     MED_snippet.Session session = editor.snip;
     if (!session.is_active) {
@@ -276,8 +276,8 @@ pub void after_key(MED_editor.Editor editor) {
     }
 }
 
-/// The user snippet whose prefix the text before the cursor ends in (the longest one, standing alone as a word):
-/// [position in `editor.snippets`, column where the prefix starts], or [].
+/** The user snippet whose prefix the text before the cursor ends in (the longest one, standing alone as a word):
+ * [position in `editor.snippets`, column where the prefix starts], or []. */
 pub List<int> find_prefix(MED_editor.Editor editor) {
     str line = editor.buffer.line(editor.row);
     str before = line.substr(0, editor.col);

@@ -1,21 +1,21 @@
-// How a line is laid out in a wrapping window when 'linebreak', 'showbreak' or 'breakindent' is on: the virtual
-// column of every character and the offsets where each screen row starts. A port of the parts of nvim's
-// charsize_regular() that deal with these options (the blank that grows to the end of the row, the head that
-// 'showbreak' and 'breakindent' put before a continuation row). With none of the three options on the editor does
-// not call this module, and a row is 'view_width' plain cells as before.
-//
-// Virtual columns are linear over the rows and include the heads, as nvim's virtcol() does, so a row is always
-// `view_width` cells of vcol: row k covers [k * width, (k + 1) * width).
-//
-// API
+/* How a line is laid out in a wrapping window when 'linebreak', 'showbreak' or 'breakindent' is on: the virtual
+ * column of every character and the offsets where each screen row starts. A port of the parts of nvim's
+ * charsize_regular() that deal with these options (the blank that grows to the end of the row, the head that
+ * 'showbreak' and 'breakindent' put before a continuation row). With none of the three options on the editor does
+ * not call this module, and a row is 'view_width' plain cells as before.
+ *
+ * Virtual columns are linear over the rows and include the heads, as nvim's virtcol() does, so a row is always
+ * `view_width` cells of vcol: row k covers [k * width, (k + 1) * width).
+ *
+ * API */
 // ---
-//   MED_wrapmap.Settings                         the window and options a layout depends on (Editor.wrap_settings() fills it)
-//   MED_wrapmap.build(settings, line)            Layout: offsets, vcols, row starts
-//   MED_wrapmap.Layout.vcol_at(col)               start vcol of the cluster at byte `col` (the end of the line past it)
-//   MED_wrapmap.Layout.end_vcol_at(col)           last vcol the cluster at `col` covers
-//   MED_wrapmap.Layout.col_for_vcol(want, is_one_more)  the cluster covering vcol `want` (Vim's coladvance)
-//   MED_wrapmap.Layout.total()                    total vcols of the line
-//   MED_wrapmap.Layout.row_of(col)                the screen row of the cluster at `col`
+/*   MED_wrapmap.Settings                         the window and options a layout depends on (Editor.wrap_settings() fills it)
+ *   MED_wrapmap.build(settings, line)            Layout: offsets, vcols, row starts
+ *   MED_wrapmap.Layout.vcol_at(col)               start vcol of the cluster at byte `col` (the end of the line past it)
+ *   MED_wrapmap.Layout.end_vcol_at(col)           last vcol the cluster at `col` covers
+ *   MED_wrapmap.Layout.col_for_vcol(want, is_one_more)  the cluster covering vcol `want` (Vim's coladvance)
+ *   MED_wrapmap.Layout.total()                    total vcols of the line
+ *   MED_wrapmap.Layout.row_of(col)                the screen row of the cluster at `col` */
 
 import engine.MED_text;
 

@@ -1,12 +1,12 @@
-// The window half of the differential oracle (tests/oracles/oracle_windows.py).
-//
-// Usage: t_split_run FILE CASES_FILE
-//
-// Each line of CASES_FILE is hex(keys). For every case this opens FILE in a
-// fresh App, types the keys, and prints one line: the rectangles of the
-// windows of the active tab page sorted by (row, column) as `row,col,w,h`
-// joined by `;` (h without the status line, as nvim counts it), then `|` and
-// the rectangle of the active window, then `|` and `tab/tabs`.
+/* The window half of the differential oracle (tests/oracles/oracle_windows.py).
+ *
+ * Usage: t_split_run FILE CASES_FILE
+ *
+ * Each line of CASES_FILE is hex(keys). For every case this opens FILE in a
+ * fresh App, types the keys, and prints one line: the rectangles of the
+ * windows of the active tab page sorted by (row, column) as `row,col,w,h`
+ * joined by `;` (h without the status line, as nvim counts it), then `|` and
+ * the rectangle of the active window, then `|` and `tab/tabs`. */
 
 import encoding.hexcodec;
 import io;
@@ -97,8 +97,8 @@ match (io.read(cases_path)) {
                     print("open: " + message);
                 }
                 case Ok(MED_app.App app): {
-                    // no buffer list row and no number column (nvim -u NONE has none):
-                    // the windows start at row 0 and CTRL-W j keeps the cursor column
+                    /* no buffer list row and no number column (nvim -u NONE has none):
+                     * the windows start at row 0 and CTRL-W j keeps the cursor column */
                     for (int code_point in ":set nobufferline nonumber norelativenumber".chars()) {
                         app.handle(press(code_point));
                     }

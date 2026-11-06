@@ -1,27 +1,27 @@
-// Cursor motions as pure functions of the buffer, ported from Vim's
-// semantics (textobject.c, search.c, normal.c) and checked against nvim.
-//
-// API
+/* Cursor motions as pure functions of the buffer, ported from Vim's
+ * semantics (textobject.c, search.c, normal.c) and checked against nvim.
+ *
+ * API */
 // ---
-//   MED_motion.Motion              where a motion lands and how an operator should treat it
-//   MED_motion.Cur                 a movable position with Vim's inc/dec stepping
-//   MED_motion.fwd_word / bck_word / end_word / bckend_word      w b e ge (and W B E gE)
-//   MED_motion.paragraph(buf, row, dir, count)                  { and }
-//   MED_motion.find_char(...)                                    f F t T ; ,
-//   MED_motion.match_pair(buf, row, col)                         %
-//   MED_motion.col_for_want(line, want, tab, one_more)           j/k column choice
-//
-// A `Cur` can stand on the position one past the last character (`col ==
-// line.size()`), which Vim calls the NUL; `inc` and `dec` report whether a
-// step stayed in the line (0), reached the NUL (2) or crossed a line (1), or
-// failed at the buffer's edge (-1). Word motions are built on those.
+/*   MED_motion.Motion              where a motion lands and how an operator should treat it
+ *   MED_motion.Cur                 a movable position with Vim's inc/dec stepping
+ *   MED_motion.fwd_word / bck_word / end_word / bckend_word      w b e ge (and W B E gE)
+ *   MED_motion.paragraph(buf, row, dir, count)                  { and }
+ *   MED_motion.find_char(...)                                    f F t T ; ,
+ *   MED_motion.match_pair(buf, row, col)                         %
+ *   MED_motion.col_for_want(line, want, tab, one_more)           j/k column choice
+ *
+ * A `Cur` can stand on the position one past the last character (`col ==
+ * line.size()`), which Vim calls the NUL; `inc` and `dec` report whether a
+ * step stayed in the line (0), reached the NUL (2) or crossed a line (1), or
+ * failed at the buffer's edge (-1). Word motions are built on those. */
 
 import engine.MED_buffer;
 import engine.MED_text;
 
-/// The result of a motion. `want` is the desired display column for later
-/// vertical moves: -2 means "the column the cursor landed on", -3 "unchanged",
-/// -1 "end of line".
+/** The result of a motion. `want` is the desired display column for later
+ * vertical moves: -2 means "the column the cursor landed on", -3 "unchanged",
+ * -1 "end of line". */
 pub type Motion {
     pub bool is_ok = true;
     pub int row = 0;
@@ -32,8 +32,8 @@ pub type Motion {
     pub bool is_jump = false;
     /// Vim's CA_NO_ADJ_OP_END: do not apply the end-at-column-0 adjustment.
     pub bool is_no_adj = false;
-    /// The motion moved as far as it could and then failed (Vim beeps but
-    /// keeps the cursor where it got to).
+    /** The motion moved as far as it could and then failed (Vim beeps but
+     * keeps the cursor where it got to). */
     pub bool is_beep = false;
     /// A failed motion that still moved the cursor to `row`, `col`.
     pub bool is_moved = false;
@@ -51,8 +51,8 @@ pub type Cur {
     pub int col;
 }
 
-/// Step one character forward. 0 inside the line, 2 onto the NUL, 1 onto the
-/// next line, -1 at the end of the buffer.
+/** Step one character forward. 0 inside the line, 2 onto the NUL, 1 onto the
+ * next line, -1 at the end of the buffer. */
 pub int Cur.inc() {
     str line = buffer.line(row);
     if (col < line.size()) {
@@ -70,8 +70,8 @@ pub int Cur.inc() {
     return -1;
 }
 
-/// Step one character back. 0 inside the line, 1 onto the NUL of the previous
-/// line, -1 at the start of the buffer.
+/** Step one character back. 0 inside the line, 1 onto the NUL of the previous
+ * line, -1 at the start of the buffer. */
 pub int Cur.dec() {
     if (col > 0) {
         col = MED_text.previous_col(buffer.line(row), col);
@@ -85,8 +85,8 @@ pub int Cur.dec() {
     return -1;
 }
 
-/// Character class at the cursor: 0 blank (or NUL), else the word class; a
-/// WORD motion folds every non-blank to 1.
+/** Character class at the cursor: 0 blank (or NUL), else the word class; a
+ * WORD motion folds every non-blank to 1. */
 pub int Cur.cls(bool is_big) {
     str line = buffer.line(row);
     if (col >= line.size()) {
@@ -170,8 +170,8 @@ bool did_skip_chars(Cur cursor, int cclass, int directory, bool is_big) {
     return false;
 }
 
-/// `w` / `W`. `is_eol` is true under an operator: the move stops at the end of
-/// the line it would leave.
+/** `w` / `W`. `is_eol` is true under an operator: the move stops at the end of
+ * the line it would leave. */
 pub bool did_fwd_word(Cur cursor, int count, bool is_big, bool is_eol) {
     int left = count;
     while (left > 0) {
@@ -314,8 +314,8 @@ pub bool did_bckend_word(Cur cursor, int count, bool is_big, bool is_eol) {
     return true;
 }
 
-/// Whether `line` is an nroff macro line (`.SH`) whose name is one of the pairs of `macros` ('paragraphs' or
-/// 'sections'; a pair with a space or one letter names a one-letter macro), Vim's inmacro.
+/** Whether `line` is an nroff macro line (`.SH`) whose name is one of the pairs of `macros` ('paragraphs' or
+ * 'sections'; a pair with a space or one letter names a one-letter macro), Vim's inmacro. */
 pub bool is_macro_line(str line, str macros) {
     if (line.size() < 2 || line.byte_at(0) != 46 || macros.size() == 0) {
         return false;
@@ -349,9 +349,9 @@ pub bool is_starts_paragraph(MED_buffer.Buffer buffer, int row, bool is_both, st
     return first == 12 || (is_both && first == 125) || (first == 46 && is_macro_line(line, macros));
 }
 
-/// `{` (dir -1) and `}` (dir 1). Returns the row, or -1 when it cannot move.
-/// `last_line_end` is set when the motion ended on the last line's last
-/// character (then it is inclusive).
+/** `{` (dir -1) and `}` (dir 1). Returns the row, or -1 when it cannot move.
+ * `last_line_end` is set when the motion ended on the last line's last
+ * character (then it is inclusive). */
 pub Motion paragraph(MED_buffer.Buffer buffer, int row, int directory, int count, str macros = "") {
     int curr = row;
     int left = count;
@@ -391,8 +391,8 @@ pub Motion paragraph(MED_buffer.Buffer buffer, int row, int directory, int count
     return motion;
 }
 
-/// The column covering display column `want` (Vim's coladvance). `want` -1
-/// means the end of the line. `is_one_more` lets the cursor stand on the NUL.
+/** The column covering display column `want` (Vim's coladvance). `want` -1
+ * means the end of the line. `is_one_more` lets the cursor stand on the NUL. */
 pub int col_for_want(str line, int want, int tab, bool is_one_more) {
     int size = line.size();
     if (size == 0) {
@@ -420,8 +420,8 @@ pub int col_for_want(str line, int want, int tab, bool is_one_more) {
     return MED_text.last_col(line);
 }
 
-/// `f F t T` search on one line. `directory` 1 or -1; `is_until` for t/T; `is_stop` false
-/// lets a repeated `;` skip a match right next to the cursor.
+/** `f F t T` search on one line. `directory` 1 or -1; `is_until` for t/T; `is_stop` false
+ * lets a repeated `;` skip a match right next to the cursor. */
 pub Motion find_char(str line, int col, int target, int directory, bool is_until, int count, bool is_stop_flag) {
     bool is_stop = is_stop_flag;
     int left = count;
@@ -451,8 +451,8 @@ pub Motion find_char(str line, int col, int target, int directory, bool is_until
         if (directory > 0) {
             spot = MED_text.previous_col(line, spot);
         } else {
-            // Vim steps one code point past the match (maybe into a cluster;
-            // the cursor snaps to the cluster start, an operator does not)
+            /* Vim steps one code point past the match (maybe into a cluster;
+             * the cursor snaps to the cluster start, an operator does not) */
             spot = spot + str.from_chars([MED_text.cp_at(line, spot)]).size();
         }
     }

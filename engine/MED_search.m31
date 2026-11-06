@@ -1,17 +1,17 @@
-// Searching the buffer: `/ ? n N * # g* g#`, search offsets, `%` and `[(`.
-//
-// A port of Vim's searchit(), do_search(), find_ident_under_cursor() and
-// findmatchlimit(), checked against nvim.
-//
-// API
+/* Searching the buffer: `/ ? n N * # g* g#`, search offsets, `%` and `[(`.
+ *
+ * A port of Vim's searchit(), do_search(), find_ident_under_cursor() and
+ * findmatchlimit(), checked against nvim.
+ *
+ * API */
 // ---
-//   MED_search.compile_last(ed, pat)              compile with the editor's options
-//   MED_search.searchit(ed, re, row, col, dir, count, at_start, at_end, no_offset) -> Hit
-//   MED_search.search_command(ed, dirc, typed, count, reverse, use_typed) -> Outcome
-//   MED_search.star(ed, key, whole_word, count)   `*` `#` `g*` `g#`
-//   MED_search.skip_regexp(text, delim)           where the pattern in `text` ends
-//   MED_search.findmatch(buf, row, col, initc, dir) -> MED_buffer.Pos (row -1: none)
-//   MED_search.set_last_pattern(ed, pat, is_sub)  make `pat` the pattern `n` and `//` use
+/*   MED_search.compile_last(ed, pat)              compile with the editor's options
+ *   MED_search.searchit(ed, re, row, col, dir, count, at_start, at_end, no_offset) -> Hit
+ *   MED_search.search_command(ed, dirc, typed, count, reverse, use_typed) -> Outcome
+ *   MED_search.star(ed, key, whole_word, count)   `*` `#` `g*` `g#`
+ *   MED_search.skip_regexp(text, delim)           where the pattern in `text` ends
+ *   MED_search.findmatch(buf, row, col, initc, dir) -> MED_buffer.Pos (row -1: none)
+ *   MED_search.set_last_pattern(ed, pat, is_sub)  make `pat` the pattern `n` and `//` use */
 
 import engine.MED_editor;
 import engine.MED_regex;
@@ -62,8 +62,8 @@ pub void set_last_pattern(MED_editor.Editor editor, str pattern, bool is_sub) {
     editor.regs.set_special("/", pattern);
 }
 
-/// `pattern` as 'magic' reads it: with `:set nomagic` it starts with `\M` (very nomagic is `\V`; an explicit
-/// `\v`, `\m`, `\M` or `\V` at the start wins).
+/** `pattern` as 'magic' reads it: with `:set nomagic` it starts with `\M` (very nomagic is `\V`; an explicit
+ * `\v`, `\m`, `\M` or `\V` at the start wins). */
 pub str magic_of(MED_editor.Editor editor, str pattern) {
     if (!editor.is_nomagic) {
         return pattern;
@@ -132,8 +132,8 @@ int at(str line, int col) {
     return line.byte_at(col);
 }
 
-// After the `[` at `index`: the index just past the closing `]` of a collection,
-// or -1 when this `[` does not start one (Vim's skip_anyof()).
+/* After the `[` at `index`: the index just past the closing `]` of a collection,
+ * or -1 when this `[` does not start one (Vim's skip_anyof()). */
 int skip_anyof(str text, int index) {
     int offset = index + 1;
     if (at(text, offset) == 94) {
@@ -182,8 +182,8 @@ int skip_anyof(str text, int index) {
     return -1;
 }
 
-/// The byte index in `text` where the pattern ends: at the first unescaped
-/// `delim` outside a `[]` collection (Vim's skip_regexp()).
+/** The byte index in `text` where the pattern ends: at the first unescaped
+ * `delim` outside a `[]` collection (Vim's skip_regexp()). */
 pub int skip_regexp(str text, int delim) {
     int offset = 0;
     bool is_magic = true;
@@ -224,10 +224,10 @@ int line_length(MED_buffer.Buffer buffer, int row) {
     return buffer.line_size(row);
 }
 
-/// One search of `regex` from (prow, pcol), `count` times, in direction `directory`
-/// (1 or -1). `is_at_start` accepts a match at the start (SEARCH_START),
-/// `is_at_end` puts the position on the last character of the match
-/// (SEARCH_END), unless `is_no_offset`.
+/** One search of `regex` from (prow, pcol), `count` times, in direction `directory`
+ * (1 or -1). `is_at_start` accepts a match at the start (SEARCH_START),
+ * `is_at_end` puts the position on the last character of the match
+ * (SEARCH_END), unless `is_no_offset`. */
 pub Hit searchit(MED_editor.Editor editor, MED_regex.Regex regex, int prow, int pcol, int directory, int count, bool is_at_start, bool is_at_end, bool is_no_offset) {
     MED_buffer.Buffer buffer = editor.buffer;
     int nlines = buffer.line_count();
@@ -458,9 +458,9 @@ int parse_int_at(str text, int index) {
     return value;
 }
 
-// Vim's inc(): one position forward, stopping on the NUL ending a line; 0 for
-// a move inside the line, 2 when it reached the NUL, 1 for the next line and
-// -1 at the end of the buffer.
+/* Vim's inc(): one position forward, stopping on the NUL ending a line; 0 for
+ * a move inside the line, 2 when it reached the NUL, 1 for the next line and
+ * -1 at the end of the buffer. */
 pub int inc_position(MED_buffer.Buffer buffer, List<int> position) {
     str line = buffer.line(position[0]);
     if (position[1] < line.size()) {
@@ -508,8 +508,8 @@ pub int decl_position(MED_buffer.Buffer buffer, List<int> position) {
     return result;
 }
 
-// Step the position `count` characters forward (`count` > 0, incl()) or back (n < 0,
-// decl()). False when the buffer's edge was hit first.
+/* Step the position `count` characters forward (`count` > 0, incl()) or back (n < 0,
+ * decl()). False when the buffer's edge was hit first. */
 bool did_step_chars(MED_buffer.Buffer buffer, List<int> position, int count) {
     int left = count;
     while (left != 0) {
@@ -549,9 +549,9 @@ str unescape_question(str pattern) {
     return str.from_chars(out);
 }
 
-/// Run a `/` or `?` command (or `n` / `N`: `is_use_typed` false). `typed` is the
-/// text after the `/` as typed on the command line; `dirc` is 47 or 63 (0 for
-/// n and N, which use the last direction); `is_reverse` flips it (N).
+/** Run a `/` or `?` command (or `n` / `N`: `is_use_typed` false). `typed` is the
+ * text after the `/` as typed on the command line; `dirc` is 47 or 63 (0 for
+ * n and N, which use the last direction); `is_reverse` flips it (N). */
 pub Outcome search_command(MED_editor.Editor editor, int dirc_in, str typed, int count, bool is_reverse, bool is_use_typed) {
     Outcome out = Outcome();
     int dirc = dirc_in;
@@ -680,8 +680,8 @@ pub Outcome search_command(MED_editor.Editor editor, int dirc_in, str typed, int
             sdir = -1;
         }
         if (is_beyond) {
-            // Vim puts the start before the first line (or after the last): the
-            // search then begins at that edge
+            /* Vim puts the start before the first line (or after the last): the
+             * search then begins at that edge */
             if (editor.search_off > 0) {
                 hit = searchit(editor, regex, 0, 0, sdir, count_value, true, editor.is_search_off_end, false);
             } else {
@@ -750,8 +750,8 @@ pub Outcome search_command(MED_editor.Editor editor, int dirc_in, str typed, int
 
 // ----------------------------------------------------------------- * and #
 
-/// The identifier (or, failing that, the non-blank text) at or after `col`:
-/// start and end byte columns, end exclusive; start -1 when there is none.
+/** The identifier (or, failing that, the non-blank text) at or after `col`:
+ * start and end byte columns, end exclusive; start -1 when there is none. */
 pub List<int> ident_at(str line, int col, List<int> keywords) {
     List<int> none = [-1, -1];
     for (int i in 0 .. 2) {
@@ -804,8 +804,8 @@ pub List<int> ident_at(str line, int col, List<int> keywords) {
     return none;
 }
 
-/// `*` `#` (`is_whole_word`) and `g*` `g#`: search for the word under the cursor.
-/// Moves nothing itself; the result is the new position like search_command().
+/** `*` `#` (`is_whole_word`) and `g*` `g#`: search for the word under the cursor.
+ * Moves nothing itself; the result is the new position like search_command(). */
 pub Outcome star(MED_editor.Editor editor, int key, bool is_whole_word, int count) {
     Outcome out = Outcome();
     str line = editor.buffer.line(editor.row);
@@ -879,10 +879,10 @@ int previous_of(str line, int col) {
 // The matchpairs: [open, close, ...]
 const List<int> PAIRS = [40, 41, 123, 125, 91, 93];
 
-/// Where the bracket under or after the cursor (initc 0), or the bracket
-/// `initc` searched in direction `directory` (1 forward, -1 backward, 0 as the
-/// bracket says; for `[(` and friends), has its partner. Row -1: none.
-/// Vim's findmatchlimit() with 'cpoptions' as nvim's default.
+/** Where the bracket under or after the cursor (initc 0), or the bracket
+ * `initc` searched in direction `directory` (1 forward, -1 backward, 0 as the
+ * bracket says; for `[(` and friends), has its partner. Row -1: none.
+ * Vim's findmatchlimit() with 'cpoptions' as nvim's default. */
 pub MED_buffer.Pos findmatch(MED_buffer.Buffer buffer, int row, int col, int initc_in, int directory) {
     MED_buffer.Pos none = MED_buffer.Pos(-1, 0);
     int from_row = row;
@@ -1122,8 +1122,8 @@ bool is_earlier(int first_row, int first_col, int second_row, int second_col) {
     return first_row < second_row || (first_row == second_row && first_col < second_col);
 }
 
-/// Vim's current_search(): the next match of the last pattern as a Visual
-/// area. `vrow`, `vcol` is the Visual start when `is_visual`.
+/** Vim's current_search(): the next match of the last pattern as a Visual
+ * area. `vrow`, `vcol` is the Visual start when `is_visual`. */
 pub Area current_search(MED_editor.Editor editor, int count, bool is_forward, bool is_visual, int vrow, int vcol) {
     Area area = Area();
     str pattern = last_pattern(editor);
@@ -1149,8 +1149,8 @@ pub Area current_search(MED_editor.Editor editor, int count, bool is_forward, bo
             decl_position(buffer, position);
         }
     }
-    // a pattern that matches nothing at all is an error; one that matches the
-    // empty string is zero-width
+    /* a pattern that matches nothing at all is an error; one that matches the
+     * empty string is zero-width */
     Hit first = searchit(editor, regex, 0, 0, 1, 1, true, false, false);
     if (!first.is_ok) {
         area.error = "E486: Pattern not found: " + pattern;

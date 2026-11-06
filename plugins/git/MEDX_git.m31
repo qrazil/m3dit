@@ -1,14 +1,14 @@
-// The `git` plugin: the git gutter (signs for added, changed and removed rows against the index), the hunk commands
-// (`:Hunk stage|reset|undo|preview|next|prev`, `ih` / `ah` through the hunk spans), `:Git log|show|diff|blame|line`,
-// `:GitSigns`, the branch and hunk counts for the status line, and the preview of commit entries in the finder. It
-// was `App.git_info`, `draw_sign`'s git half, `run_git_action`, `run_git_read`, `run_hunk_command`, the branch timer and
-// `ui/MED_git*.m31`; now it is these modules over API 0.5.0: `Ctx.set_signs`, `set_hunk_spans`, `set_git_summary`,
-// `show_text`, `open_scratch`, `pick_list`, `run_in`, `change_count` and `Registry.did_preview`. Reads go through the m31git
-// library first; `git` runs (through `Ctx.run_in`) only where the library cannot answer.
-//
-//   MEDX_git_lib    the library calls (open a repository, HEAD and index contents, log, blame, show, diff, staging)
-//   MEDX_git_hunk   the diff of the buffer against the base, hunk patches and staging
-//   MEDX_git_cmd    what `:Git ARGS` shows
+/* The `git` plugin: the git gutter (signs for added, changed and removed rows against the index), the hunk commands
+ * (`:Hunk stage|reset|undo|preview|next|prev`, `ih` / `ah` through the hunk spans), `:Git log|show|diff|blame|line`,
+ * `:GitSigns`, the branch and hunk counts for the status line, and the preview of commit entries in the finder. It
+ * was `App.git_info`, `draw_sign`'s git half, `run_git_action`, `run_git_read`, `run_hunk_command`, the branch timer and
+ * `ui/MED_git*.m31`; now it is these modules over API 0.5.0: `Ctx.set_signs`, `set_hunk_spans`, `set_git_summary`,
+ * `show_text`, `open_scratch`, `pick_list`, `run_in`, `change_count` and `Registry.did_preview`. Reads go through the m31git
+ * library first; `git` runs (through `Ctx.run_in`) only where the library cannot answer.
+ *
+ *   MEDX_git_lib    the library calls (open a repository, HEAD and index contents, log, blame, show, diff, staging)
+ *   MEDX_git_hunk   the diff of the buffer against the base, hunk patches and staging
+ *   MEDX_git_cmd    what `:Git ARGS` shows */
 
 import engine.MED_buffer;
 import ext.MED_ext;
@@ -130,8 +130,8 @@ void publish(State state, MED_ext.Ctx context, FileInfo info) {
     context.set_git_summary(summary);
 }
 
-/// The git information of this buffer's file, brought up to date: HEAD is read once, the diff again when the text
-/// changed (`is_forced` reads HEAD again too). The signs and the status line follow.
+/** The git information of this buffer's file, brought up to date: HEAD is read once, the diff again when the text
+ * changed (`is_forced` reads HEAD again too). The signs and the status line follow. */
 FileInfo refresh(State state, MED_ext.Ctx context, bool is_forced) {
     FileInfo info = FileInfo();
     str file = context.file;
@@ -188,8 +188,8 @@ Result<bool, str> opened(State state, MED_ext.Ctx context, MED_ext.Info info) {
     return Result<bool, str>.Ok(true);
 }
 
-/// Every TICK_MS: the diff again when the text changed (in Normal mode, so typing is not interrupted), HEAD and the
-/// branch every REFRESH_MS.
+/** Every TICK_MS: the diff again when the text changed (in Normal mode, so typing is not interrupted), HEAD and the
+ * branch every REFRESH_MS. */
 Result<bool, str> ticked(State state, MED_ext.Ctx context, MED_ext.Info info) {
     state.branch_ms = state.branch_ms + info.elapsed_ms;
     state.refresh_ms = state.refresh_ms + info.elapsed_ms;
@@ -229,8 +229,8 @@ Result<bool, str> ticked(State state, MED_ext.Ctx context, MED_ext.Info info) {
 
 // ------------------------------------------------------------------ :Git
 
-/// `:Git commit MESSAGE`, `:Git pull`, `:Git push`, `:Git fetch`: run in the background (they wait on the network or a hook), the
-/// answer comes back through the `git` job as a message. Commit takes what is staged.
+/** `:Git commit MESSAGE`, `:Git pull`, `:Git push`, `:Git fetch`: run in the background (they wait on the network or a hook), the
+ * answer comes back through the `git` job as a message. Commit takes what is staged. */
 Result<bool, str> write_command(MED_ext.Ctx context, str word, str rest) {
     str directory = MEDX_git_hunk.directory_of(context.file);
     if (word == "commit") {
@@ -360,8 +360,8 @@ Result<bool, str> go_hunk(State state, MED_ext.Ctx context, bool is_forward) {
     return Result<bool, str>.Ok(true);
 }
 
-/// Stage hunk `index` of `info` (the buffer against the index): in process first (m31git), `git apply` when the library cannot.
-/// "" when staged, else why not.
+/** Stage hunk `index` of `info` (the buffer against the index): in process first (m31git), `git apply` when the library cannot.
+ * "" when staged, else why not. */
 str stage_one(MED_ext.Ctx context, str file, FileInfo info, int index, List<str> lines) {
     str said = MEDX_git_hunk.stage_hunk(file, info.hunks, index, lines);
     if (said != "!") {
@@ -396,8 +396,8 @@ List<int> hunks_in(FileInfo info, int first, int last) {
     return picked;
 }
 
-/// `gh{motion}` and `gH{motion}`: stage or reset every hunk the motion covered. The last hunk goes first, so the rows
-/// and base lines of the others stay where the diff said they were.
+/** `gh{motion}` and `gH{motion}`: stage or reset every hunk the motion covered. The last hunk goes first, so the rows
+ * and base lines of the others stay where the diff said they were. */
 Result<bool, str> range_command(State state, MED_ext.Ctx context, FileInfo info, bool is_stage) {
     List<int> rows = context.operator_range();
     List<int> picked = hunks_in(info, rows[0], rows[1]);

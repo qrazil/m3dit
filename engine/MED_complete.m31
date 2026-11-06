@@ -1,14 +1,14 @@
-// Command-line completion (Tab on `:`): ex command names, option names,
-// file names, directory names and buffer names, in Vim's order (ASCII).
-//
-// API
+/* Command-line completion (Tab on `:`): ex command names, option names,
+ * file names, directory names and buffer names, in Vim's order (ASCII).
+ *
+ * API */
 // ---
-//   MED_complete.complete(line, position, buffers, extra, themes)  -> Result
-//
-// `line` is the whole command line, `position` the cursor byte offset,
-// `buffers` the buffer names `:b` completes, `extra` more command names (the
-// front end's own) and `themes` the names `:theme` completes. `Result.start` is where the word being completed
-// begins in `line`; `Result.items` replace `line[start:position]`.
+/*   MED_complete.complete(line, position, buffers, extra, themes)  -> Result
+ *
+ * `line` is the whole command line, `position` the cursor byte offset,
+ * `buffers` the buffer names `:b` completes, `extra` more command names (the
+ * front end's own) and `themes` the names `:theme` completes. `Result.start` is where the word being completed
+ * begins in `line`; `Result.items` replace `line[start:position]`. */
 
 import fs;
 import io;
@@ -20,8 +20,8 @@ pub type Completion {
     pub int start = 0;
 }
 
-// Whether `word` is an abbreviation of the command `full` of at least
-// `shortest` letters (Vim's rule for command names).
+/* Whether `word` is an abbreviation of the command `full` of at least
+ * `shortest` letters (Vim's rule for command names). */
 bool is_name_of(str word, str full, int shortest) {
     return word.size() >= shortest && full.starts_with(word);
 }
@@ -127,8 +127,8 @@ bool is_after_folded(str first, str second) {
     return is_after(first, second);
 }
 
-// File names are sorted without regard to case where the file system does not
-// tell the cases apart (macOS), as Vim does.
+/* File names are sorted without regard to case where the file system does not
+ * tell the cases apart (macOS), as Vim does. */
 bool is_case_blind_files() {
     return fs.is_directory("/System/Library");
 }
@@ -196,9 +196,9 @@ List<str> command_matches(str prefix, List<str> extra) {
     return unique_sorted(found);
 }
 
-// Option names completing `prefix`, in the order of Vim's option table: a name
-// or its short name that starts with it, then the `no` and `inv` forms of the
-// boolean ones.
+/* Option names completing `prefix`, in the order of Vim's option table: a name
+ * or its short name that starts with it, then the `no` and `inv` forms of the
+ * boolean ones. */
 List<str> option_matches(str prefix) {
     List<str> found = [];
     List<str> names = MED_complete_data.OPTIONS;
@@ -320,8 +320,8 @@ List<str> path_matches(str given, bool is_directories_only) {
             names_only.push(item);
         }
     }
-    // a directory sorts by its name, not by the "/" after it ("next" before
-    // "next-2"): the slash is swapped for a byte below every name character
+    /* a directory sorts by its name, not by the "/" after it ("next" before
+     * "next-2"): the slash is swapped for a byte below every name character */
     List<str> keyed = [];
     for (str item in names_only) {
         if (item.ends_with("/")) {

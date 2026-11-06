@@ -1,9 +1,9 @@
-// Syntax highlighting for the editor: which language a buffer is, and the
-// class of every byte of a line. The tokenizer, the language definitions and
-// the detection live in the `syntax` library (github.com/qrazil/syntax); this
-// module is the adapter: the `syntax` and `syntaxenabled` options, and a
-// `SYN_highlight.Highlighter` kept on the editor and updated from the first
-// row the buffer changed (`Buffer.dirty_row`).
+/* Syntax highlighting for the editor: which language a buffer is, and the
+ * class of every byte of a line. The tokenizer, the language definitions and
+ * the detection live in the `syntax` library (github.com/qrazil/syntax); this
+ * module is the adapter: the `syntax` and `syntaxenabled` options, and a
+ * `SYN_highlight.Highlighter` kept on the editor and updated from the first
+ * row the buffer changed (`Buffer.dirty_row`). */
 
 import engine.MED_editor;
 import engine.MED_semtok;
@@ -12,8 +12,8 @@ import syntax.core.SYN_detect;
 import syntax.core.SYN_highlight;
 import syntax.core.SYN_registry;
 
-/// The language of the buffer: `:set syntax=NAME`, else by file name, modeline
-/// or shebang; "" when highlighting is off or the file type is not known.
+/** The language of the buffer: `:set syntax=NAME`, else by file name, modeline
+ * or shebang; "" when highlighting is off or the file type is not known. */
 pub str language(MED_editor.Editor editor) {
     if (editor.opts.get("syntaxenabled").or("true") == "false") {
         return "";
@@ -39,11 +39,11 @@ pub str language(MED_editor.Editor editor) {
     return SYN_detect.language_of(editor.buffer.path, first);
 }
 
-/// The class of each byte of line `row` (all 25 classes of the library; the
-/// renderer draws each, `SYN_class.legacy` is the fold onto the first twelve),
-/// or an empty list without highlighting. Semantic tokens from a language
-/// server (`editor.sem`, engine/MED_semtok.m31) are painted over the lexical
-/// classes, on a row whose text is still the one they were computed for.
+/** The class of each byte of line `row` (all 25 classes of the library; the
+ * renderer draws each, `SYN_class.legacy` is the fold onto the first twelve),
+ * or an empty list without highlighting. Semantic tokens from a language
+ * server (`editor.sem`, engine/MED_semtok.m31) are painted over the lexical
+ * classes, on a row whose text is still the one they were computed for. */
 pub List<int> classes_of(MED_editor.Editor editor, int row, str lang) {
     List<int> lexical = lexical_classes(editor, row, lang);
     if (editor.sem.count == 0 || row >= editor.buffer.line_count()) {

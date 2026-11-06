@@ -1,5 +1,5 @@
-// Unit checks for MED_lsp: framing, JSON-RPC decoding, URIs, UTF-16 columns,
-// text edits, and a round trip with a scripted server (python3).
+/* Unit checks for MED_lsp: framing, JSON-RPC decoding, URIs, UTF-16 columns,
+ * text edits, and a round trip with a scripted server (python3). */
 
 import encoding.json;
 import tests.MED_check;

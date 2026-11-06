@@ -1,23 +1,23 @@
-// Frecency for the file finder: how often and how lately each file was opened.
-//
-// Every file has a heat that falls by half every `half_life_days` days (exponential
-// decay) and goes up by one each time the file is opened:
-//
-//     heat_now = heat_then * 2 ^ (-(now - then) / half_life) + 1     (on a visit)
-//
-// so ten visits last week outweigh one visit today, and a file not opened for a few
-// months is as cold as one never opened. The finder turns the heat into a boost for
-// the ranking, `boost = BOOST_CAP * heat / (heat + 1)`: one fresh visit is half the cap,
-// a handful nearly all of it, and the cap stays well below one ranking tier, so
-// frecency reorders matches of the same kind and never lifts a worse match over a
-// better one (docs/FINDER.md). With an empty prompt the order is the heat itself.
-//
-// The state is one text file, `frecency`, in the state directory (`$XDG_STATE_HOME/m3`,
-// else `~/.local/state/m3`): `HEAT_MILLI TAB STAMP TAB PATH` per line, the heat in
-// thousandths as it was at the epoch second STAMP. At most `MAX_ENTRIES` lines are kept
-// (the hottest), cold ones are dropped, and the file is written to a temporary name
-// and renamed, so a reader never sees half a file. This module does no I/O itself except
-// `load` and `save`; `now` is always passed in, so every function is testable.
+/* Frecency for the file finder: how often and how lately each file was opened.
+ *
+ * Every file has a heat that falls by half every `half_life_days` days (exponential
+ * decay) and goes up by one each time the file is opened:
+ *
+ *     heat_now = heat_then * 2 ^ (-(now - then) / half_life) + 1     (on a visit)
+ *
+ * so ten visits last week outweigh one visit today, and a file not opened for a few
+ * months is as cold as one never opened. The finder turns the heat into a boost for
+ * the ranking, `boost = BOOST_CAP * heat / (heat + 1)`: one fresh visit is half the cap,
+ * a handful nearly all of it, and the cap stays well below one ranking tier, so
+ * frecency reorders matches of the same kind and never lifts a worse match over a
+ * better one (docs/FINDER.md). With an empty prompt the order is the heat itself.
+ *
+ * The state is one text file, `frecency`, in the state directory (`$XDG_STATE_HOME/m3`,
+ * else `~/.local/state/m3`): `HEAT_MILLI TAB STAMP TAB PATH` per line, the heat in
+ * thousandths as it was at the epoch second STAMP. At most `MAX_ENTRIES` lines are kept
+ * (the hottest), cold ones are dropped, and the file is written to a temporary name
+ * and renamed, so a reader never sees half a file. This module does no I/O itself except
+ * `load` and `save`; `now` is always passed in, so every function is testable. */
 
 import fs;
 import io;
@@ -86,8 +86,8 @@ pub void Store.visit(str key, int now) {
     is_changed = true;
 }
 
-/// The lines to write: heats brought to `now`, the hottest `MAX_ENTRIES`, none below
-/// `FORGET_BELOW`, in a fixed order (so the file is the same for the same state).
+/** The lines to write: heats brought to `now`, the hottest `MAX_ENTRIES`, none below
+ * `FORGET_BELOW`, in a fixed order (so the file is the same for the same state). */
 pub List<str> Store.to_lines(int now) {
     List<Hot> hot = [];
     List<str> keys = items.keys();
@@ -115,8 +115,8 @@ pub List<str> Store.to_lines(int now) {
     return out;
 }
 
-/// Write the store to `directory` atomically (a temporary file, then a rename);
-/// nothing when `directory` is "" (a clean run keeps no state) or nothing changed.
+/** Write the store to `directory` atomically (a temporary file, then a rename);
+ * nothing when `directory` is "" (a clean run keeps no state) or nothing changed. */
 pub void Store.save(str directory, int now) {
     if (directory.size() == 0 || !is_changed) {
         return;
@@ -189,8 +189,8 @@ pub Store parse(List<str> lines, int half_life_days) {
     return store;
 }
 
-/// A heat in the sort: hottest first, then the most recent (the sort is stable and the
-/// keys are put in byte order first, so ties come out by name).
+/** A heat in the sort: hottest first, then the most recent (the sort is stable and the
+ * keys are put in byte order first, so ties come out by name). */
 type Hot {
     str key;
     int heat;

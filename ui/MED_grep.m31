@@ -1,17 +1,17 @@
-// Project grep for the grep picker: ripgrep-like, in m31.
-//
-// A `Corpus` is the readable text files of a list of paths, loaded once (a file
-// over MAX_BYTES, or with a NUL byte in its first 8 KiB, or that is not valid
-// UTF-8, is skipped). `search` matches one query line by line:
-//
-//   * smart-case: case-insensitive unless the query has a capital letter
-//   * a query with no regex metacharacter, or with `is_fixed` set, is a plain
-//     substring (the fast path: one `contains` per file rules most files out)
-//   * otherwise it is a regex (m31's `regex`: no backreferences; `^`/`$` are
-//     line anchors here because the search is per line); a pattern that does
-//     not compile falls back to the plain substring
-//
-// A hit carries the 0-based line, the byte column of the match and the line.
+/* Project grep for the grep picker: ripgrep-like, in m31.
+ *
+ * A `Corpus` is the readable text files of a list of paths, loaded once (a file
+ * over MAX_BYTES, or with a NUL byte in its first 8 KiB, or that is not valid
+ * UTF-8, is skipped). `search` matches one query line by line:
+ *
+ *   * smart-case: case-insensitive unless the query has a capital letter
+ *   * a query with no regex metacharacter, or with `is_fixed` set, is a plain
+ *     substring (the fast path: one `contains` per file rules most files out)
+ *   * otherwise it is a regex (m31's `regex`: no backreferences; `^`/`$` are
+ *     line anchors here because the search is per line); a pattern that does
+ *     not compile falls back to the plain substring
+ *
+ * A hit carries the 0-based line, the byte column of the match and the line. */
 
 import fs;
 import io;

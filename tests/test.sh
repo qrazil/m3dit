@@ -42,7 +42,7 @@ bad()  { printf '\033[31mFAIL\033[0m %s\n' "$1"; shift; printf '%s\n' "$@" | sed
 build() {
     local name=$1
     local src=${2:-tests/$name.m31}
-    if ! "$LANGC" --emit-c "$src" -o "$WORK/$name.c" 2>"$WORK/$name.diag"; then
+    if ! "$LANGC" -emit-c "$src" --out "$WORK/$name.c" 2>"$WORK/$name.diag"; then
         bad "compile $name" "$(head -8 "$WORK/$name.diag")"
         return 1
     fi
@@ -72,13 +72,13 @@ unit() {
 
 # --- house style ---------------------------------------------------------------
 
-if out=$("$LANGC" fmt --check -r . 2>&1); then
+if out=$("$LANGC" -fmt --check --recursive . 2>&1); then
     note "source is formatted"
 else
-    bad "source is not formatted (run: m31c fmt -r .)" "$out"
+    bad "source is not formatted (run: m31c -fmt --recursive .)" "$out"
 fi
 
-if out=$("$LANGC" lint . 2>&1); then
+if out=$("$LANGC" -lint . 2>&1); then
     note "naming lint is clean"
 else
     bad "m31c lint reports findings" "$(printf '%s\n' "$out" | tail -15)"

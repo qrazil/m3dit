@@ -1,11 +1,11 @@
-// The engine half of the fold structure oracle (tests/oracles/oracle_folds.py).
-//
-// Usage: t_fold_run CASES_FILE METHOD
-//
-// Each line of CASES_FILE is one text with its lines joined by a literal backslash-n. For every case this builds an
-// Editor, sets 'foldmethod' to METHOD and 'foldminlines' to 0, and prints which folds are closed at 'foldlevel' 0 to 6
-// as nvim's foldclosed() / foldclosedend() show them: `level:first-last` (1-based), space separated. Folds are numbered
-// the way nvim shows them: at 'foldlevel' k the outermost closed fold of each line is the fold of depth k + 1.
+/* The engine half of the fold structure oracle (tests/oracles/oracle_folds.py).
+ *
+ * Usage: t_fold_run CASES_FILE METHOD
+ *
+ * Each line of CASES_FILE is one text with its lines joined by a literal backslash-n. For every case this builds an
+ * Editor, sets 'foldmethod' to METHOD and 'foldminlines' to 0, and prints which folds are closed at 'foldlevel' 0 to 6
+ * as nvim's foldclosed() / foldclosedend() show them: `level:first-last` (1-based), space separated. Folds are numbered
+ * the way nvim shows them: at 'foldlevel' k the outermost closed fold of each line is the fold of depth k + 1. */
 
 import engine.MED_editor;
 import engine.MED_autofold;

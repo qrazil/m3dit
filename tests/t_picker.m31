@@ -1,5 +1,5 @@
-// Unit checks for MED_picker and MED_keymap: the prompt, ranking, selection,
-// toggles and the leader table.
+/* Unit checks for MED_picker and MED_keymap: the prompt, ranking, selection,
+ * toggles and the leader table. */
 
 import tests.MED_check;
 import tui.widgets.TUI_menu;

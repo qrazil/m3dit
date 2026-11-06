@@ -1,18 +1,18 @@
-// The editor state a Vim-style session needs, and the primitives that edit
-// it: transactions, the undo tree, cursor clamping. No key handling here.
-//
-// API
+/* The editor state a Vim-style session needs, and the primitives that edit
+ * it: transactions, the undo tree, cursor clamping. No key handling here.
+ *
+ * API */
 // ---
-//   MED_editor.Editor                the whole state (buffer, cursor, mode, registers, undo tree ...)
-//   MED_editor.new(text)             an Editor holding file text
-//   editor.change(from, to, text)    the one edit entry point (records into the open undo block)
-//   editor.end_block()               close the undo block (one per command / insert session)
-//   editor.undo() / editor.redo()    walk the undo tree; the cursor lands where Vim puts it
-//   editor.clamp()                   keep the cursor on a valid cell for the current mode
-//   editor.want_from_cursor()        remember the cursor's display column for j / k
-//
-// Undo is a tree: each node holds the edits of one block and the cursor Vim
-// would restore. `redo_child` of a node is the branch redo follows.
+/*   MED_editor.Editor                the whole state (buffer, cursor, mode, registers, undo tree ...)
+ *   MED_editor.new(text)             an Editor holding file text
+ *   editor.change(from, to, text)    the one edit entry point (records into the open undo block)
+ *   editor.end_block()               close the undo block (one per command / insert session)
+ *   editor.undo() / editor.redo()    walk the undo tree; the cursor lands where Vim puts it
+ *   editor.clamp()                   keep the cursor on a valid cell for the current mode
+ *   editor.want_from_cursor()        remember the cursor's display column for j / k
+ *
+ * Undo is a tree: each node holds the edits of one block and the cursor Vim
+ * would restore. `redo_child` of a node is the branch redo follows. */
 
 import engine.MED_buffer;
 import engine.MED_register;
@@ -50,18 +50,18 @@ pub type FindState {
     pub bool is_until = false;
 }
 
-/// The rest of a macro that was stopped because it ran an ex command: the keys
-/// still to run in the current round, the whole macro and the rounds after it.
+/** The rest of a macro that was stopped because it ran an ex command: the keys
+ * still to run in the current round, the whole macro and the rounds after it. */
 pub type Resume {
     pub List<int> keys;
     pub List<int> full;
     pub int again = 0;
 }
 
-/// The state of a `:s` that asks before each replacement (`:s///c`): the loop
-/// of the substitution, suspended at a prompt and resumed by the answer key.
-/// A manual fold: the rows `start` ..= `end`. Folds nest by containment; of
-/// two with the same rows the earlier one in `Editor.folds` is the outer one.
+/** The state of a `:s` that asks before each replacement (`:s///c`): the loop
+ * of the substitution, suspended at a prompt and resumed by the answer key.
+ * A manual fold: the rows `start` ..= `end`. Folds nest by containment; of
+ * two with the same rows the earlier one in `Editor.folds` is the outer one. */
 pub type Fold {
     pub int start = 0;
     pub int end = 0;
@@ -71,8 +71,8 @@ pub type Fold {
 }
 
 pub type SubRun {
-    /// The commands after a `|` that follow a prompting `:s///c`: they run
-    /// when it is answered.
+    /** The commands after a `|` that follow a prompting `:s///c`: they run
+     * when it is answered. */
     pub str rest = "";
     pub bool is_active = false;
     pub bool is_hold = false;
@@ -134,8 +134,8 @@ pub type Editor {
     pub MED_buffer.Pos block_before = MED_buffer.Pos(0, 0);
     pub Map<str, MED_buffer.Pos> block_namedm = {};
     pub int tab = 8;
-    /// The window: first buffer line shown and number of lines it shows. The
-    /// UI keeps these current; H, M and L (and CTRL-D etc.) use them.
+    /** The window: first buffer line shown and number of lines it shows. The
+     * UI keeps these current; H, M and L (and CTRL-D etc.) use them. */
     pub int view_top = 0;
     pub int view_height = 22;
     /// CTRL-D / CTRL-U distance; 0 means half the window.
@@ -154,18 +154,18 @@ pub type Editor {
     pub int view_gutter = 0;
     /// Columns of signs (git changes, marks) left of the line numbers.
     pub int sign_columns = 0;
-    /// The widest line-number column and the sign column this buffer has shown: the
-    /// gutter only grows, so deleting lines or a diagnostic clearing does not shift
-    /// the text back (the front end's, not a Vim option).
+    /** The widest line-number column and the sign column this buffer has shown: the
+     * gutter only grows, so deleting lines or a diagnostic clearing does not shift
+     * the text back (the front end's, not a Vim option). */
     pub int gutter_digits_floor = 0;
     pub bool is_sign_floor = false;
-    /// Screen rows of line `view_skip_line` that are scrolled off the top (nvim's
-    /// 'smoothscroll' skipcol, left when CTRL-F stops in the last line).
-    /// The cursor row for which `view_top` is known to be right (Vim's
-    /// VALID_TOPLINE, set by cursor_correct); -1 when it must be checked.
+    /** Screen rows of line `view_skip_line` that are scrolled off the top (nvim's
+     * 'smoothscroll' skipcol, left when CTRL-F stops in the last line).
+     * The cursor row for which `view_top` is known to be right (Vim's
+     * VALID_TOPLINE, set by cursor_correct); -1 when it must be checked. */
     pub int view_valid_row = -1;
-    /// Syntax highlighting: the language in use and the state each line starts
-    /// in, cached by the `syntax` library (see MED_hl).
+    /** Syntax highlighting: the language in use and the state each line starts
+     * in, cached by the `syntax` library (see MED_hl). */
     pub SYN_highlight.Highlighter syn = SYN_highlight.Highlighter();
     /// Semantic tokens from a language server, painted over `syn`'s classes (engine/MED_semtok.m31).
     pub MED_semtok.Tokens sem = MED_semtok.Tokens();
@@ -202,9 +202,9 @@ pub type Editor {
     pub List<int> pending = [];
     pub FindState find = FindState();
     pub Map<str, MED_buffer.Pos> marks = {};
-    /// The jump list and the change list live in `marks` (as "~jN" and "~cN") so
-    /// that edits move them like any mark; these are their lengths and the
-    /// window's position in each.
+    /** The jump list and the change list live in `marks` (as "~jN" and "~cN") so
+     * that edits move them like any mark; these are their lengths and the
+     * window's position in each. */
     pub int jump_length = 0;
     pub int jump_index = 0;
     pub int change_length = 0;
@@ -231,8 +231,8 @@ pub type Editor {
     pub bool is_changed_cmd = false;
     /// Executing dot or a macro: a failing command aborts the rest.
     pub bool is_replaying = false;
-    /// How many times keys were replayed (macro, dot, :normal, :g): the front end
-    /// compares it between frames to know a frame follows a replay.
+    /** How many times keys were replayed (macro, dot, :normal, :g): the front end
+     * compares it between frames to know a frame follows a replay. */
     pub int replay_runs = 0;
     /// How many yanks happened, and the last one's range (for the yank flash).
     pub int yank_serial = 0;
@@ -258,8 +258,8 @@ pub type Editor {
     pub int ins_textlen = 0;
     /// Vim's Insstart, which becomes the '[ mark when the insert ends.
     pub MED_buffer.Pos ins_mark = MED_buffer.Pos(0, 0);
-    /// The insert start an arrow key leaves pending (Vim's Insstart), taken
-    /// over by `ins_start` at the next key unless `ins_hold`.
+    /** The insert start an arrow key leaves pending (Vim's Insstart), taken
+     * over by `ins_start` at the next key unless `ins_hold`. */
     pub MED_buffer.Pos ins_next = MED_buffer.Pos(0, 0);
     pub bool is_ins_next_set = false;
     pub bool is_ins_hold = false;
@@ -285,8 +285,8 @@ pub type Editor {
     pub int search_off = 0;
     /// What was typed after `/` or `?` (pattern, offset, `;` searches).
     pub str search_typed = "";
-    /// The line `U` restores: its row, its text before the latest run of
-    /// single-line changes and the cursor column then (Vim's b_u_line_*).
+    /** The line `U` restores: its row, its text before the latest run of
+     * single-line changes and the cursor column then (Vim's b_u_line_*). */
     pub int uline_row = -1;
     pub str uline_text = "";
     pub int uline_col = 0;
@@ -301,12 +301,12 @@ pub type Editor {
     /// Command line (ex or search) being typed.
     pub str cmdline = "";
     pub int cmd_type = 58;
-    /// Command-line histories (typed `:` lines, typed search patterns), oldest
-    /// first, and the browsing state of the line being typed.
+    /** Command-line histories (typed `:` lines, typed search patterns), oldest
+     * first, and the browsing state of the line being typed. */
     pub List<str> hist_ex = [];
-    /// Command-line completion (Tab): the matches, the one shown (-1: the typed
-    /// text), where the word starts, what was typed there, and the buffer names
-    /// `:b` and the front end's own command names it may use.
+    /** Command-line completion (Tab): the matches, the one shown (-1: the typed
+     * text), where the word starts, what was typed there, and the buffer names
+     * `:b` and the front end's own command names it may use. */
     pub List<str> comp_items = [];
     pub int comp_index = -1;
     pub int comp_start = 0;
@@ -314,8 +314,8 @@ pub type Editor {
     pub str comp_tail = "";
     pub List<str> buffer_names = [];
     pub List<str> extra_commands = [];
-    /// Ex commands extensions defined (`:Name args` becomes the request "Name args" for the front end). Empty unless
-    /// an extension is built in (docs/EXTENSIONS.md).
+    /** Ex commands extensions defined (`:Name args` becomes the request "Name args" for the front end). Empty unless
+     * an extension is built in (docs/EXTENSIONS.md). */
     pub List<str> user_commands = [];
     /// `:autocmd` records (MED_autocmd) and the group a `:augroup` block is in ("" outside one).
     pub List<str> autocmds = [];
@@ -340,8 +340,8 @@ pub type Editor {
     pub int cmd_wait = 0;
     /// The first key of a CTRL-K digraph.
     pub int dig_first = 0;
-    /// The `=` prompt of CTRL-R =: where it was opened from (0 none, 1 command line, 2 Insert)
-    /// and what the line it replaced held.
+    /** The `=` prompt of CTRL-R =: where it was opened from (0 none, 1 command line, 2 Insert)
+     * and what the line it replaced held. */
     pub int expr_from = 0;
     pub str expr_line = "";
     pub int expr_position = 0;
@@ -354,8 +354,8 @@ pub type Editor {
     pub int mode_before_cmd = 0;
     /// Insert mode waiting for the key after CTRL-R / CTRL-V.
     pub int ins_wait = 0;
-    /// Surround (MED_surround): the command being collected ("ys", "yS", "ds",
-    /// "cs", "cS", "vS", "vgS"), what was typed so far, and what it names.
+    /** Surround (MED_surround): the command being collected ("ys", "yS", "ds",
+     * "cs", "cS", "vS", "vgS"), what was typed so far, and what it names. */
     pub str sur_command = "";
     pub int sur_stage = 0;
     pub List<int> sur_keys = [];
@@ -385,18 +385,18 @@ pub type Editor {
     pub str sur_regtype = "";
     pub str sur_pcmd = "";
     pub int sur_oldlnum = 0;
-    /// Auto pairs: the row <CR> opened between a pair (-1: none), and set
-    /// while the keys of a decision are being typed.
+    /** Auto pairs: the row <CR> opened between a pair (-1: none), and set
+     * while the keys of a decision are being typed. */
     pub int ap_return_row = -1;
     pub bool is_autopair_busy = false;
-    /// Keyword completion (CTRL-N / CTRL-P) in progress: the items (the first
-    /// is the typed text), the shown one, where the word starts, and what
-    /// `ins_text` / `ins_keys` held when it began.
+    /** Keyword completion (CTRL-N / CTRL-P) in progress: the items (the first
+     * is the typed text), the shown one, where the word starts, and what
+     * `ins_text` / `ins_keys` held when it began. */
     pub bool is_completing = false;
     /// An arrow key moved the cursor in this insert and nothing was typed since.
     pub bool is_ins_moved = false;
-    /// Virtual Replace mode (gR): replaces screen cells, and the number of
-    /// lines the buffer had when it began.
+    /** Virtual Replace mode (gR): replaces screen cells, and the number of
+     * lines the buffer had when it began. */
     pub bool is_virtual = false;
     pub int virtual_lines = 0;
     pub List<str> completion_items = [];
@@ -412,8 +412,8 @@ pub type Editor {
     pub int lit_i = 0;
     /// An arrow key was used and nothing typed since (Vim's arrow_used).
     pub bool is_ins_arrow = false;
-    /// Insert-mode CTRL-O: the mode to come back to (105 insert, 82 replace) once
-    /// the next Normal command is done, 0 when not waiting for that.
+    /** Insert-mode CTRL-O: the mode to come back to (105 insert, 82 replace) once
+     * the next Normal command is done, 0 when not waiting for that. */
     pub int restart_edit = 0;
     pub bool is_restart_skip = false;
     pub bool is_ins_at_eol = false;
@@ -438,8 +438,8 @@ pub type Editor {
     pub int dot_vwant = 0;
     /// Redoing a Visual operation: block width comes from `dot_vcols`.
     pub bool is_visible_redo = false;
-    /// A block-wise I, A or c in progress: what was typed on the first line is
-    /// copied to the others when the insert ends. `blk_op` is 73, 65, 99 or 0.
+    /** A block-wise I, A or c in progress: what was typed on the first line is
+     * copied to the others when the insert ends. `blk_op` is 73, 65, 99 or 0. */
     pub int blk_op = 0;
     pub int blk_top = 0;
     pub int blk_bottom = 0;
@@ -460,18 +460,18 @@ pub type Editor {
     /// Where a `<Cmd>` line left the cursor, for the operator waiting in operator-pending mode (a motion of `MED_key.CMD`).
     pub int cmd_row = 0;
     pub int cmd_col = 0;
-    /// Keys waiting to be resolved against the maps, and where each came from
-    /// (see MED_ex: 0 typed, 1 mapped, 2 mapped without remapping).
+    /** Keys waiting to be resolved against the maps, and where each came from
+     * (see MED_ex: 0 typed, 1 mapped, 2 mapped without remapping). */
     pub List<int> ta_keys = [];
     pub List<int> ta_flags = [];
     /// The key being fed came out of a mapping (it is not typed).
     pub bool is_map_key = false;
-    /// Ex command lines typed (or replayed) and not yet run: MED_ex runs them,
-    /// because only it can call into the ex executor.
+    /** Ex command lines typed (or replayed) and not yet run: MED_ex runs them,
+     * because only it can call into the ex executor. */
     pub List<str> ex_queue = [];
-    /// `:append`, `:insert` and `:change` read their text a line at a time (a `.` line ends it): which command,
-    /// the row the text goes after (-1: the top), the rows `:change` replaces (first, last; -1: none), the indent
-    /// `autoindent` copies and the lines so far.
+    /** `:append`, `:insert` and `:change` read their text a line at a time (a `.` line ends it): which command,
+     * the row the text goes after (-1: the top), the rows `:change` replaces (first, last; -1: none), the indent
+     * `autoindent` copies and the lines so far. */
     pub str ex_input_kind = "";
     pub int ex_input_after = 0;
     pub int ex_input_first = -1;
@@ -489,8 +489,8 @@ pub type Editor {
     pub List<int> gmarks = [];
     pub bool is_gmarks_on = false;
     pub bool is_global_busy = false;
-    /// 'smartindent': the line just opened got an extra level (Vim's did_si), and
-    /// the indent a `#` line left (it goes back after the next <CR>).
+    /** 'smartindent': the line just opened got an extra level (Vim's did_si), and
+     * the indent a `#` line left (it goes back after the next <CR>). */
     pub bool did_si = false;
     pub bool can_si = false;
     pub bool is_no_si = false;
@@ -498,9 +498,9 @@ pub type Editor {
     /// `O` above a line starting with `}` gave the new line one level more.
     pub bool has_si_extra = false;
     pub int si_hash_indent = 0;
-    /// The snippet being filled in (MED_snippet, driven by MED_snipops), whether the Visual selection is Select mode (a
-    /// typed key replaces it), the snippets the user defined and the language they are filtered by, and the time the
-    /// CURRENT_* variables read.
+    /** The snippet being filled in (MED_snippet, driven by MED_snipops), whether the Visual selection is Select mode (a
+     * typed key replaces it), the snippets the user defined and the language they are filtered by, and the time the
+     * CURRENT_* variables read. */
     pub MED_snippet.Session snip = MED_snippet.Session();
     pub bool is_select = false;
     pub List<MED_snippet.Entry> snippets = [];
@@ -519,8 +519,8 @@ pub type Editor {
     pub str fold_sig = "";
     pub int fold_tick = -1;
     pub int fold_fdl = 0;
-    /// A `:g` command is waiting for the answer to a `:s///c` prompt: the
-    /// command to go on with, and whether the answer quit the whole `:g`.
+    /** A `:g` command is waiting for the answer to a `:s///c` prompt: the
+     * command to go on with, and whether the answer quit the whole `:g`. */
     pub bool is_global_waiting = false;
     pub str global_cmd = "";
     pub bool is_need_beginline = false;
@@ -545,11 +545,11 @@ pub type Editor {
     pub bool is_sub_has = false;
     /// Set while a caller adjusts the marks itself (`:s` line breaks).
     pub bool is_adjust_off = false;
-    /// Set while a step is saved for undo without a change to note (a
-    /// `:sort` that moved nothing): `.` and the change list stay.
+    /** Set while a step is saved for undo without a change to note (a
+     * `:sort` that moved nothing): `.` and the change list stay. */
     pub bool is_change_unnoted = false;
-    /// Whole lines are being deleted (the Visual marks then stay on the line
-    /// that took their place).
+    /** Whole lines are being deleted (the Visual marks then stay on the line
+     * that took their place). */
     bool is_line_delete = false;
 }
 
@@ -600,8 +600,8 @@ pub void Editor.set_cursor(MED_buffer.Pos position) {
     col = position.col;
 }
 
-/// Put `text` (one message, or a listing of several lines) in the ring unless it is the one logged last. Empty text
-/// re-arms the ring so the same message shown again later counts again.
+/** Put `text` (one message, or a listing of several lines) in the ring unless it is the one logged last. Empty text
+ * re-arms the ring so the same message shown again later counts again. */
 pub void Editor.log_text(str text) {
     if (text == "") {
         message_logged = "";
@@ -651,9 +651,9 @@ pub void Editor.open_block() {
     }
 }
 
-/// Put the `.` mark (and the newest change list entry) where nvim's own
-/// bookkeeping of a whole-line change leaves it: the first line it touched,
-/// column 0 (put, join, line delete, shift, :copy, :move, :s, undo ...).
+/** Put the `.` mark (and the newest change list entry) where nvim's own
+ * bookkeeping of a whole-line change leaves it: the first line it touched,
+ * column 0 (put, join, line delete, shift, :copy, :move, :s, undo ...). */
 pub void Editor.override_change(MED_buffer.Pos place) {
     marks.set(".", place);
     if (change_length > 0) {
@@ -661,8 +661,8 @@ pub void Editor.override_change(MED_buffer.Pos place) {
     }
 }
 
-/// The single entry point for changing text. The first change of a block
-/// remembers the cursor, which is what undo restores.
+/** The single entry point for changing text. The first change of a block
+ * remembers the cursor, which is what undo restores. */
 pub MED_buffer.Edit Editor.change(MED_buffer.Pos from, MED_buffer.Pos position, str replacement) {
     if (!is_block_open) {
         is_block_open = true;
@@ -732,8 +732,8 @@ pub int Editor.fold_end_of(int row) {
     return found;
 }
 
-// Folds follow the lines (Vim's foldMarkAdjust): deleted lines shrink or
-// remove them, inserted lines inside one grow it.
+/* Folds follow the lines (Vim's foldMarkAdjust): deleted lines shrink or
+ * remove them, inserted lines inside one grow it. */
 void Editor.fold_adjust(int left, int new_delete, int new_insert) {
     if (folds.size() == 0) {
         return;
@@ -776,8 +776,8 @@ void Editor.fold_adjust(int left, int new_delete, int new_insert) {
     folds = kept;
 }
 
-/// Lines `a ..< a + nd` were deleted and `new_insert` lines inserted at `a + nd`
-/// (Vim's mark_adjust()): move or drop the marks that sit below.
+/** Lines `a ..< a + nd` were deleted and `new_insert` lines inserted at `a + nd`
+ * (Vim's mark_adjust()): move or drop the marks that sit below. */
 pub void Editor.mark_adjust(int left, int new_delete, int new_insert) {
     fold_adjust(left, new_delete, new_insert);
     if (is_gmarks_on && gmarks.size() > 0) {
@@ -812,8 +812,8 @@ pub void Editor.mark_adjust(int left, int new_delete, int new_insert) {
             if (is_letter) {
                 marks.remove(name);
             } else if (name == "'" || name == "'prev") {
-                // a deleted previous-context mark is line 0 (checkpcmark() may
-                // bring the one before it back)
+                /* a deleted previous-context mark is line 0 (checkpcmark() may
+                 * bring the one before it back) */
                 marks.set(name, MED_buffer.Pos(-1, 0));
             } else if ((name == "<" || name == ">") && is_line_delete) {
                 // the Visual marks stay on the first line that took the place
@@ -831,8 +831,8 @@ pub void Editor.mark_adjust(int left, int new_delete, int new_insert) {
     }
 }
 
-// Work out which whole lines a character edit deleted or inserted the way Vim's
-// line operations would have, and adjust the marks for it.
+/* Work out which whole lines a character edit deleted or inserted the way Vim's
+ * line operations would have, and adjust the marks for it. */
 void Editor.adjust_lines(MED_buffer.Pos from, MED_buffer.Pos position, str replacement) {
     int removed = position.row - from.row;
     int added = 0;
@@ -900,8 +900,8 @@ pub void Editor.close_block() {
     block_hold = hold;
 }
 
-/// A node that changes nothing: Vim saves the line for undo before it finds out
-/// a put has nothing to put, so `u` then undoes that empty step.
+/** A node that changes nothing: Vim saves the line for undo before it finds out
+ * a put has nothing to put, so `u` then undoes that empty step. */
 pub void Editor.noop_node() {
     if (block_hold > 0) {
         return;
@@ -963,15 +963,15 @@ Landing Editor.apply_edit(MED_buffer.Edit edit, bool is_forward) {
     landing.top = edit.from.row;
     landing.first = differ;
     landing.newsize = newsize;
-    // Vim's undo entries hold whole lines: a pure line insertion or deletion
-    // spans one line fewer than the character edit does.
+    /* Vim's undo entries hold whole lines: a pure line insertion or deletion
+     * spans one line fewer than the character edit does. */
     landing.mtop = landing.top;
     landing.mnew = newsize;
     if (from_text == "" || to_text == "") {
         str moved = from_text + to_text;
         if (moved.starts_with("\n")) {
-            // a line break at the start of a line opened a line above it (O),
-            // one at the end of a line a line below it (o)
+            /* a line break at the start of a line opened a line above it (O),
+             * one at the end of a line a line below it (o) */
             bool is_above = false;
             if (edit.from.col == 0) {
                 if (from_text == "") {
@@ -1108,8 +1108,8 @@ Map<str, MED_buffer.Pos> Editor.snapshot_named() {
     return copy;
 }
 
-// After undoing or redoing `node`: its marks come back, and it keeps the ones
-// that were set before (Vim's u_undoredo()).
+/* After undoing or redoing `node`: its marks come back, and it keeps the ones
+ * that were set before (Vim's u_undoredo()). */
 void Editor.swap_named(Node node, Map<str, MED_buffer.Pos> before) {
     for (str name in node.namedm.keys()) {
         MED_buffer.Pos saved = node.namedm.get(name).or(MED_buffer.Pos(-1, 0));
@@ -1171,8 +1171,8 @@ pub bool Editor.did_redo() {
     return true;
 }
 
-/// Go to the text state after change `target` (0: the original text), through
-/// the undo and redo steps between here and there (`:undo N`, `g-`, `g+`).
+/** Go to the text state after change `target` (0: the original text), through
+ * the undo and redo steps between here and there (`:undo N`, `g-`, `g+`). */
 pub bool Editor.did_undo_to(int target) {
     close_block();
     if (target < 0 || target >= nodes.size()) {
@@ -1256,8 +1256,8 @@ pub int Editor.col_for_want(int line_row, int want, bool is_one_more) {
     return MED_motion.col_for_want(buffer.line(line_row), want, tab, is_one_more);
 }
 
-/// The display column the cursor is drawn at (the end cell of a Tab in
-/// normal mode, as Vim does).
+/** The display column the cursor is drawn at (the end cell of a Tab in
+ * normal mode, as Vim does). */
 pub int Editor.cursor_vcol() {
     str line = buffer.line(row);
     if (is_wrap_special()) {
@@ -1290,8 +1290,8 @@ pub void Editor.want_from_cursor() {
     want = cursor_vcol();
 }
 
-/// Keep the cursor on a valid cell: inside the buffer, on a grapheme start,
-/// and (outside insert and visual) on a character rather than the NUL.
+/** Keep the cursor on a valid cell: inside the buffer, on a grapheme start,
+ * and (outside insert and visual) on a character rather than the NUL. */
 pub void Editor.clamp() {
     if (row >= buffer.line_count()) {
         row = buffer.line_count() - 1;
@@ -1340,8 +1340,8 @@ MED_buffer.Pos Editor.entry(str name) {
     return marks.get(name).or(MED_buffer.Pos(0, 0));
 }
 
-/// Vim's setpcmark(): the previous-context mark becomes `position`, which is
-/// also added to the jump list; does nothing in `:global`.
+/** Vim's setpcmark(): the previous-context mark becomes `position`, which is
+ * also added to the jump list; does nothing in `:global`. */
 pub void Editor.set_pcmark(MED_buffer.Pos position) {
     if (is_global_busy) {
         return;
@@ -1360,9 +1360,9 @@ pub void Editor.set_pcmark(MED_buffer.Pos position) {
     jump_index = jump_length;
 }
 
-/// Vim's cleanup_jumplist(): of several entries on one line only the last
-/// stays; when the window is past the last entry and that one is on the
-/// cursor line, it goes too (`is_move`).
+/** Vim's cleanup_jumplist(): of several entries on one line only the last
+ * stays; when the window is past the last entry and that one is on the
+ * cursor line, it goes too (`is_move`). */
 void Editor.clean_jumps(bool is_move) {
     List<MED_buffer.Pos> kept = [];
     int new_index = jump_index;
@@ -1398,8 +1398,8 @@ void Editor.clean_jumps(bool is_move) {
     jump_index = new_index;
 }
 
-/// Vim's movemark(): the jump list entry `count` steps from the window's
-/// position (negative is older), or None.
+/** Vim's movemark(): the jump list entry `count` steps from the window's
+ * position (negative is older), or None. */
 pub Option<MED_buffer.Pos> Editor.move_jump(int count) {
     clean_jumps(true);
     if (jump_length == 0) {
@@ -1419,9 +1419,9 @@ pub Option<MED_buffer.Pos> Editor.move_jump(int count) {
     return Option<MED_buffer.Pos>.Some(entry(jump_name(jump_index)));
 }
 
-/// Vim's changed_common() bookkeeping: the position of the last change is the
-/// `.` mark, and a change far enough from the last entry starts a new change
-/// list entry.
+/** Vim's changed_common() bookkeeping: the position of the last change is the
+ * `.` mark, and a change far enough from the last entry starts a new change
+ * list entry. */
 pub void Editor.note_change(MED_buffer.Pos from) {
     marks.set(".", from);
     if (is_new_change || change_length == 0) {
@@ -1474,9 +1474,9 @@ pub Option<MED_buffer.Pos> Editor.move_change(int count) {
     return Option<MED_buffer.Pos>.Some(entry(change_name(target)));
 }
 
-/// Vim's mark_col_adjust() for a join: a mark on joined line `row + 1 + i` moves
-/// to `row`, its column shifted by `shift[i]` (the whitespace that was removed
-/// from the front of that line counts as column 0 of the text).
+/** Vim's mark_col_adjust() for a join: a mark on joined line `row + 1 + i` moves
+ * to `row`, its column shifted by `shift[i]` (the whitespace that was removed
+ * from the front of that line counts as column 0 of the text). */
 pub void Editor.join_marks(int row_in, List<int> shift, List<int> removed) {
     List<str> names = [];
     for (str name in marks.keys()) {
@@ -1499,9 +1499,9 @@ pub void Editor.join_marks(int row_in, List<int> shift, List<int> removed) {
     }
 }
 
-/// Vim's checkpcmark(), at the end of a normal command: the mark before the
-/// current one comes back when the cursor ended up on the current one or the
-/// current one was deleted.
+/** Vim's checkpcmark(), at the end of a normal command: the mark before the
+ * current one comes back when the cursor ended up on the current one or the
+ * current one was deleted. */
 pub void Editor.check_pcmark() {
     MED_buffer.Pos previous = marks.get("'prev").or(MED_buffer.Pos(-1, 0));
     MED_buffer.Pos position = marks.get("'").or(MED_buffer.Pos(-1, 0));
@@ -1511,9 +1511,9 @@ pub void Editor.check_pcmark() {
     marks.set("'prev", MED_buffer.Pos(-1, 0));
 }
 
-/// Start the undo block now, remembering the cursor as it is (what Vim's
-/// u_save() sees when an ex command positions the cursor "for undo").
-/// The most messages the ring keeps; the oldest go first.
+/** Start the undo block now, remembering the cursor as it is (what Vim's
+ * u_save() sees when an ex command positions the cursor "for undo").
+ * The most messages the ring keeps; the oldest go first. */
 pub const int MESSAGE_LOG_MAX = 200;
 const int LIST_SIZE = 100;
 
@@ -1543,9 +1543,9 @@ int line_span(str text) {
     return count;
 }
 
-// Apply one edit in the given direction and report whether it changed the
-// first-changed-line bookkeeping Vim's cursor placement uses. `top` is the
-// 1-based line above the change.
+/* Apply one edit in the given direction and report whether it changed the
+ * first-changed-line bookkeeping Vim's cursor placement uses. `top` is the
+ * 1-based line above the change. */
 pub type Landing {
     pub int top = 0;
     pub int first = 0;

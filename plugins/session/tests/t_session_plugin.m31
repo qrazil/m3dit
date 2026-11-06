@@ -1,6 +1,6 @@
-// The `session` plugin through the App: the file in front becomes recent and its cursor row is written within a Tick, a
-// new session puts the cursor back, closing the editor writes the cursor down, a cursor that was already moved is kept,
-// and :PluginDisable stops it. The state directory is a scratch directory (M3_TEST_TMP).
+/* The `session` plugin through the App: the file in front becomes recent and its cursor row is written within a Tick, a
+ * new session puts the cursor back, closing the editor writes the cursor down, a cursor that was already moved is kept,
+ * and :PluginDisable stops it. The state directory is a scratch directory (M3_TEST_TMP). */
 
 import fs;
 import io;

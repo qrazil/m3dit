@@ -1,5 +1,5 @@
-// Unit checks for MED_window: the layout tree, splitting, closing, geometry
-// and directional neighbours.
+/* Unit checks for MED_window: the layout tree, splitting, closing, geometry
+ * and directional neighbours. */
 
 import tests.MED_check;
 import ui.MED_window;
@@ -19,8 +19,8 @@ check.eq_str("one window", ids(root), "1");
 MED_window.Layout single = MED_window.place(root, 0, 0, 80, 23);
 check.eq_int("the whole area", MED_window.placed_of(single, 1).width, 80);
 check.eq_int("the whole height", MED_window.placed_of(single, 1).height, 23);
-// :split puts the new window above, :vsplit to the left (is_after false);
-// the new window gets the larger half, as in nvim
+/* :split puts the new window above, :vsplit to the left (is_after false);
+ * the new window gets the larger half, as in nvim */
 root = MED_window.split(root, 1, 2, false, false);
 check.eq_str("new window above", ids(root), "2,1");
 MED_window.Layout stacked = MED_window.place(root, 0, 0, 80, 23);
@@ -36,8 +36,8 @@ below = MED_window.split(below, 1, 2, false, true);
 MED_window.Layout under = MED_window.place(below, 0, 0, 80, 23);
 check.eq_int("old window above keeps the smaller half", MED_window.placed_of(under, 1).height, 11);
 check.eq_int("new window below is larger", MED_window.placed_of(under, 2).height, 12);
-// splitting a window of a stack in the same direction adds a sibling, and
-// the three are shared out again with the active one first
+/* splitting a window of a stack in the same direction adds a sibling, and
+ * the three are shared out again with the active one first */
 root = MED_window.split(root, 1, 3, false, true);
 check.eq_str("a third in the same column", ids(root), "2,1,3");
 check.eq_int("one branch, three kids", root.kids.size(), 3);

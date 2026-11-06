@@ -1,5 +1,5 @@
-// 'foldlevelstart' sets 'foldlevel' for a buffer when it is first shown (nvim's buf_enter / do_ecmd), roadmap item 7.
-// nvim cannot answer this one headless (it needs a second buffer and a window enter), so it is a unit test.
+/* 'foldlevelstart' sets 'foldlevel' for a buffer when it is first shown (nvim's buf_enter / do_ecmd), roadmap item 7.
+ * nvim cannot answer this one headless (it needs a second buffer and a window enter), so it is a unit test. */
 
 import io;
 import term;

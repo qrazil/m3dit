@@ -1,15 +1,15 @@
-// `m3 --dump-sample`: a few screens drawn by the editor's own renderer through a
-// theme, written as ANSI text. It is a way to look at a theme (or at all the
-// built-in ones, one after the other) without opening an editor, and to see the
-// colours at 16, 256 or 24 bits as `tui` would write them:
-//
-//     m3 --theme tokyonight --dump-sample
-//     m3 --dump-sample --colors 256 | less -R
-//
-// Seven screens: Rust, Python, C, Markdown, JSON and shell code (the Rust one
-// with a search match and the cursor line, Python with a Visual selection, C in
-// Insert mode, the shell one with the command line open: the statusline mode
-// colours), then the file picker's theme list and the which-key popup.
+/* `m3 --dump-sample`: a few screens drawn by the editor's own renderer through a
+ * theme, written as ANSI text. It is a way to look at a theme (or at all the
+ * built-in ones, one after the other) without opening an editor, and to see the
+ * colours at 16, 256 or 24 bits as `tui` would write them:
+ *
+ *     m3 --theme tokyonight --dump-sample
+ *     m3 --dump-sample --colors 256 | less -R
+ *
+ * Seven screens: Rust, Python, C, Markdown, JSON and shell code (the Rust one
+ * with a search match and the cursor line, Python with a Visual selection, C in
+ * Insert mode, the shell one with the command line open: the statusline mode
+ * colours), then the file picker's theme list and the which-key popup. */
 
 import tui.core.TUI_buffer;
 import tui.core.TUI_style;
@@ -21,8 +21,8 @@ import ui.MED_app;
 const int WIDTH = 78;
 const int ROWS = 13;
 
-/// One screen of code: a file name (the language), its text, and keys that put
-/// the editor in a state worth looking at.
+/** One screen of code: a file name (the language), its text, and keys that put
+ * the editor in a state worth looking at. */
 type Sample {
     str path;
     str text;
@@ -98,8 +98,8 @@ MED_app.App app_for(Sample sample, str theme_name, str themes_directory, TUI_sty
     }
 }
 
-/// The screens of theme `name` as ANSI text, led by a title line. A theme that
-/// does not load gives its error instead.
+/** The screens of theme `name` as ANSI text, led by a title line. A theme that
+ * does not load gives its error instead. */
 pub str screens(str name, str themes_directory, TUI_style.Depth depth) {
     return screens_in(name, themes_directory, depth, "");
 }

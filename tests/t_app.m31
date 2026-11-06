@@ -1,5 +1,5 @@
-// Unit checks for MED_app: terminal keys to engine keys, drawing into a
-// buffer, and the :w / :q handling (including the E37 refusal).
+/* Unit checks for MED_app: terminal keys to engine keys, drawing into a
+ * buffer, and the :w / :q handling (including the E37 refusal). */
 
 import fs;
 import io;

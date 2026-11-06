@@ -1,42 +1,42 @@
-// Registers, with Vim's rules for which one a yank or a delete writes.
-//
-// API
+/* Registers, with Vim's rules for which one a yank or a delete writes.
+ *
+ * API */
 // ---
-//   MED_register.Reg(lines, kind, width)       one register's content
-//   MED_register.Registers                     the register file
-//     regs.get(name)                           -> Option<Reg>   ("" and "\"" read the unnamed register)
-//     regs.yank(name, reg)                     a yank writes `name` (or "0")
-//     regs.delete(name, reg, large, reg_one)   a delete: named, "1 shift, or "-
-//     regs.set_special(name, text)             "., ":, "/, "%
-//
-// The unnamed register is not storage: it names whichever register was
-// written last (Vim's `y_previous`), so `""` always reads what the last yank
-// or delete wrote. Rules ported from Vim's op_yank/op_delete:
-//
-//   * a yank with no register writes "0;
-//   * a delete writes the named register if one was given; and, if it was
-//     linewise or spanned lines (or its motion is one of % ( ) ` / ? n N { }),
-//     shifts "1..."9 and writes "1; and, if no register was named and it was
-//     within one line, writes "-;
-//   * an upper-case name appends to the lower-case register (linewise wins,
-//     charwise appends join the last and first lines);
-//   * "_ writes nothing.
+/*   MED_register.Reg(lines, kind, width)       one register's content
+ *   MED_register.Registers                     the register file
+ *     regs.get(name)                           -> Option<Reg>   ("" and "\"" read the unnamed register)
+ *     regs.yank(name, reg)                     a yank writes `name` (or "0")
+ *     regs.delete(name, reg, large, reg_one)   a delete: named, "1 shift, or "-
+ *     regs.set_special(name, text)             "., ":, "/, "%
+ *
+ * The unnamed register is not storage: it names whichever register was
+ * written last (Vim's `y_previous`), so `""` always reads what the last yank
+ * or delete wrote. Rules ported from Vim's op_yank/op_delete:
+ *
+ *   * a yank with no register writes "0;
+ *   * a delete writes the named register if one was given; and, if it was
+ *     linewise or spanned lines (or its motion is one of % ( ) ` / ? n N { }),
+ *     shifts "1..."9 and writes "1; and, if no register was named and it was
+ *     within one line, writes "-;
+ *   * an upper-case name appends to the lower-case register (linewise wins,
+ *     charwise appends join the last and first lines);
+ *   * "_ writes nothing. */
 
 /// How the text was selected.
 pub const int CHAR = 0;
 pub const int LINE = 1;
 pub const int BLOCK = 2;
 
-/// What a register holds: the lines (no terminators), how the text was
-/// selected, and for a block the width of the block in display columns.
+/** What a register holds: the lines (no terminators), how the text was
+ * selected, and for a block the width of the block in display columns. */
 pub type Reg {
     pub List<str> lines;
     pub int kind;
     pub int width = 0;
 }
 
-/// The text of the register as put into a buffer: lines joined by "\n", with
-/// a trailing "\n" for linewise content.
+/** The text of the register as put into a buffer: lines joined by "\n", with
+ * a trailing "\n" for linewise content. */
 pub str Reg.text() {
     str body = lines.join("\n");
     if (kind == LINE) {
@@ -48,9 +48,9 @@ pub str Reg.text() {
 pub type Registers {
     Map<str, Reg> slots = {};
     str previous = "";
-    /// A system clipboard is reachable (the front end found a provider): "+
-    /// and "* are then a register of their own, and 'clipboard' can make the
-    /// unnamed register use it.
+    /** A system clipboard is reachable (the front end found a provider): "+
+     * and "* are then a register of their own, and 'clipboard' can make the
+     * unnamed register use it. */
     pub bool has_clipboard = false;
     /// The 'clipboard' option: "unnamed" and "unnamedplus" among its items.
     pub str clip_mode = "";
@@ -112,8 +112,8 @@ pub str Registers.clip_text() {
     }
 }
 
-/// The provider's contents. The register keeps its shape (line- or
-/// blockwise) while the text is the one this editor wrote.
+/** The provider's contents. The register keeps its shape (line- or
+ * blockwise) while the text is the one this editor wrote. */
 pub void Registers.set_clipboard(str text) {
     if (text == clip_seen && slots.get("+").is_some()) {
         return;
@@ -187,15 +187,15 @@ void Registers.store(str slot, Reg reg, bool is_append_value) {
     }
 }
 
-/// What `setreg('"', ...)` does: write register "0 and make the unnamed
-/// register point to it (Vim's get_yank_register with writing set).
+/** What `setreg('"', ...)` does: write register "0 and make the unnamed
+ * register point to it (Vim's get_yank_register with writing set). */
 pub void Registers.set_unnamed(Reg reg) {
     slots.set("0", reg);
     previous = "0";
 }
 
-/// Write `name` without changing which register the unnamed one names
-/// (recording a macro does this).
+/** Write `name` without changing which register the unnamed one names
+ * (recording a macro does this). */
 pub void Registers.set_named(str name, Reg reg) {
     if (name == "_") {
         return;
@@ -224,10 +224,10 @@ pub void Registers.yank(str name, Reg reg) {
     }
 }
 
-/// A delete or change into `name`. `is_shift` is true when the text was linewise
-/// or spans several lines or the motion is one of % ( ) ` / ? n N { } (so it
-/// goes to "1 after shifting "1.."9); `is_small` is true for a charwise delete
-/// within one line (so it goes to "- when no register was named).
+/** A delete or change into `name`. `is_shift` is true when the text was linewise
+ * or spans several lines or the motion is one of % ( ) ` / ? n N { } (so it
+ * goes to "1 after shifting "1.."9); `is_small` is true for a charwise delete
+ * within one line (so it goes to "- when no register was named). */
 pub void Registers.delete(str name, Reg reg, bool is_shift, bool is_small) {
     if (name == "_") {
         return;
@@ -273,8 +273,8 @@ pub void Registers.delete(str name, Reg reg, bool is_shift, bool is_small) {
     }
 }
 
-// The slot a write to `name` lands in. Anything unknown, "\"" included,
-// writes "0, as Vim's get_yank_register does.
+/* The slot a write to `name` lands in. Anything unknown, "\"" included,
+ * writes "0, as Vim's get_yank_register does. */
 str slot_of(str name) {
     if (name.size() != 1) {
         return "0";

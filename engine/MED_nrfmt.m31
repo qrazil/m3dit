@@ -1,13 +1,13 @@
-// Adding to and subtracting from the number under the cursor: `<C-a>`, `<C-x>`,
-// and `g<C-a>` / `g<C-x>` / `<C-a>` over a Visual selection.
-//
-// A port of Vim's do_addsub() with 'nrformats' "bin,hex" (nvim's default):
-// decimal, 0x hex and 0b binary numbers, a '-' directly before a decimal number
-// makes it negative, leading zeros keep the width.
-//
-// Numbers are unsigned 64-bit like Vim's, kept as two 32-bit halves because an
-// m31 `int` is signed. A number that does not fit becomes the largest one and
-// is not changed further.
+/* Adding to and subtracting from the number under the cursor: `<C-a>`, `<C-x>`,
+ * and `g<C-a>` / `g<C-x>` / `<C-a>` over a Visual selection.
+ *
+ * A port of Vim's do_addsub() with 'nrformats' "bin,hex" (nvim's default):
+ * decimal, 0x hex and 0b binary numbers, a '-' directly before a decimal number
+ * makes it negative, leading zeros keep the width.
+ *
+ * Numbers are unsigned 64-bit like Vim's, kept as two 32-bit halves because an
+ * m31 `int` is signed. A number that does not fit becomes the largest one and
+ * is not changed further. */
 
 import engine.MED_text;
 
@@ -218,12 +218,12 @@ bool did_scale(Wide number, int factor, int digit) {
     return true;
 }
 
-/// Add (or subtract) `amount` to the number at or after byte `col` of `line`.
-/// `length` is the number of bytes of the Visual selection on this line (0 when
-/// not Visual). In Visual mode the number must start inside the selection and
-/// `vmax_mode` says how far it may reach: 0 to the end of the line (linewise
-/// selections), 1 to the end of the selection, 2 to the end of the line
-/// (`$` blocks).
+/** Add (or subtract) `amount` to the number at or after byte `col` of `line`.
+ * `length` is the number of bytes of the Visual selection on this line (0 when
+ * not Visual). In Visual mode the number must start inside the selection and
+ * `vmax_mode` says how far it may reach: 0 to the end of the line (linewise
+ * selections), 1 to the end of the selection, 2 to the end of the line
+ * (`$` blocks). */
 pub NrResult addsub(str line, int col_in, int length_in, bool is_sub, int amount, bool is_visual, int vmax_mode, bool is_hexupper_in) {
     NrResult nr_result = NrResult();
     nr_result.is_hexupper = is_hexupper_in;

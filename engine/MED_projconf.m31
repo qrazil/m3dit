@@ -1,32 +1,32 @@
-// Per-file project settings: `.editorconfig` and `.m3.toml`.
-//
-// API
+/* Per-file project settings: `.editorconfig` and `.m3.toml`.
+ *
+ * API */
 // ---
-//   MED_projconf.for_file(path, language)   -> Conf   the settings that apply to the file at `path`
-//   Conf.lines                              ex lines (`set noexpandtab`, `set shiftwidth=4` ...) to run on the buffer
-//   Conf.final_newline                      -1 leave the file alone, 0 write without a final newline, 1 write with one
-//   MED_projconf.absolute_path(path)        a path made absolute (also for a file that does not exist yet)
-//   MED_projconf.trim_trailing(editor)      strip trailing blanks (the write-time half of trim_trailing_whitespace)
-//   MED_projconf.is_glob_match(glob, text)     EditorConfig glob matching, for tests
-//   MED_projconf.editorconfig(texts, dirs, path) / m3toml(text, language)   the pure halves, for tests
-//
-// Precedence (later wins): the editor's defaults, the user's keymap file, `.editorconfig`,
-// `.m3.toml`, a modeline. The settings are applied when a buffer is created, never in the middle of an edit.
-//
-// EditorConfig (https://spec.editorconfig.org): `.editorconfig` files are read from the file's directory up
-// to the root or the first one with `root = true`; the outermost applies first, later sections of the same
-// file and nearer files override. Section globs: `*` (not `/`), `**`, `?`, `[seq]`, `[!seq]`,
-// `{a,b,c}`, `{1..5}`, `\` escapes; a glob without `/` matches at any depth. Properties understood:
-//   indent_style (tab, space)                 -> expandtab
-//   indent_size (N, tab), tab_width (N)       -> shiftwidth, softtabstop, tabstop (as nvim's editorconfig does)
-//   max_line_length (N, off)                  -> textwidth
-//   insert_final_newline (true, false)        -> Conf.final_newline
-//   trim_trailing_whitespace (true, false)    -> trimtrailing (m3 option: strip on write)
-// `end_of_line` and `charset` are read but not applied (the buffer is LF and UTF-8 only), `unset` clears a key.
-//
-// `.m3.toml` (the nearest one up the tree): a small TOML subset, `[options]` and `[language.NAME]` tables of
-// `name = value` with booleans, integers and strings. Each pair is `:set name`, `:set noname` or `:set name=value`;
-// a `[language.NAME]` table applies only to files of that language (the `syntax` library's name).
+/*   MED_projconf.for_file(path, language)   -> Conf   the settings that apply to the file at `path`
+ *   Conf.lines                              ex lines (`set noexpandtab`, `set shiftwidth=4` ...) to run on the buffer
+ *   Conf.final_newline                      -1 leave the file alone, 0 write without a final newline, 1 write with one
+ *   MED_projconf.absolute_path(path)        a path made absolute (also for a file that does not exist yet)
+ *   MED_projconf.trim_trailing(editor)      strip trailing blanks (the write-time half of trim_trailing_whitespace)
+ *   MED_projconf.is_glob_match(glob, text)     EditorConfig glob matching, for tests
+ *   MED_projconf.editorconfig(texts, dirs, path) / m3toml(text, language)   the pure halves, for tests
+ *
+ * Precedence (later wins): the editor's defaults, the user's keymap file, `.editorconfig`,
+ * `.m3.toml`, a modeline. The settings are applied when a buffer is created, never in the middle of an edit.
+ *
+ * EditorConfig (https://spec.editorconfig.org): `.editorconfig` files are read from the file's directory up
+ * to the root or the first one with `root = true`; the outermost applies first, later sections of the same
+ * file and nearer files override. Section globs: `*` (not `/`), `**`, `?`, `[seq]`, `[!seq]`,
+ * `{a,b,c}`, `{1..5}`, `\` escapes; a glob without `/` matches at any depth. Properties understood:
+ *   indent_style (tab, space)                 -> expandtab
+ *   indent_size (N, tab), tab_width (N)       -> shiftwidth, softtabstop, tabstop (as nvim's editorconfig does)
+ *   max_line_length (N, off)                  -> textwidth
+ *   insert_final_newline (true, false)        -> Conf.final_newline
+ *   trim_trailing_whitespace (true, false)    -> trimtrailing (m3 option: strip on write)
+ * `end_of_line` and `charset` are read but not applied (the buffer is LF and UTF-8 only), `unset` clears a key.
+ *
+ * `.m3.toml` (the nearest one up the tree): a small TOML subset, `[options]` and `[language.NAME]` tables of
+ * `name = value` with booleans, integers and strings. Each pair is `:set name`, `:set noname` or `:set name=value`;
+ * a `[language.NAME]` table applies only to files of that language (the `syntax` library's name). */
 
 import engine.MED_buffer;
 import engine.MED_editor;
@@ -40,8 +40,8 @@ pub type Conf {
 
 // ------------------------------------------------------------------ globs
 
-// Alternatives of the first top-level `{...}` group of `pattern` (nested groups expand recursively), or the
-// pattern itself when it has none. `{num..num}` is a range; a group with no comma and no range is literal.
+/* Alternatives of the first top-level `{...}` group of `pattern` (nested groups expand recursively), or the
+ * pattern itself when it has none. `{num..num}` is a range; a group with no comma and no range is literal. */
 pub List<str> expand_braces(str pattern) {
     bytes raw = pattern.to_bytes();
     int start_at = -1;
@@ -220,8 +220,8 @@ bool is_match_from(bytes pattern, int spot, bytes text, int where) {
     return where == text.size();
 }
 
-/// Whether the EditorConfig section glob `glob` matches `relative`, the file's path below the directory of the
-/// `.editorconfig` that holds the section.
+/** Whether the EditorConfig section glob `glob` matches `relative`, the file's path below the directory of the
+ * `.editorconfig` that holds the section. */
 pub bool is_glob_match(str glob, str relative) {
     str normal = glob;
     if (normal.starts_with("/")) {
@@ -240,8 +240,8 @@ pub bool is_glob_match(str glob, str relative) {
 
 // ----------------------------------------------------------- EditorConfig
 
-/// The properties the `.editorconfig` file `text` gives the file `relative` (its path below the file's
-/// directory), applied on top of `props`; sets `is_root` when the preamble has `root = true`.
+/** The properties the `.editorconfig` file `text` gives the file `relative` (its path below the file's
+ * directory), applied on top of `props`; sets `is_root` when the preamble has `root = true`. */
 pub bool is_root_after(str text, str relative, Map<str, str> props) {
     bool is_root = false;
     bool is_in_preamble = true;
@@ -332,8 +332,8 @@ pub Conf from_properties(Map<str, str> props) {
 
 // -------------------------------------------------------------- .m3.toml
 
-// The text of a TOML value as a `:set` argument tail ("" for a value that is not understood), `=` included
-// for values and "" for a true boolean; `is_false` is set for a false one.
+/* The text of a TOML value as a `:set` argument tail ("" for a value that is not understood), `=` included
+ * for values and "" for a true boolean; `is_false` is set for a false one. */
 str toml_value(str value, Flag flag) {
     if (value == "true") {
         return "";
@@ -364,8 +364,8 @@ type Flag {
     pub bool is_bad = false;
 }
 
-/// The `:set` lines of the `.m3.toml` text: its `[options]` table and the `[language.NAME]` table of
-/// `language`.
+/** The `:set` lines of the `.m3.toml` text: its `[options]` table and the `[language.NAME]` table of
+ * `language`. */
 pub List<str> m3toml(str text, str language) {
     List<str> out = [];
     bool is_active = false;
@@ -437,8 +437,8 @@ str directory_of(str path) {
     return path.substr(0, slash);
 }
 
-/// `path` made absolute and with symbolic links resolved ("" when its directory does not exist), for a file that
-/// may not exist yet.
+/** `path` made absolute and with symbolic links resolved ("" when its directory does not exist), for a file that
+ * may not exist yet. */
 pub str absolute_path(str path) {
     if (path.size() == 0) {
         return "";
@@ -504,8 +504,8 @@ pub void trim_trailing(MED_editor.Editor editor) {
     editor.clamp();
 }
 
-/// The settings for the file at absolute path `path` (language name `language`, "" unknown): EditorConfig first,
-/// then `.m3.toml`.
+/** The settings for the file at absolute path `path` (language name `language`, "" unknown): EditorConfig first,
+ * then `.m3.toml`. */
 pub Conf for_file(str path, str language) {
     if (!path.starts_with("/")) {
         return Conf();

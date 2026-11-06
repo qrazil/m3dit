@@ -1,14 +1,14 @@
-// The terminal front end: one `App` joins the editing engine (MED_ex.feed) to
-// tui's application loop. It is a Widget (draws the text window, a status line
-// and the command line) and a Handler (turns a terminal event into engine keys,
-// then carries out what the engine asked of the UI: `:w`, `:q`).
-//
-//   row 0 .. height-3   the text, with a line-number gutter, no wrapping
-//   row height-2        the status line: mode, file name, modified flag, position
-//   row height-1        the command line while typing `:` or `/`, else the message
-//
-// tui hides the terminal cursor, so the cursor is drawn as a reverse-video cell.
-// The engine owns every editing decision; nothing here knows what a motion is.
+/* The terminal front end: one `App` joins the editing engine (MED_ex.feed) to
+ * tui's application loop. It is a Widget (draws the text window, a status line
+ * and the command line) and a Handler (turns a terminal event into engine keys,
+ * then carries out what the engine asked of the UI: `:w`, `:q`).
+ *
+ *   row 0 .. height-3   the text, with a line-number gutter, no wrapping
+ *   row height-2        the status line: mode, file name, modified flag, position
+ *   row height-1        the command line while typing `:` or `/`, else the message
+ *
+ * tui hides the terminal cursor, so the cursor is drawn as a reverse-video cell.
+ * The engine owns every editing decision; nothing here knows what a motion is. */
 
 import fs;
 import io;
@@ -75,8 +75,8 @@ import ext.MED_ext_enabled;
 
 /// Rows below the text: the status line and the command line.
 const int FOOTER_ROWS = 2;
-/// How often (ms) HEAD is read again for the git gutter.
-/// Lines the mouse wheel scrolls per notch.
+/** How often (ms) HEAD is read again for the git gutter.
+ * Lines the mouse wheel scrolls per notch. */
 const int WHEEL_LINES = 3;
 /// Quiet time (ms) after typing in the grep prompt before the search runs.
 const int GREP_DEBOUNCE_MS = 120;
@@ -95,8 +95,8 @@ const int WHICH_KEY_MS = 400;
 const int VKIND_CHAR = 118;
 const int VKIND_LINE = 86;
 
-/// One buffer of the session: its engine state (a reference, so the active
-/// buffer's editor is the very object the App drives) and its file.
+/** One buffer of the session: its engine state (a reference, so the active
+ * buffer's editor is the very object the App drives) and its file. */
 pub type Slot {
     /// Buffer number, as `:ls` shows it; never reused.
     pub int id;
@@ -104,13 +104,13 @@ pub type Slot {
     pub str path;
     pub int saved_current = 0;
     pub int left_column = 0;
-    /// A directory listing (`:Explore`): `path` is the directory, the text is
-    /// read-only and Enter opens the entry under the cursor.
+    /** A directory listing (`:Explore`): `path` is the directory, the text is
+     * read-only and Enter opens the entry under the cursor. */
     pub bool is_listing = false;
     /// A terminal pane's name ("" for an ordinary buffer).
     pub str title = "";
-    /// The `:set` lines `.editorconfig` / `.m3.toml` gave this buffer; run again whenever it becomes active
-    /// (options are shared between buffers, these are not).
+    /** The `:set` lines `.editorconfig` / `.m3.toml` gave this buffer; run again whenever it becomes active
+     * (options are shared between buffers, these are not). */
     pub List<str> local_lines = [];
     /// The file on disk as last read or written (MED_persist.disk_stamp), to notice an outside change.
     pub str stamp = "";
@@ -132,8 +132,8 @@ pub type Term {
 
 pub type App {
     pub MED_editor.Editor editor;
-    /// The git gutter of each file path, and how long since HEAD was last read.
-    /// Directory listings show dotfiles (`gh` in a listing toggles it).
+    /** The git gutter of each file path, and how long since HEAD was last read.
+     * Directory listings show dotfiles (`gh` in a listing toggles it). */
     pub bool is_dotfiles_listed = true;
     bool is_pending_g = false;
     /// The match 'incsearch' shows while a pattern is typed (row -1: none).
@@ -151,8 +151,8 @@ pub type App {
     pub str notice = "";
     /// First display column shown (horizontal scrolling).
     pub int left_column = 0;
-    /// Every buffer; `editor`, `path`, `saved_current` and `left_column` belong
-    /// to the active one (`current_id`) and are stored back by `save_active`.
+    /** Every buffer; `editor`, `path`, `saved_current` and `left_column` belong
+     * to the active one (`current_id`) and are stored back by `save_active`. */
     pub List<Slot> slots = [];
     pub int current_id = 1;
     /// The buffer `:b#` and CTRL-^ go to; 0 when there is none.
@@ -182,16 +182,16 @@ pub type App {
     pub str leader_mode = "n";
     /// Built-in plugins switched off (`:PluginDisable`).
     pub List<str> disabled_plugins = [];
-    /// The key profile in force (`minimal`, `default`, `nvim`, `legacy`; docs/KEYMAP-REVIEW.md B1): it picks the leader tree
-    /// and which of the plugins' keys are mapped. A bare build (no plugin) starts in `minimal`.
+    /** The key profile in force (`minimal`, `default`, `nvim`, `legacy`; docs/KEYMAP-REVIEW.md B1): it picks the leader tree
+     * and which of the plugins' keys are mapped. A bare build (no plugin) starts in `minimal`. */
     pub str profile = "default";
     /// How long (ms) a pending prefix (g, z, [, CTRL-W, an operator) has waited.
     pub int prefix_ms = 0;
     pub bool is_prefix_help = false;
     /// The terminal panes.
     pub List<Term> terms = [];
-    /// Running language servers, the language each one serves, and the
-    /// commands the user set (`:Lsp server LANG CMD...`).
+    /** Running language servers, the language each one serves, and the
+     * commands the user set (`:Lsp server LANG CMD...`). */
     pub List<MED_lsp.Server> servers = [];
     pub List<str> server_languages = [];
     pub Map<str, str> server_commands = {};
@@ -232,8 +232,8 @@ pub type App {
     int sem_request = 0;
     int sem_wait_ms = 1000;
     // <<< semantic tokens state
-    /// Inlay hints: by absolute file path, row -> the hints of that row as one
-    /// text; shown after the end of the line while `is_hints_on`.
+    /** Inlay hints: by absolute file path, row -> the hints of that row as one
+     * text; shown after the end of the line while `is_hints_on`. */
     pub Map<str, Map<str, str>> hints = {};
     pub bool is_hints_on = false;
     int hints_tick = -1;
@@ -245,8 +245,8 @@ pub type App {
     pub MED_shell.Stream source = MED_shell.Stream();
     pub str source_kind = "";
     pub int source_ms = 0;
-    /// Extensions built in (docs/EXTENSIONS.md): empty unless the build named some. The mode, cursor, text tick and
-    /// buffer the Mode/Cursor/Text events last saw, and the extension command names.
+    /** Extensions built in (docs/EXTENSIONS.md): empty unless the build named some. The mode, cursor, text tick and
+     * buffer the Mode/Cursor/Text events last saw, and the extension command names. */
     pub MED_ext.Registry ext = MED_ext.Registry();
     List<str> ext_commands = [];
     int ext_mode = 0;
@@ -273,8 +273,8 @@ pub type App {
     /// Where recent files, positions and harpoon lists are kept ("" none).
     pub str state_directory = "";
     pub List<str> recent = [];
-    /// How often and how lately files were opened (the finder's frecency); read from the
-    /// state directory on first use, never with a clean run (`-u NONE`).
+    /** How often and how lately files were opened (the finder's frecency); read from the
+     * state directory on first use, never with a clean run (`-u NONE`). */
     pub MED_frecency.Store frecency = MED_frecency.Store();
     pub bool is_frecency_loaded = false;
     /// Buffers read `.editorconfig` and `.m3.toml` (off for `-u NONE`, so test runs stay hermetic).
@@ -295,15 +295,15 @@ pub type App {
     pub int last_key = 0;
     /// How long (ms) typed keys have waited for a longer mapping.
     pub int map_ms = 0;
-    /// The windows and how they are laid out; `current_win` is the active one,
-    /// whose cursor and view live in `editor` and `left_column`.
+    /** The windows and how they are laid out; `current_win` is the active one,
+     * whose cursor and view live in `editor` and `left_column`. */
     pub List<MED_window.Win> wins = [];
     pub MED_window.Node layout = MED_window.leaf(1);
     pub int current_win = 1;
     pub int previous_win = 0;
     pub int next_win = 2;
-    /// The tab pages (empty: only the one in `wins` / `layout`). The active
-    /// page's entry is stale, its live values being the fields above.
+    /** The tab pages (empty: only the one in `wins` / `layout`). The active
+     * page's entry is stale, its live values being the fields above. */
     pub List<MED_window.Page> pages = [];
     pub int page_index = 0;
     /// CTRL-W was typed: the next key is a window command.
@@ -320,9 +320,9 @@ pub type App {
     /// Where the active window's cursor was drawn.
     pub int cursor_x = 0;
     pub int cursor_y = 0;
-    /// The colour theme every drawing call looks its styles up in, the
-    /// directory user themes are read from ("" for none), whether the terminal
-    /// has only 16 colours, and the `background` option as the theme last saw it.
+    /** The colour theme every drawing call looks its styles up in, the
+     * directory user themes are read from ("" for none), whether the terminal
+     * has only 16 colours, and the `background` option as the theme last saw it. */
     pub MED_theme.Theme theme = MED_theme.plain();
     pub str theme_directory = "";
     pub bool is_sixteen_colours = false;
@@ -332,8 +332,8 @@ pub type App {
     str theme_before = "";
     /// Animated scrolling and effects (MED_glide): what is drawn between two states.
     pub MED_glide.Glide motion = MED_glide.Glide();
-    /// A left-button drag is under way, where the pointer is, and how long it has
-    /// sat at the top or bottom edge (the autoscroll's speed ramp).
+    /** A left-button drag is under way, where the pointer is, and how long it has
+     * sat at the top or bottom edge (the autoscroll's speed ramp). */
     bool is_dragging = false;
     bool is_bar_drag = false;
     int bar_win = 0;
@@ -343,8 +343,8 @@ pub type App {
     int edge_wait_ms = 0;
 }
 
-/// Whether the text differs from what was last written (undo back to the
-/// written state counts as unmodified).
+/** Whether the text differs from what was last written (undo back to the
+ * written state counts as unmodified). */
 pub bool App.is_modified() {
     return editor.current != saved_current;
 }
@@ -376,9 +376,9 @@ List<int> App.keys_of(term.Event event) {
     return keys;
 }
 
-/// An Alt key reaches the engine as Escape and the key, as a terminal sends it. When a mapping of the current mode
-/// starts with that Alt key (`<M-j>`), the engine gets the one key `MOD_ALT | key` instead, so the mapping can match
-/// without making every Escape wait for a longer mapping. With no such mapping nothing changes.
+/** An Alt key reaches the engine as Escape and the key, as a terminal sends it. When a mapping of the current mode
+ * starts with that Alt key (`<M-j>`), the engine gets the one key `MOD_ALT | key` instead, so the mapping can match
+ * without making every Escape wait for a longer mapping. With no such mapping nothing changes. */
 List<int> App.alt_key_of(term.Event event, List<int> keys) {
     if (keys.size() != 2 || keys[0] != MED_key.ESC || is_leader || is_window_key) {
         return keys;
@@ -626,8 +626,8 @@ str App.layout_text(MED_window.Node node) {
     return kind + "(" + kids.join(",") + ")";
 }
 
-/// The tab pages of the session: their window layouts and what each window shows. Empty when there is a single window
-/// (the buffers and their cursors are all there is to keep then) or when a window shows something that is not a file.
+/** The tab pages of the session: their window layouts and what each window shows. Empty when there is a single window
+ * (the buffers and their cursors are all there is to keep then) or when a window shows something that is not a file. */
 List<MED_session.Page> App.session_pages() {
     List<MED_session.Page> out = [];
     save_page();
@@ -678,8 +678,8 @@ List<MED_session.Page> App.session_pages() {
     return out;
 }
 
-/// Rebuild the tab pages and windows a session had (the buffers are open already; windows whose file is not is shown
-/// the first buffer). A session without a layout leaves what is there.
+/** Rebuild the tab pages and windows a session had (the buffers are open already; windows whose file is not is shown
+ * the first buffer). A session without a layout leaves what is there. */
 pub void App.apply_session_layout(MED_session.Session session) {
     if (session.pages.size() == 0) {
         return;
@@ -831,8 +831,8 @@ void App.run_session(str arg) {
     }
 }
 
-/// Read the active buffer's file again (`:e!`, an outside change under 'autoread'); the cursor stays on its line.
-/// False (with the message in `notice`) when the file cannot be read.
+/** Read the active buffer's file again (`:e!`, an outside change under 'autoread'); the cursor stays on its line.
+ * False (with the message in `notice`) when the file cannot be read. */
 bool App.did_reload_active() {
     int row = editor.row;
     int col = editor.col;
@@ -859,8 +859,8 @@ bool App.did_reload_active() {
     }
 }
 
-/// Notice a change of the active buffer's file on disk ('autoread'): an unmodified buffer is read again, a modified
-/// one only gets the warning, once per change. `:checktime` and every tick of a quiet Normal mode run this.
+/** Notice a change of the active buffer's file on disk ('autoread'): an unmodified buffer is read again, a modified
+ * one only gets the warning, once per change. `:checktime` and every tick of a quiet Normal mode run this. */
 void App.check_disk() {
     Slot slot = active_slot();
     if (slot.is_listing || slot.path.size() == 0 || slot.title.size() > 0) {
@@ -894,9 +894,9 @@ void App.check_disk() {
     }
 }
 
-/// 'autowrite' / 'autowriteall': write every modified buffer that has a file before a command that would leave it
-/// ('autowriteall' for :edit, :quit and closing too, 'autowrite' for CTRL-^ and `:e #`). A buffer that cannot be
-/// written stays modified and the command then fails the usual way.
+/** 'autowrite' / 'autowriteall': write every modified buffer that has a file before a command that would leave it
+ * ('autowriteall' for :edit, :quit and closing too, 'autowrite' for CTRL-^ and `:e #`). A buffer that cannot be
+ * written stays modified and the command then fails the usual way. */
 void App.autowrite(bool is_all_command) {
     bool is_on = editor.is_option_on("autowriteall", false) || (!is_all_command && editor.is_option_on("autowrite", false));
     if (!is_on) {
@@ -916,8 +916,8 @@ void App.autowrite(bool is_all_command) {
     saved_current = active.saved_current;
 }
 
-/// Write the modified buffers once the user has been quiet for 'autosave' seconds (Normal mode only, so a half-typed
-/// insert or command is never written).
+/** Write the modified buffers once the user has been quiet for 'autosave' seconds (Normal mode only, so a half-typed
+ * insert or command is never written). */
 void App.autosave_idle(int elapsed_ms) {
     int seconds = editor.option_number("autosave", 0);
     if (seconds <= 0 || editor.mode != MED_editor.NORMAL) {
@@ -951,9 +951,9 @@ void App.autosave_idle(int elapsed_ms) {
     }
 }
 
-/// Keep a recovery file of every modified buffer once the user has been quiet for RECOVER_MS (the 'recover'
-/// option, seconds; 0 turns it off, and the state directory must exist: `-u NONE` keeps none). Only buffers whose
-/// text changed since the last write are written, so an idle editor costs a loop over the buffers per tick.
+/** Keep a recovery file of every modified buffer once the user has been quiet for RECOVER_MS (the 'recover'
+ * option, seconds; 0 turns it off, and the state directory must exist: `-u NONE` keeps none). Only buffers whose
+ * text changed since the last write are written, so an idle editor costs a loop over the buffers per tick. */
 void App.recover_idle(int elapsed_ms) {
     if (state_directory.size() == 0) {
         return;
@@ -1133,8 +1133,8 @@ void App.switch_alternate() {
     notice = file_note(path, editor);
 }
 
-/// The buffer `:b ARG` names: a number, `#`, `%`, or part of a file name that
-/// only one buffer has. 0 when there is none, -1 when the name is ambiguous.
+/** The buffer `:b ARG` names: a number, `#`, `%`, or part of a file name that
+ * only one buffer has. 0 when there is none, -1 when the name is ambiguous. */
 int App.find_buffer(str arg) {
     str word = arg.trim();
     if (word == "#") {
@@ -1468,8 +1468,8 @@ void App.run_request(str request) {
     }
 }
 
-/// The transparency `loaded` is drawn with: the `transparent` option when it
-/// says on / off / popups, else what the theme's own `transparent` key asks, else off.
+/** The transparency `loaded` is drawn with: the `transparent` option when it
+ * says on / off / popups, else what the theme's own `transparent` key asks, else off. */
 int App.wanted_transparency(MED_theme.Theme loaded) {
     int mode = MED_theme.mode_of(editor.opts.get("transparent").or(""));
     if (mode == MED_theme.AUTO) {
@@ -1489,8 +1489,8 @@ void App.follow_transparent() {
     }
 }
 
-/// The theme loaded for `name`: the 16-colour twin of `default` and
-/// `default-light` when the terminal has no more colours than that.
+/** The theme loaded for `name`: the 16-colour twin of `default` and
+ * `default-light` when the terminal has no more colours than that. */
 str App.theme_choice(str name) {
     if (is_sixteen_colours && name == MED_theme.DARK) {
         return MED_theme.DARK_16;
@@ -1501,9 +1501,9 @@ str App.theme_choice(str name) {
     return name;
 }
 
-/// Switch to theme `name` (a user file in the themes directory, else a
-/// built-in). On failure the theme in use stays and `notice` says why; a
-/// theme with entries that could not be read still loads and says so.
+/** Switch to theme `name` (a user file in the themes directory, else a
+ * built-in). On failure the theme in use stays and `notice` says why; a
+ * theme with entries that could not be read still loads and says so. */
 pub bool App.did_use_theme(str name) {
     str chosen = theme_choice(name);
     match (MED_theme.load(chosen, theme_directory)) {
@@ -1529,8 +1529,8 @@ pub bool App.did_use_theme(str name) {
     }
 }
 
-/// `:theme` shows the theme in use, `:theme NAME` (and `:colorscheme NAME`)
-/// switches to it.
+/** `:theme` shows the theme in use, `:theme NAME` (and `:colorscheme NAME`)
+ * switches to it. */
 void App.run_theme_command(str name) {
     if (name.size() == 0) {
         notice = "theme: " + theme.name + " (" + MED_theme.available(theme_directory).size().to_str() + " available, :theme <Tab>)";
@@ -1541,8 +1541,8 @@ void App.run_theme_command(str name) {
     }
 }
 
-/// `:set background=dark|light` moves between the default themes, as Vim moves
-/// between its default colours; any other theme stays as it is.
+/** `:set background=dark|light` moves between the default themes, as Vim moves
+ * between its default colours; any other theme stays as it is. */
 void App.follow_background() {
     str wanted = editor.opts.get("background").or("dark");
     if (wanted == theme_background) {
@@ -1586,8 +1586,8 @@ void App.end_theme_picker(bool is_cancelled) {
     }
 }
 
-/// `:Plugins` lists the built-in plugins; `:PluginDisable NAME` and
-/// `:PluginEnable NAME` switch one.
+/** `:Plugins` lists the built-in plugins; `:PluginDisable NAME` and
+ * `:PluginEnable NAME` switch one. */
 void App.run_plugin_command(str name, str arg) {
     if (name == "Plugins") {
         List<str> lines = ["Built-in plugins (:PluginDisable NAME / :PluginEnable NAME):"];
@@ -1675,8 +1675,8 @@ void App.run_plugin_command(str name, str arg) {
     }
 }
 
-/// `:PluginDisable` / `:PluginEnable` of a compiled plugin: its hooks and commands go inactive, its keys are
-/// unmapped (and mapped again when it is enabled). A refused plugin cannot be enabled.
+/** `:PluginDisable` / `:PluginEnable` of a compiled plugin: its hooks and commands go inactive, its keys are
+ * unmapped (and mapped again when it is enabled). A refused plugin cannot be enabled. */
 void App.set_compiled_plugin_off(int owner, bool is_off) {
     if (ext.extensions[owner].state == MED_ext.STATE_REFUSED) {
         notice = "plugin " + ext.owner_name(owner) + " is " + ext.state_text(owner);
@@ -1727,8 +1727,8 @@ void App.run_app_action(str spec) {
     }
 }
 
-/// Run the requests the engine queued, and the ones those queue in turn (a
-/// `:source`d file's `:theme` lines).
+/** Run the requests the engine queued, and the ones those queue in turn (a
+ * `:source`d file's `:theme` lines). */
 void App.run_requests() {
     int rounds = 0;
     while (editor.requests.size() > 0 && rounds < 20) {
@@ -1741,9 +1741,9 @@ void App.run_requests() {
     }
 }
 
-/// Run the pending requests, then say whether the editor should quit now. A
-/// quit with unsaved changes is refused the way Vim refuses it (E37, or E162
-/// for another buffer) unless it was forced.
+/** Run the pending requests, then say whether the editor should quit now. A
+ * quit with unsaved changes is refused the way Vim refuses it (E37, or E162
+ * for another buffer) unless it was forced. */
 bool App.did_finish() {
     run_requests();
     if (is_ex_mode && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && !editor.is_quit) {
@@ -1800,8 +1800,8 @@ TUI_geometry.Rect App.screen_rect() {
     return TUI_geometry.Rect(0, top, size.columns, size.rows - top);
 }
 
-/// 1 when the tabline (buffer list) is shown: tab pages, or the buffers when a plugin gives the buffer line (`did_bar`)
-/// and enough are open.
+/** 1 when the tabline (buffer list) is shown: tab pages, or the buffers when a plugin gives the buffer line (`did_bar`)
+ * and enough are open. */
 int App.tabline_rows() {
     if (pages.size() >= 2) {
         return 1;
@@ -1930,9 +1930,9 @@ void App.focus_window(int id) {
     editor.view_height = current_text_rows();
 }
 
-/// Split the active window (side by side when `is_vertical`); the new window
-/// goes right or below, shows the same buffer and takes the focus. False when
-/// there is no room.
+/** Split the active window (side by side when `is_vertical`); the new window
+ * goes right or below, shows the same buffer and takes the focus. False when
+ * there is no room. */
 bool App.did_split(bool is_vertical) {
     save_active();
     // the tree takes the sizes of the screen before it is split
@@ -1949,10 +1949,10 @@ bool App.did_split(bool is_vertical) {
     return true;
 }
 
-/// Close window `id`; the one before it in reading order (or after, for the
-/// first) gets the focus when it was the active one. The buffer stays loaded.
-/// Whether the active window may close: a modified buffer that no other
-/// window shows is E37 (the window's buffer would be hidden).
+/** Close window `id`; the one before it in reading order (or after, for the
+ * first) gets the focus when it was the active one. The buffer stays loaded.
+ * Whether the active window may close: a modified buffer that no other
+ * window shows is E37 (the window's buffer would be hidden). */
 bool App.is_close_allowed() {
     if (!is_modified()) {
         return true;
@@ -2058,9 +2058,9 @@ void App.window_to_page() {
     MED_window.Win moving = wins[win_index(id)];
     int target = MED_window.successor(layout, id);
     int next_page = page_index + 1;
-    // the tab line is there from now on: the old page is laid out under it
-    // before the window leaves it, as nvim closes the window after opening
-    // the new page
+    /* the tab line is there from now on: the old page is laid out under it
+     * before the window leaves it, as nvim closes the window after opening
+     * the new page */
     pages.insert(next_page, MED_window.Page(wins: [moving], layout: MED_window.leaf(id), current_win: id));
     layout_in(screen_rect());
     layout = MED_window.without(layout, id, target);
@@ -2184,8 +2184,8 @@ void App.window_command(int key, int count) {
     }
 }
 
-/// `:resize`, `CTRL-W + - < > _ |`: `amount` more (or fewer) rows, or columns
-/// when `is_vertical`; with `is_absolute` exactly that many.
+/** `:resize`, `CTRL-W + - < > _ |`: `amount` more (or fewer) rows, or columns
+ * when `is_vertical`; with `is_absolute` exactly that many. */
 void App.resize_window(int amount, bool is_vertical, bool is_absolute) {
     MED_window.Placed here = MED_window.placed_of(layout_in(screen_rect()), current_win);
     int size = here.height - 1;
@@ -2215,8 +2215,8 @@ pub int App.page_count() {
     return pages.size();
 }
 
-/// The tab line labels: window count and `+` when any buffer is changed,
-/// then the name of the page's active window's buffer.
+/** The tab line labels: window count and `+` when any buffer is changed,
+ * then the name of the page's active window's buffer. */
 List<str> App.tab_labels() {
     save_active();
     List<str> labels = [];
@@ -2546,8 +2546,8 @@ str App.current_file_name() {
     return base_name(path);
 }
 
-/// Show the listing of `directory` (in this window), with the cursor on the
-/// line `focus`. The buffer it came from stays loaded, as the alternate.
+/** Show the listing of `directory` (in this window), with the cursor on the
+ * line `focus`. The buffer it came from stays loaded, as the alternate. */
 void App.open_listing(str directory, str focus) {
     str target = plain_directory(directory);
     if (!fs.is_directory(target)) {
@@ -2624,8 +2624,8 @@ void App.begin_command(str text) {
     }
 }
 
-/// Rename, delete, create in the listing's directory (`:Rename old new`,
-/// `:Delete name`, `:Create name`, `:Mkdir name`).
+/** Rename, delete, create in the listing's directory (`:Rename old new`,
+ * `:Delete name`, `:Create name`, `:Mkdir name`). */
 void App.listing_file_command(str name, str arg) {
     if (!is_in_listing()) {
         notice = "E492: Not an editor command: " + name;
@@ -2703,8 +2703,8 @@ void App.listing_file_command(str name, str arg) {
     }
 }
 
-/// The text of a listing cannot change: undo whatever the last key did by
-/// reading the directory again, as Vim refuses with E21 on a non-modifiable buffer.
+/** The text of a listing cannot change: undo whatever the last key did by
+ * reading the directory again, as Vim refuses with E21 on a non-modifiable buffer. */
 void App.keep_listing_read_only() {
     bool is_typing = editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE;
     if (editor.current == saved_current && !is_typing) {
@@ -2718,8 +2718,8 @@ void App.keep_listing_read_only() {
     notice = "E21: Cannot make changes, 'modifiable' is off";
 }
 
-/// The columns the tree takes on a screen `screen_width` wide (0 when closed
-/// or when the screen is too narrow to share), not counting its separator.
+/** The columns the tree takes on a screen `screen_width` wide (0 when closed
+ * or when the screen is too narrow to share), not counting its separator. */
 int App.tree_columns(int screen_width) {
     if (!tree.is_open || screen_width < TREE_MIN_SCREEN) {
         return 0;
@@ -2780,8 +2780,8 @@ void App.close_tree() {
     tree.is_focused = false;
 }
 
-/// The folder an operation on the cursor row works in: the row itself when it
-/// is a folder, else the folder of the file; the root when the tree is empty.
+/** The folder an operation on the cursor row works in: the row itself when it
+ * is a folder, else the folder of the file; the root when the tree is empty. */
 str App.tree_target_directory() {
     match (tree.current()) {
         case Some(MED_tree.Entry here): {
@@ -2980,8 +2980,8 @@ void App.did_tree_key(int key) {
     }
 }
 
-/// `:Neotree [toggle|show|focus|close|reveal|refresh|DIR]` and the prompts the
-/// tree keys open (`filter`, `add`, `delete`, `rename`, `move`, `copy`, `paste`).
+/** `:Neotree [toggle|show|focus|close|reveal|refresh|DIR]` and the prompts the
+ * tree keys open (`filter`, `add`, `delete`, `rename`, `move`, `copy`, `paste`). */
 void App.run_tree(str arg) {
     int space = arg.index_of(" ").or(-1);
     str word = arg;
@@ -3233,8 +3233,8 @@ void App.draw_tree(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
     buffer.set_str(area.x + 1, area.y + height - 1, label, bar);
 }
 
-/// Open the picker `name` (files, buffers, grep, commands, help, explore);
-/// `arg` is the starting query of grep or the directory of the explorer.
+/** Open the picker `name` (files, buffers, grep, commands, help, explore);
+ * `arg` is the starting query of grep or the directory of the explorer. */
 pub void App.open_picker(str name, str arg) {
     overlay = [];
     is_leader = false;
@@ -3598,8 +3598,8 @@ bool App.should_quit_after_accept() {
     return false;
 }
 
-/// CTRL-S / CTRL-V in a picker: a file, buffer or grep hit opens in a new
-/// window; the other pickers (and directories) take the key as plain Enter.
+/** CTRL-S / CTRL-V in a picker: a file, buffer or grep hit opens in a new
+ * window; the other pickers (and directories) take the key as plain Enter. */
 bool App.should_quit_after_accept_in_split(bool is_vertical) {
     bool is_target = false;
     match (picker.current()) {
@@ -3698,8 +3698,8 @@ void App.cancel_leader() {
     leader = "";
 }
 
-/// The leader tree with the plugins that are off left out, and the user's own
-/// maps under <Space> added (their right-hand side is the label).
+/** The leader tree with the plugins that are off left out, and the user's own
+ * maps under <Space> added (their right-hand side is the label). */
 List<MED_keymap.Binding> App.leader_table() {
     List<MED_keymap.Binding> table = MED_keymap.enabled(MED_keymap.defaults(profile), disabled_plugins);
     List<MED_keymap.Binding> from_plugins = [];
@@ -3857,8 +3857,8 @@ void App.handle_jump_key(int key) {
     }
 }
 
-/// The pending keys of an unfinished Normal or Visual command as text, with a
-/// count in front dropped: `2d` is "d", CTRL-W is its control character.
+/** The pending keys of an unfinished Normal or Visual command as text, with a
+ * count in front dropped: `2d` is "d", CTRL-W is its control character. */
 str App.prefix_typed() {
     if (editor.mode != MED_editor.NORMAL && editor.mode != MED_editor.VISUAL) {
         return "";
@@ -3940,8 +3940,8 @@ pub TUI_app.Action App.tick(int elapsed_ms) {
     return work;
 }
 
-/// What `Ctx.status` answers: the branch, the hunk counts against HEAD, the errors and warnings of the file, and what
-/// the language server is busy with.
+/** What `Ctx.status` answers: the branch, the hunk counts against HEAD, the errors and warnings of the file, and what
+ * the language server is busy with. */
 MED_ext.Status App.status_now() {
     MED_ext.Status out = MED_ext.Status();
     MED_ext.GitSummary summary = ext.git_summary_of(current_id);
@@ -3961,8 +3961,8 @@ MED_ext.Status App.status_now() {
     return out;
 }
 
-/// Tell the user something. A plugin that takes `Message` (the notification boxes) gets it; otherwise it goes to the message
-/// line (when `is_fallback`). `level` is 0 (info), 1 (warning) or 2 (error).
+/** Tell the user something. A plugin that takes `Message` (the notification boxes) gets it; otherwise it goes to the message
+ * line (when `is_fallback`). `level` is 0 (info), 1 (warning) or 2 (error). */
 pub void App.notify_user(int level, str text, bool is_fallback) {
     if (ext.has_handler(MED_ext.Event.Message)) {
         MED_ext.Ctx context = MED_ext.context(ext, editor, path);
@@ -3982,8 +3982,8 @@ pub void App.notify_user(int level, str text, bool is_fallback) {
     }
 }
 
-/// The keys that are pending now ("" when none): the leader sequence after `<Space>`, or the prefix typed in Normal
-/// or Visual mode (`g`, `[`, `<C-w>`, an operator).
+/** The keys that are pending now ("" when none): the leader sequence after `<Space>`, or the prefix typed in Normal
+ * or Visual mode (`g`, `[`, `<C-w>`, an operator). */
 str App.pending_keys() {
     if (is_leader) {
         return leader;
@@ -3994,10 +3994,10 @@ str App.pending_keys() {
     return prefix_typed();
 }
 
-/// While keys are pending: after WHICH_KEY_MS the popup of the keys that can follow shows (the leader menu, or the
-/// prefix help of `g` `z` `[` `]` `<C-w>` and the operators), and the plugins that take `PendingKeys` are told. Nothing
-/// is pending: the help goes away. `:set nowhichkey` turns both popups off; a bare build (`--no-plugins`) starts with
-/// it off. True when the screen changed.
+/** While keys are pending: after WHICH_KEY_MS the popup of the keys that can follow shows (the leader menu, or the
+ * prefix help of `g` `z` `[` `]` `<C-w>` and the operators), and the plugins that take `PendingKeys` are told. Nothing
+ * is pending: the help goes away. `:set nowhichkey` turns both popups off; a bare build (`--no-plugins`) starts with
+ * it off. True when the screen changed. */
 bool App.did_tick_pending(int elapsed_ms) {
     str typed = pending_keys();
     if (typed.size() == 0 && !is_leader) {
@@ -4133,8 +4133,8 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
     return TUI_app.Action.Continue;
 }
 
-/// One key for the engine, with the front end's own mappings first. True when
-/// the editor should quit.
+/** One key for the engine, with the front end's own mappings first. True when
+ * the editor should quit. */
 bool App.should_quit_after(int key) {
     if (is_leader) {
         return should_quit_after_leader(key);
@@ -4365,8 +4365,8 @@ void App.flush_clipboard() {
         MED_clip.did_copy(clipboard, editor.regs.clip_text());
         editor.regs.did_flush_clipboard();
     } else if (!clipboard.is_present && editor.regs.is_clip_dirty) {
-        // no tool to hand the text to (an ssh session, a bare container): ask the terminal, OSC 52
-        // (M3_NO_OSC52=1 turns that off; the `+` register then only holds the text)
+        /* no tool to hand the text to (an ssh session, a bare container): ask the terminal, OSC 52
+         * (M3_NO_OSC52=1 turns that off; the `+` register then only holds the text) */
         if (os.env("M3_NO_OSC52").or("") == "") {
             motion.loop.copy(editor.regs.clip_text());
         }
@@ -4721,9 +4721,9 @@ pub TUI_app.Action App.handle_mouse(TUI_mouse.Routed routed) {
     return TUI_app.Action.Continue;
 }
 
-/// A press or drag on a window's scrollbar column (`:set scrollbar`): the line that
-/// row of the track stands for becomes the cursor line, centred. True when the
-/// gesture was the scrollbar's.
+/** A press or drag on a window's scrollbar column (`:set scrollbar`): the line that
+ * row of the track stands for becomes the cursor line, centred. True when the
+ * gesture was the scrollbar's. */
 bool App.did_scrollbar(TUI_mouse.Gesture gesture) {
     if (!editor.is_option_on("scrollbar", false)) {
         return false;
@@ -4791,9 +4791,9 @@ bool App.did_scrollbar(TUI_mouse.Gesture gesture) {
     return false;
 }
 
-/// While a drag-selection sits on the top or bottom row of the text, scroll that
-/// way, faster the longer it stays (one line per 120 ms at first, down to one per
-/// 25 ms and several lines a step). True when it scrolled.
+/** While a drag-selection sits on the top or bottom row of the text, scroll that
+ * way, faster the longer it stays (one line per 120 ms at first, down to one per
+ * 25 ms and several lines a step). True when it scrolled. */
 bool App.did_autoscroll(int elapsed_ms) {
     if (!is_dragging || is_bar_drag || editor.mode != MED_editor.VISUAL || has_picker) {
         return false;
@@ -4903,8 +4903,8 @@ int App.gutter_width() {
     return gutter_of(editor);
 }
 
-/// Whether the character at (`row`, `col`), shown from display column `spot`,
-/// is inside the Visual selection.
+/** Whether the character at (`row`, `col`), shown from display column `spot`,
+ * is inside the Visual selection. */
 bool App.is_selected(int row, int col, int spot) {
     if (editor.mode != MED_editor.VISUAL) {
         return false;
@@ -5202,8 +5202,8 @@ str App.pending_text() {
     return out;
 }
 
-/// A window's status line at its last row: (the mode of the active one,) name
-/// and modified flag on the left; position on the right.
+/** A window's status line at its last row: (the mode of the active one,) name
+ * and modified flag on the left; position on the right. */
 void App.draw_status(TUI_buffer.Buffer buffer, MED_window.Placed frame, MED_editor.Editor subject, str file, bool is_changed, bool is_active) {
     TUI_style.Style bar = theme.look("ui.statusline.inactive");
     TUI_style.Style strong = bar;
@@ -5334,9 +5334,9 @@ void App.draw_overlay(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows
     }
 }
 
-/// Draw window `frame` (the active one when `is_active`): the line numbers, the
-/// text and the status line. Another window shows its own cursor and view, which
-/// are lent to the buffer's editor for the drawing.
+/** Draw window `frame` (the active one when `is_active`): the line numbers, the
+ * text and the status line. Another window shows its own cursor and view, which
+ * are lent to the buffer's editor for the drawing. */
 void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_active) {
     int rows = frame.height - 1;
     if (rows < 1) {
@@ -5662,8 +5662,8 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
     }
 }
 
-/// The matches of a Tab completion in the row above the command line (Vim's
-/// 'wildmenu'), the chosen one reversed.
+/** The matches of a Tab completion in the row above the command line (Vim's
+ * 'wildmenu'), the chosen one reversed. */
 void App.draw_wildmenu(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
     int y = area.y + area.height - 2;
     if (y < area.y) {
@@ -5856,9 +5856,9 @@ TUI_app.Action App.handle_picker_wheel(TUI_mouse.Gesture gesture) {
     return TUI_app.Action.Redraw;
 }
 
-/// Run ex lines from `text` (a keymap file or `:source`): blank lines and `"`
-/// comments are skipped, a leading `:` is dropped. The first failure stops the
-/// run; the result is its message, or "" when every line ran.
+/** Run ex lines from `text` (a keymap file or `:source`): blank lines and `"`
+ * comments are skipped, a leading `:` is dropped. The first failure stops the
+ * run; the result is its message, or "" when every line ran. */
 pub str App.run_script(str text, str label) {
     int number = 0;
     // `:if` blocks: per open block, is it running (1), waiting for an `:else` (0) or finished/skipped for good (2)
@@ -6006,8 +6006,8 @@ void App.source_file(str name) {
     }
 }
 
-/// Load the keymap file into the active buffer's editor (the maps follow to
-/// the others). A missing file is not an error unless it was asked for by name.
+/** Load the keymap file into the active buffer's editor (the maps follow to
+ * the others). A missing file is not an error unless it was asked for by name. */
 pub void App.load_keymap(str file, bool is_required) {
     if (file.size() == 0) {
         return;
@@ -6023,8 +6023,8 @@ pub void App.load_keymap(str file, bool is_required) {
             str failure = run_script(content, file);
             editor.message = "";
             notice = failure;
-            // the file's :theme / :colorscheme lines take effect before the first frame
-            // (their "theme: NAME" is not news at startup; an error is)
+            /* the file's :theme / :colorscheme lines take effect before the first frame
+             * (their "theme: NAME" is not news at startup; an error is) */
             run_requests();
             if (notice.starts_with("theme: ")) {
                 notice = failure;
@@ -6132,8 +6132,8 @@ str App.absolute_root() {
     }
 }
 
-/// The path to open for an absolute `file` (relative to the project root when
-/// it is below it, so the buffer is the one a picker would open).
+/** The path to open for an absolute `file` (relative to the project root when
+ * it is below it, so the buffer is the one a picker would open). */
 str App.openable(str file) {
     str base = absolute_root();
     if (file.starts_with(base + "/")) {
@@ -6173,8 +6173,8 @@ str App.word_under_cursor() {
     return line.substr(from, stop);
 }
 
-/// Open a picker that lists entries given by the front end (`KIND_LIST`).
-/// False when the name is not one of them (or the picker is opened elsewhere).
+/** Open a picker that lists entries given by the front end (`KIND_LIST`).
+ * False when the name is not one of them (or the picker is opened elsewhere). */
 bool App.did_open_list_picker(str name, str arg) {
     List<MED_picker.Entry> entries = [];
     str title = "";
@@ -6334,8 +6334,8 @@ bool App.did_open_list_picker(str name, str arg) {
     return true;
 }
 
-/// CTRL-Q in a picker: the marked (or all) entries with a position become the
-/// quickfix list, and the list opens.
+/** CTRL-Q in a picker: the marked (or all) entries with a position become the
+ * quickfix list, and the list opens. */
 void App.send_to_quickfix() {
     List<MED_picker.Entry> kept = [];
     for (MED_picker.Entry one in picker.chosen()) {
@@ -6354,8 +6354,8 @@ void App.send_to_quickfix() {
     notice = quickfix_list.size().to_str() + " entries in the quickfix list";
 }
 
-/// `]q` `[q` `:cnext` `:cprevious` `:cfirst` `:clast` (`how`: 1 next, -1
-/// previous, 0 first, 2 last).
+/** `]q` `[q` `:cnext` `:cprevious` `:cfirst` `:clast` (`how`: 1 next, -1
+ * previous, 0 first, 2 last). */
 void App.go_quickfix(int how) {
     if (quickfix_list.size() == 0) {
         notice = "E42: No Errors";
@@ -6503,9 +6503,9 @@ void App.open_scratch(str title, List<str> lines) {
     notice = title;
 }
 
-/// `:cdo CMD` runs the ex line at each entry of the quickfix list, `:cfdo CMD` once for each file in it (at its first
-/// entry), `:bufdo CMD` in each listed buffer, as `:cfirst | CMD | cnext | CMD ...` would; the first line that fails ends
-/// it. Nothing is written: add `| update` to the command (or `:wall` afterwards), as in Vim.
+/** `:cdo CMD` runs the ex line at each entry of the quickfix list, `:cfdo CMD` once for each file in it (at its first
+ * entry), `:bufdo CMD` in each listed buffer, as `:cfirst | CMD | cnext | CMD ...` would; the first line that fails ends
+ * it. Nothing is written: add `| update` to the command (or `:wall` afterwards), as in Vim. */
 void App.run_do(str name, str line) {
     str command = line.trim();
     if (command.size() == 0) {
@@ -6593,8 +6593,8 @@ void App.fill_quickfix(List<MED_errfmt.Place> places, bool is_forced, str what) 
     go_quickfix(0);
 }
 
-/// `:make [ARGS]` runs 'makeprg', `:grep ARGS` runs 'grepprg'; the places in their output become the quickfix list.
-/// `:vimgrep /PATTERN/ FILE...` searches the files itself. Files are named as the shell expands them.
+/** `:make [ARGS]` runs 'makeprg', `:grep ARGS` runs 'grepprg'; the places in their output become the quickfix list.
+ * `:vimgrep /PATTERN/ FILE...` searches the files itself. Files are named as the shell expands them. */
 void App.run_make(str name, str arg, bool is_forced) {
     if (name == "vimgrep" || name == "lvimgrep") {
         run_vimgrep(arg.trim(), is_forced);
@@ -6795,8 +6795,8 @@ void App.run_tag(str name, str arg) {
     jump_to_tag(0);
 }
 
-/// The argument list commands: `:args [FILE...]`, `:next [FILE...]`, `:Next`/`:previous`, `:first`/`:rewind`, `:last`,
-/// `:wnext`, `:argadd FILE...`, `:argdelete FILE...`. Names are split at spaces; there is no glob.
+/** The argument list commands: `:args [FILE...]`, `:next [FILE...]`, `:Next`/`:previous`, `:first`/`:rewind`, `:last`,
+ * `:wnext`, `:argadd FILE...`, `:argdelete FILE...`. Names are split at spaces; there is no glob. */
 void App.run_arglist(str name, str arg, bool is_forced) {
     List<str> named = [];
     for (str word in arg.trim().split(" ")) {
@@ -6935,8 +6935,8 @@ void App.start_terminal(str command) {
     }
 }
 
-/// A typed key in a terminal pane: CTRL-\ CTRL-N leaves to Normal mode, every
-/// other key goes to the program.
+/** A typed key in a terminal pane: CTRL-\ CTRL-N leaves to Normal mode, every
+ * other key goes to the program. */
 void App.send_terminal_key(int key) {
     int found = terminal_of(current_id);
     if (found < 0) {
@@ -7095,8 +7095,8 @@ str App.language_here() {
     return server_language_of(path, editor.buffer.line(0));
 }
 
-/// The language the language server of the active buffer serves: the
-/// highlighter's, else one the LSP layer knows by extension (lua).
+/** The language the language server of the active buffer serves: the
+ * highlighter's, else one the LSP layer knows by extension (lua). */
 str App.lsp_language_here() {
     str lang = language_here();
     if (lang.size() > 0) {
@@ -7108,8 +7108,8 @@ str App.lsp_language_here() {
     return MED_lsp.language_of_extension(path);
 }
 
-/// "LSP: ..." for the status line while the server of this buffer reports
-/// progress ("" when idle or there is none).
+/** "LSP: ..." for the status line while the server of this buffer reports
+ * progress ("" when idle or there is none). */
 str App.lsp_status_text() {
     int found = server_for(lsp_language_here());
     if (found < 0 || servers[found].is_dead) {
@@ -7211,8 +7211,8 @@ str App.text_of_slot(Slot slot) {
     return slot.editor.buffer.lines.join("\n") + "\n";
 }
 
-/// One tick of language server work: start, poll, sync. True when the screen
-/// changed.
+/** One tick of language server work: start, poll, sync. True when the screen
+ * changed. */
 bool App.did_tick_lsp(int elapsed_ms) {
     bool is_changed = false;
     pum_tick(elapsed_ms);
@@ -7279,8 +7279,8 @@ bool App.did_tick_lsp(int elapsed_ms) {
     return is_changed;
 }
 
-/// Send the active buffer's current text to its server now (didChange), as
-/// completion needs the text up to the cursor.
+/** Send the active buffer's current text to its server now (didChange), as
+ * completion needs the text up to the cursor. */
 void App.lsp_flush_document() {
     int found = server_for(lsp_language_here());
     if (found < 0 || servers[found].is_dead || !servers[found].is_ready) {
@@ -7310,8 +7310,8 @@ bool App.is_signature_trigger(int code) {
     return false;
 }
 
-/// Tell the servers a document was closed (its buffer was deleted); it is
-/// opened again, with a new version, if it comes back.
+/** Tell the servers a document was closed (its buffer was deleted); it is
+ * opened again, with a new version, if it comes back. */
 void App.lsp_did_close(str key) {
     if (key.size() == 0) {
         return;
@@ -7469,16 +7469,16 @@ bool App.did_handle_server_message(int position, MED_lsp.Message message) {
             server.respond_to(message, json.Value.Null);
             return false;
         }
-        // client/registerCapability, client/unregisterCapability,
-        // window/showMessageRequest, window/showDocument and anything else:
-        // every request gets an answer or the server waits for ever
+        /* client/registerCapability, client/unregisterCapability,
+         * window/showMessageRequest, window/showDocument and anything else:
+         * every request gets an answer or the server waits for ever */
         server.respond_to(message, json.Value.Null);
     }
     return false;
 }
 
-/// A `$/progress` notification: keep what the server is busy with. True when
-/// the status line text changed.
+/** A `$/progress` notification: keep what the server is busy with. True when
+ * the status line text changed. */
 bool App.did_note_progress(MED_lsp.Server server, json.Value body) {
     str token = MED_lsp.text_of(MED_lsp.member(body, "token"));
     if (token.size() == 0) {
@@ -8134,8 +8134,8 @@ bool App.did_use_pum_key(int key) {
     return false;
 }
 
-/// A key the engine has just handled in Insert mode: narrow the popup, close it, or ask for one. `was_insert`:
-/// Insert mode was already on (the key that starts it is not typing).
+/** A key the engine has just handled in Insert mode: narrow the popup, close it, or ask for one. `was_insert`:
+ * Insert mode was already on (the key that starts it is not typing). */
 void App.pum_typed(int key, bool was_insert) {
     if (editor.mode != MED_editor.INSERT || !was_insert) {
         pum_close();
@@ -8195,8 +8195,8 @@ void App.pum_wanted(int key) {
     }
 }
 
-/// The raw item with what `completionItem/resolve` adds (its documentation, `additionalTextEdits`): the answer
-/// already in hand, else one asked for now and waited for a moment.
+/** The raw item with what `completionItem/resolve` adds (its documentation, `additionalTextEdits`): the answer
+ * already in hand, else one asked for now and waited for a moment. */
 json.Value App.pum_resolved(MED_pum.Item item) {
     int found = pum_server();
     if (item.is_resolved || found < 0 || !MED_lsp.is_true(MED_lsp.member(MED_lsp.member(servers[found].capabilities, "completionProvider"), "resolveProvider"))) {
@@ -8216,8 +8216,8 @@ json.Value App.pum_resolved(MED_pum.Item item) {
     return item.raw;
 }
 
-/// Take the selected item: its edit (or its text over the typed word), additional edits, a snippet through the
-/// snippet engine, then the command it names when the server announced it.
+/** Take the selected item: its edit (or its text over the typed word), additional edits, a snippet through the
+ * snippet engine, then the command it names when the server announced it. */
 void App.pum_accept() {
     MED_pum.Item item = pum.item();
     if (item.label.size() == 0) {
@@ -8258,8 +8258,8 @@ void App.draw_pum(TUI_buffer.Buffer buffer, TUI_geometry.Rect area, int rows) {
     MED_pum.draw(buffer, pum, spot, doc, styles);
 }
 
-/// Ask the server of the active buffer for its semantic tokens once the text has settled (not in Insert mode, and
-/// not more often than every 400 ms).
+/** Ask the server of the active buffer for its semantic tokens once the text has settled (not in Insert mode, and
+ * not more often than every 400 ms). */
 void App.lsp_semantic_tick(int position, str lang_here, int elapsed_ms) {
     sem_wait_ms = sem_wait_ms + elapsed_ms;
     MED_lsp.Server server = servers[position];
@@ -8317,10 +8317,10 @@ void App.notice_edit_failure(str failure) {
     }
 }
 
-/// Carry out a WorkspaceEdit step by step, in the server's order: text edits (refused when the server saw another
-/// version of the document), create, rename and delete files. "" when all went through, else why it stopped (the
-/// steps before it stay done). The servers are told about the files that came and went
-/// (`workspace/didChangeWatchedFiles`, when they registered for it).
+/** Carry out a WorkspaceEdit step by step, in the server's order: text edits (refused when the server saw another
+ * version of the document), create, rename and delete files. "" when all went through, else why it stopped (the
+ * steps before it stay done). The servers are told about the files that came and went
+ * (`workspace/didChangeWatchedFiles`, when they registered for it). */
 str App.apply_workspace_edit(json.Value edit) {
     List<str> touched = [];
     List<int> kinds = [];
@@ -8446,8 +8446,8 @@ void App.run_profile(str name) {
     use_profile(name);
 }
 
-/// Swap the key profile: the old profile's own maps and the plugins' maps go, the leader tree changes, the new profile's
-/// plugin maps and lines come in. A map of the user's own keymap file stays where it is (put `Profile NAME` first in the file).
+/** Swap the key profile: the old profile's own maps and the plugins' maps go, the leader tree changes, the new profile's
+ * plugin maps and lines come in. A map of the user's own keymap file stays where it is (put `Profile NAME` first in the file). */
 pub void App.use_profile(str name) {
     for (str line in MED_profile.undo_lines_of(profile)) {
         MED_ex.did_run_line(editor, line);
@@ -8471,10 +8471,10 @@ pub void App.use_profile(str name) {
     is_which_key = false;
 }
 
-/// `:Formatter LANGUAGE COMMAND...`: a filter (text in on standard input, formatted text out) for buffers of that
-/// language (`rust`) or file extension (`tsx`), run before every write (`:set noformatonsave` turns it off). Several
-/// for one language are tried in order and the first whose program is on PATH wins, like conform.nvim's lists.
-/// `$FILE` in the command is the buffer's file name. `:Formatter` alone lists them.
+/** `:Formatter LANGUAGE COMMAND...`: a filter (text in on standard input, formatted text out) for buffers of that
+ * language (`rust`) or file extension (`tsx`), run before every write (`:set noformatonsave` turns it off). Several
+ * for one language are tried in order and the first whose program is on PATH wins, like conform.nvim's lists.
+ * `$FILE` in the command is the buffer's file name. `:Formatter` alone lists them. */
 void App.add_formatter(str arg) {
     int space = arg.index_of(" ").or(-1);
     if (space < 0) {
@@ -8489,8 +8489,8 @@ void App.add_formatter(str arg) {
     formatter_commands.push(arg.substr(space + 1, arg.size()).trim());
 }
 
-/// Run the first usable formatter of `slot` over the whole buffer (as `:%!COMMAND` does, so it is one undo step).
-/// True when one ran and succeeded.
+/** Run the first usable formatter of `slot` over the whole buffer (as `:%!COMMAND` does, so it is one undo step).
+ * True when one ran and succeeded. */
 bool App.did_format_externally(Slot slot) {
     if (formatter_keys.size() == 0 || slot.is_listing || slot.path.size() == 0 || !slot.editor.is_option_on("formatonsave", true)) {
         return false;
@@ -8528,8 +8528,8 @@ bool App.did_format_externally(Slot slot) {
     return false;
 }
 
-/// `:set lspformat`: before a buffer is written, its language server formats it (`textDocument/formatting`; a
-/// short wait for the answer, then the write goes on either way).
+/** `:set lspformat`: before a buffer is written, its language server formats it (`textDocument/formatting`; a
+ * short wait for the answer, then the write goes on either way). */
 void App.lsp_format_before_write(Slot slot) {
     if (servers.size() == 0 || slot.is_listing || slot.path.size() == 0 || !slot.editor.is_option_on("lspformat", false) || !is_plugin_on("lsp")) {
         return;
@@ -8563,8 +8563,8 @@ void App.lsp_format_before_write(Slot slot) {
     }
 }
 
-/// Read the user's snippets: `snippets.json` and `snippets/LANGUAGE.json` (entries that apply to that language) next to
-/// the keymap file `file`, in VS Code's snippet format.
+/** Read the user's snippets: `snippets.json` and `snippets/LANGUAGE.json` (entries that apply to that language) next to
+ * the keymap file `file`, in VS Code's snippet format. */
 pub void App.load_snippets(str file) {
     int slash = -1;
     for (int index in 0 .. file.size()) {
@@ -8634,8 +8634,8 @@ void App.note_snippet_context() {
     editor.snip_path = snip_cwd + "/" + path;
 }
 
-/// Insert completion item `which` in place of the word before the cursor
-/// (or over the item's own `textEdit` range), cursor after the text.
+/** Insert completion item `which` in place of the word before the cursor
+ * (or over the item's own `textEdit` range), cursor after the text. */
 void App.accept_completion(int which) {
     if (which < 0 || which >= lsp_completions.size()) {
         return;
@@ -8714,8 +8714,8 @@ void App.accept_completion_item(json.Value item) {
     editor.want_from_cursor();
 }
 
-/// Carry out a code action the user picked: its edit, else its command, else
-/// resolve it first (servers send the edit lazily in `data`).
+/** Carry out a code action the user picked: its edit, else its command, else
+ * resolve it first (servers send the edit lazily in `data`). */
 void App.run_code_action(json.Value item) {
     if (!MED_lsp.is_null(MED_lsp.member(item, "edit"))) {
         notice_edit_failure(apply_workspace_edit(MED_lsp.member(item, "edit")));
@@ -8738,8 +8738,8 @@ void App.run_resolved_action(json.Value item) {
     run_action_command(item);
 }
 
-// Send the `command` of a code action (or the action itself, when it is a
-// bare Command) as workspace/executeCommand.
+/* Send the `command` of a code action (or the action itself, when it is a
+ * bare Command) as workspace/executeCommand. */
 void App.run_action_command(json.Value item) {
     json.Value command = MED_lsp.member(item, "command");
     json.Value spec = command;
@@ -8832,8 +8832,8 @@ void App.jump_to_place(MED_lsp.Place one) {
     jump_to(openable(one.path), one.line, MED_lsp.byte_of(line, one.character));
 }
 
-/// Apply TextEdits to the buffer of `file` (opened hidden when needed) as one
-/// undoable change. False when the file could not be read.
+/** Apply TextEdits to the buffer of `file` (opened hidden when needed) as one
+ * undoable change. False when the file could not be read. */
 bool App.did_apply_file_edits(str file, List<MED_lsp.TextEdit> edits) {
     int found = slot_with_path(file);
     if (found < 0) {
@@ -8863,8 +8863,8 @@ bool App.did_apply_file_edits(str file, List<MED_lsp.TextEdit> edits) {
     return true;
 }
 
-/// The severity of each row of `file` that has a diagnostic (0 for none);
-/// empty when the file has no diagnostics.
+/** The severity of each row of `file` that has a diagnostic (0 for none);
+ * empty when the file has no diagnostics. */
 List<int> App.diagnostic_rows_of(str file, int rows) {
     List<int> out = [];
     if (diagnostics.size() == 0 || file.size() == 0) {
@@ -8920,8 +8920,8 @@ void App.show_diagnostic_here() {
     }
 }
 
-/// `]d` `[d` `<Space>]]` `<Space>[[`: the next or previous diagnostic of this
-/// buffer (wrapping).
+/** `]d` `[d` `<Space>]]` `<Space>[[`: the next or previous diagnostic of this
+ * buffer (wrapping). */
 void App.go_diagnostic(bool is_forward) {
     if (path.size() == 0) {
         notice = "No diagnostics";
@@ -9139,8 +9139,8 @@ str App.write_hooked_inner(Slot slot, str target) {
     return result;
 }
 
-/// Before the keymap file: let the built-in extensions register, then install their commands and key mappings
-/// (so the user's keymap file, read next, overrides them).
+/** Before the keymap file: let the built-in extensions register, then install their commands and key mappings
+ * (so the user's keymap file, read next, overrides them). */
 pub void App.ext_install() {
     ext.feed = StatusReader(this);
     ext.root = root;
@@ -9218,8 +9218,8 @@ pub void App.ext_stop() {
     ext.stop_jobs();
 }
 
-/// After an event is handled: ModeChanged, CursorMoved and TextChanged for the active buffer, each at most once.
-/// Changes the handlers make are not reported back to them.
+/** After an event is handled: ModeChanged, CursorMoved and TextChanged for the active buffer, each at most once.
+ * Changes the handlers make are not reported back to them. */
 void App.ext_watch() {
     if (!ext.has_handler(MED_ext.Event.ModeChanged) && !ext.has_handler(MED_ext.Event.CursorMoved) && !ext.has_handler(MED_ext.Event.TextChanged)) {
         return;
@@ -9319,11 +9319,11 @@ bool is_recoverable(Slot slot) {
 
 // ---- :Git read commands and :Hunk (end) ----
 
-// >>> completion popup (ui/MED_pum.m31) ------------------------------------------------------------------
-// `:set lspcomplete=auto` shows the popup while typing (trigger characters and identifier characters); CTRL-Space
-// asks for it at once. With the default `manual`, CTRL-Space opens the picker as before. Keys while it is open:
-// <Tab> <C-n> <Down> next, <S-Tab> <C-p> <Up> previous, <C-y> accept, <CR> accept the selected row, <C-e> close,
-// <Esc> close and leave Insert mode.
+/* >>> completion popup (ui/MED_pum.m31) ------------------------------------------------------------------
+ * `:set lspcomplete=auto` shows the popup while typing (trigger characters and identifier characters); CTRL-Space
+ * asks for it at once. With the default `manual`, CTRL-Space opens the picker as before. Keys while it is open:
+ * <Tab> <C-n> <Down> next, <S-Tab> <C-p> <Up> previous, <C-y> accept, <CR> accept the selected row, <C-e> close,
+ * <Esc> close and leave Insert mode. */
 
 // <<< completion popup -----------------------------------------------------------------------------------
 
@@ -9373,8 +9373,8 @@ str paste_text(List<int> keys) {
     return str.from_chars(codes);
 }
 
-/// The language a file is served as: what `SYN_detect` says, with TypeScript
-/// folded onto JavaScript (one language server handles both).
+/** The language a file is served as: what `SYN_detect` says, with TypeScript
+ * folded onto JavaScript (one language server handles both). */
 pub str server_language_of(str path, str first_line) {
     str lang = SYN_detect.language_of(path, MED_text.head(first_line));
     if (lang == "typescript") {
@@ -9383,9 +9383,9 @@ pub str server_language_of(str path, str first_line) {
     return lang;
 }
 
-/// Draw the part [`from`, `to`) of a line of `subject` at screen row `y`:
-/// cells whose display column is in [`left`, `left` + `text_width`).
-/// What 'listchars' (default "tab:> ,trail:-,nbsp:+") draws.
+/** Draw the part [`from`, `to`) of a line of `subject` at screen row `y`:
+ * cells whose display column is in [`left`, `left` + `text_width`).
+ * What 'listchars' (default "tab:> ,trail:-,nbsp:+") draws. */
 type ListChars {
     pub str tab_first = "";
     pub str tab_fill = "";
@@ -9433,8 +9433,8 @@ ListChars parse_listchars(str value) {
     return out;
 }
 
-/// Whether the display columns of colorcolumn include `spot` (a column list
-/// of numbers and +N / -N relative to 'textwidth').
+/** Whether the display columns of colorcolumn include `spot` (a column list
+ * of numbers and +N / -N relative to 'textwidth'). */
 bool is_color_column(MED_editor.Editor subject, str columns, int spot) {
     if (columns.size() == 0) {
         return false;
@@ -9564,8 +9564,8 @@ str number_text(MED_editor.Editor shown, int row, int gutter) {
     return " ".repeat(width - 1 - digits.size()) + digits + " ";
 }
 
-/// Write `slot`'s text to `target` (its own file when `target` is empty) and
-/// say what happened, in Vim's words.
+/** Write `slot`'s text to `target` (its own file when `target` is empty) and
+ * say what happened, in Vim's words. */
 str write_slot(Slot slot, str target) {
     if (slot.is_listing) {
         return "E382: Cannot write, 'buftype' option is set";
@@ -9601,8 +9601,8 @@ str write_slot(Slot slot, str target) {
     }
 }
 
-/// The bytes of `text` for the file `name`: as they are in the common case, else with the buffer's line ending,
-/// encoding and byte order mark (MED_fileio). Err holds the message to show.
+/** The bytes of `text` for the file `name`: as they are in the common case, else with the buffer's line ending,
+ * encoding and byte order mark (MED_fileio). Err holds the message to show. */
 Result<int, str> write_text(MED_buffer.Buffer buffer, str name, str text) {
     if (MED_fileio.is_plain(buffer)) {
         match (io.write(name, text)) {
@@ -9680,8 +9680,8 @@ str listing_text(str directory, bool is_hidden_shown) {
     return lines.join("\n") + "\n";
 }
 
-/// A listing slot for `directory`, the cursor on the line `focus` (the first
-/// entry when there is no such line).
+/** A listing slot for `directory`, the cursor on the line `focus` (the first
+ * entry when there is no such line). */
 Slot listing_slot(int id, str directory, str focus, bool is_hidden_shown) {
     MED_editor.Editor loaded = MED_editor.new(listing_text(directory, is_hidden_shown));
     loaded.buffer.path = directory;
@@ -9700,8 +9700,8 @@ Slot listing_slot(int id, str directory, str focus, bool is_hidden_shown) {
     return Slot(id, loaded, directory, is_listing: true);
 }
 
-/// What the engine keeps across buffers: registers, search and substitute
-/// state, the dot command, histories and the options.
+/** What the engine keeps across buffers: registers, search and substitute
+ * state, the dot command, histories and the options. */
 void share_state(MED_editor.Editor from, MED_editor.Editor into) {
     into.regs = from.regs;
     into.message_log = from.message_log;
@@ -9773,8 +9773,8 @@ str file_note(str name, MED_editor.Editor loaded) {
     return "\"" + name + "\" [New]";
 }
 
-/// A new slot holding `name` (an empty buffer when the file does not exist yet
-/// or `name` is empty); an error for a directory or an unreadable file.
+/** A new slot holding `name` (an empty buffer when the file does not exist yet
+ * or `name` is empty); an error for a directory or an unreadable file. */
 Result<Slot, str> read_slot(int id, str name) {
     str text = "";
     str format = "unix";
@@ -9810,9 +9810,9 @@ Result<Slot, str> read_slot(int id, str name) {
     return Result<Slot, str>.Ok(made);
 }
 
-/// The 'commentstring' for a file name ("" when the language is unknown or
-/// has no comments): the `syntax` library's comment forms for what
-/// `SYN_detect` makes of the name.
+/** The 'commentstring' for a file name ("" when the language is unknown or
+ * has no comments): the `syntax` library's comment forms for what
+ * `SYN_detect` makes of the name. */
 pub str comment_for(str name) {
     str lang = SYN_detect.language_of(name, "");
     if (lang == "" || (lang == "markdown" && !name.contains("."))) {
@@ -9845,9 +9845,9 @@ str expand_home(str path) {
     return path;
 }
 
-/// Where the keymap file is: $M3_KEYMAP, else $XDG_CONFIG_HOME/m3/keymap.vim,
-/// else ~/.config/m3/keymap.vim. When that file is absent and the pre-0.1.0
-/// directory (`m3d1tor`, same parent) has one, that file is read instead.
+/** Where the keymap file is: $M3_KEYMAP, else $XDG_CONFIG_HOME/m3/keymap.vim,
+ * else ~/.config/m3/keymap.vim. When that file is absent and the pre-0.1.0
+ * directory (`m3d1tor`, same parent) has one, that file is read instead. */
 pub str keymap_path() {
     match (os.env("M3_KEYMAP")) {
         case Some(str given): {
@@ -9898,8 +9898,8 @@ List<str> split_request(str request) {
     }
 }
 
-/// Open `path` (a new empty buffer when the file does not exist; an empty path
-/// is a buffer with no name).
+/** Open `path` (a new empty buffer when the file does not exist; an empty path
+ * is a buffer with no name). */
 pub Result<App, str> open(str path) {
     return open_all([path]);
 }
@@ -10317,9 +10317,9 @@ int control_of(int code_point) {
     return -1;
 }
 
-/// The engine keys for one terminal key press: Alt is an Escape first, Ctrl on
-/// a character is its control code, Shift/Ctrl on a special key are modifier
-/// bits.
+/** The engine keys for one terminal key press: Alt is an Escape first, Ctrl on
+ * a character is its control code, Shift/Ctrl on a special key are modifier
+ * bits. */
 pub List<int> keys_of_key(term.Key key) {
     List<int> keys = [];
     int code = key_code(key.code);

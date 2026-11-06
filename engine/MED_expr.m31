@@ -1,14 +1,14 @@
-// A small expression evaluator for the `\=` replacement of `:s`.
-//
-// API
+/* A small expression evaluator for the `\=` replacement of `:s`.
+ *
+ * API */
 // ---
-//   MED_expr.Context                 what the expression can see (submatch groups, line numbers)
-//   MED_expr.eval(text, context)     Evaluated: the value as text, or an error
-//
-// It knows numbers, strings ('..' and ".."), + - * / % . .., comparisons,
-// && || ! and ?:, string indexing and slices, and these functions: submatch,
-// line, toupper, tolower, strlen, len, strchars, repeat, printf, str2nr,
-// abs, trim, strpart, nr2char, char2nr. Anything else is an error.
+/*   MED_expr.Context                 what the expression can see (submatch groups, line numbers)
+ *   MED_expr.eval(text, context)     Evaluated: the value as text, or an error
+ *
+ * It knows numbers, strings ('..' and ".."), + - * / % . .., comparisons,
+ * && || ! and ?:, string indexing and slices, and these functions: submatch,
+ * line, toupper, tolower, strlen, len, strchars, repeat, printf, str2nr,
+ * abs, trim, strpart, nr2char, char2nr. Anything else is an error. */
 
 import engine.MED_case;
 import engine.MED_option;

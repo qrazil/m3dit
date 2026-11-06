@@ -1,17 +1,17 @@
-// The system clipboard behind the `+` and `*` registers, through the
-// command line tools nvim uses: pbcopy / pbpaste on macOS, wl-copy /
-// wl-paste, xclip or xsel elsewhere. `os.run` leaves standard output alone,
-// so each call goes through `sh` with a file in between.
-//
-// API
+/* The system clipboard behind the `+` and `*` registers, through the
+ * command line tools nvim uses: pbcopy / pbpaste on macOS, wl-copy /
+ * wl-paste, xclip or xsel elsewhere. `os.run` leaves standard output alone,
+ * so each call goes through `sh` with a file in between.
+ *
+ * API */
 // ---
-//   MED_clip.detect()           Provider: the first tool pair found, or one that is_absent
-//   MED_clip.did_copy(p, text)  true when the text was handed to the tool
-//   MED_clip.paste(p)           Option<str>: what the tool printed
-//
-// `M3_CLIP_COPY` and `M3_CLIP_PASTE` name the two commands when a
-// machine has others (a copy command reads standard input, a paste command
-// writes standard output).
+/*   MED_clip.detect()           Provider: the first tool pair found, or one that is_absent
+ *   MED_clip.did_copy(p, text)  true when the text was handed to the tool
+ *   MED_clip.paste(p)           Option<str>: what the tool printed
+ *
+ * `M3_CLIP_COPY` and `M3_CLIP_PASTE` name the two commands when a
+ * machine has others (a copy command reads standard input, a paste command
+ * writes standard output). */
 
 import fs;
 import io;

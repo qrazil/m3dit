@@ -1,5 +1,5 @@
-// :cdo, :cfdo and :bufdo through the App: an ex line at each quickfix entry, once for each file, in each buffer, and the
-// first failing line ends the run.
+/* :cdo, :cfdo and :bufdo through the App: an ex line at each quickfix entry, once for each file, in each buffer, and the
+ * first failing line ends the run. */
 
 import io;
 import os;

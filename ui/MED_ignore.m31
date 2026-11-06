@@ -1,17 +1,17 @@
-// .gitignore matching for the file and grep pickers.
-//
-// A pure module over strings: `Ignore.add_text(base, text)` takes the lines of
-// a .gitignore that lives in directory `base` ("" for the project root, else
-// "dir/sub/") and `Ignore.is_ignored(path, is_directory)` answers for a path relative
-// to the project root. Rules are tried in order and the last match wins, so a
-// later `!pattern` re-includes what an earlier rule excluded.
-//
-// Supported: `#` comments, blank lines, `!` negation, a trailing `/` (directories
-// only), a leading `/` or any other `/` (anchored to the directory of the
-// file), and the wildcards `*` `?` `[a-z]` `[!a-z]` `\x` within one path
-// segment, `**` as a whole segment (any number of directories). The walker
-// never descends into an ignored directory, so a file whose parent is ignored
-// needs no check of its own (git's rule too: it cannot be re-included).
+/* .gitignore matching for the file and grep pickers.
+ *
+ * A pure module over strings: `Ignore.add_text(base, text)` takes the lines of
+ * a .gitignore that lives in directory `base` ("" for the project root, else
+ * "dir/sub/") and `Ignore.is_ignored(path, is_directory)` answers for a path relative
+ * to the project root. Rules are tried in order and the last match wins, so a
+ * later `!pattern` re-includes what an earlier rule excluded.
+ *
+ * Supported: `#` comments, blank lines, `!` negation, a trailing `/` (directories
+ * only), a leading `/` or any other `/` (anchored to the directory of the
+ * file), and the wildcards `*` `?` `[a-z]` `[!a-z]` `\x` within one path
+ * segment, `**` as a whole segment (any number of directories). The walker
+ * never descends into an ignored directory, so a file whose parent is ignored
+ * needs no check of its own (git's rule too: it cannot be re-included). */
 
 pub type Rule {
     pub str base;

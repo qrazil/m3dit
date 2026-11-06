@@ -1,25 +1,25 @@
-// A minimal Language Server Protocol client: JSON-RPC over a child process's
-// pipes (stdlib `proc`), no threads. The front end calls `Server.poll` from
-// its tick and `Server.request` / `Server.notify` from its commands.
-//
-// API
+/* A minimal Language Server Protocol client: JSON-RPC over a child process's
+ * pipes (stdlib `proc`), no threads. The front end calls `Server.poll` from
+ * its tick and `Server.request` / `Server.notify` from its commands.
+ *
+ * API */
 // ---
-//   MED_lsp.Server                    one running language server
-//   MED_lsp.start(name, argv, root)   Server (is_dead when it cannot start)
-//   server.request(method, parameters)    id of the request sent
-//   server.notify(method, parameters)     a notification
-//   server.poll()                     List<Message> that arrived (never blocks)
-//   server.stop()                     shutdown, exit, kill
-//   MED_lsp.uri_of(path), path_of(uri)         file:// URIs
-//   MED_lsp.byte_of(line, units)      a UTF-16 column to a byte offset
-//   MED_lsp.units_of(line, byte)      a byte offset to a UTF-16 column
-//   MED_lsp.diagnostics_of(parameters)    the diagnostics of a publishDiagnostics
-//   MED_lsp.edits_of(value)           TextEdits from a result
-//
-// What is deliberately not here: workspace folder changes, `range` and `delta` token requests, pull diagnostics.
-// The servers a user is likely to run (rust-analyzer, gopls, pyright, clangd, typescript-language-server,
-// lua-language-server, marksman) work with the requests below; changes go as one ranged edit when the server
-// announces incremental sync and as the whole text otherwise.
+/*   MED_lsp.Server                    one running language server
+ *   MED_lsp.start(name, argv, root)   Server (is_dead when it cannot start)
+ *   server.request(method, parameters)    id of the request sent
+ *   server.notify(method, parameters)     a notification
+ *   server.poll()                     List<Message> that arrived (never blocks)
+ *   server.stop()                     shutdown, exit, kill
+ *   MED_lsp.uri_of(path), path_of(uri)         file:// URIs
+ *   MED_lsp.byte_of(line, units)      a UTF-16 column to a byte offset
+ *   MED_lsp.units_of(line, byte)      a byte offset to a UTF-16 column
+ *   MED_lsp.diagnostics_of(parameters)    the diagnostics of a publishDiagnostics
+ *   MED_lsp.edits_of(value)           TextEdits from a result
+ *
+ * What is deliberately not here: workspace folder changes, `range` and `delta` token requests, pull diagnostics.
+ * The servers a user is likely to run (rust-analyzer, gopls, pyright, clangd, typescript-language-server,
+ * lua-language-server, marksman) work with the requests below; changes go as one ranged edit when the server
+ * announces incremental sync and as the whole text otherwise. */
 
 import encoding.json;
 import engine.MED_semtok;
@@ -426,9 +426,9 @@ pub int units_of(str line, int byte) {
 
 // ---------------------------------------------------------------- results
 
-/// The diagnostics of a `textDocument/publishDiagnostics` notification, with
-/// positions as (line, UTF-16 column): the caller converts to bytes with the
-/// buffer text it has.
+/** The diagnostics of a `textDocument/publishDiagnostics` notification, with
+ * positions as (line, UTF-16 column): the caller converts to bytes with the
+ * buffer text it has. */
 pub List<Diagnostic> diagnostics_of(json.Value parameters) {
     List<Diagnostic> out = [];
     for (json.Value item in items_of(member(parameters, "diagnostics"))) {
@@ -450,8 +450,8 @@ pub type TextEdit {
     pub str new_text;
 }
 
-/// TextEdits of an array value (a `textDocument/formatting` result, or the
-/// edits of one file in a WorkspaceEdit).
+/** TextEdits of an array value (a `textDocument/formatting` result, or the
+ * edits of one file in a WorkspaceEdit). */
 pub List<TextEdit> edits_of(json.Value value) {
     List<TextEdit> out = [];
     for (json.Value item in items_of(value)) {
@@ -472,8 +472,8 @@ int count_of(str text, str piece) {
     return text.split(piece).size() - 1;
 }
 
-/// Where the point (line, character) of the original document is after `edits` (all in original coordinates,
-/// as the LSP defines them) are applied: edits that end at or before the point move it, the rest leave it.
+/** Where the point (line, character) of the original document is after `edits` (all in original coordinates,
+ * as the LSP defines them) are applied: edits that end at or before the point move it, the rest leave it. */
 pub List<int> map_point(List<TextEdit> edits, int line, int character) {
     List<TextEdit> ordered = [];
     for (TextEdit one in edits) {
@@ -519,10 +519,10 @@ str row_at(List<str> lines, int index) {
     return lines[index];
 }
 
-/// The one change that turns the document `before` (lines; its text is the lines joined with line breaks and a
-/// final one) into `after`, as a `TextDocumentContentChangeEvent` (a range in UTF-16 columns and the new text);
-/// null when they are the same. The range spans only what differs: the common leading and trailing rows are
-/// left out, then the common leading and trailing characters of the first and last row that differ.
+/** The one change that turns the document `before` (lines; its text is the lines joined with line breaks and a
+ * final one) into `after`, as a `TextDocumentContentChangeEvent` (a range in UTF-16 columns and the new text);
+ * null when they are the same. The range spans only what differs: the common leading and trailing rows are
+ * left out, then the common leading and trailing characters of the first and last row that differ. */
 pub json.Value change_of(List<str> before, List<str> after) {
     int old_rows = before.size() + 1;
     int new_rows = after.size() + 1;
@@ -599,8 +599,8 @@ json.Value change_event(json.Value from_value, json.Value to_value, str replacem
 
 // ---------------------------------------------------------------- workspace edits
 
-/// One step of a WorkspaceEdit, in order: kind "edit" (a file's text edits, `version` the document version the
-/// server saw or -1), "create", "rename" (`path` to `target`) or "delete".
+/** One step of a WorkspaceEdit, in order: kind "edit" (a file's text edits, `version` the document version the
+ * server saw or -1), "create", "rename" (`path` to `target`) or "delete". */
 pub type FileOp {
     pub str kind;
     pub str path;
@@ -611,8 +611,8 @@ pub type FileOp {
     pub bool is_ignored = false;
 }
 
-/// The steps of a WorkspaceEdit: `documentChanges` (text document edits and create / rename / delete
-/// operations) when it has them, else `changes`.
+/** The steps of a WorkspaceEdit: `documentChanges` (text document edits and create / rename / delete
+ * operations) when it has them, else `changes`. */
 pub List<FileOp> workspace_ops(json.Value edit) {
     List<FileOp> out = [];
     List<json.Value> changes = items_of(member(edit, "documentChanges"));
@@ -652,8 +652,8 @@ pub List<FileOp> workspace_ops(json.Value edit) {
     return out;
 }
 
-/// A location: file path, line and UTF-16 column (path "" when the value is
-/// not one). Accepts Location and LocationLink.
+/** A location: file path, line and UTF-16 column (path "" when the value is
+ * not one). Accepts Location and LocationLink. */
 pub type Place {
     pub str path;
     pub int line;
@@ -755,8 +755,8 @@ pub List<FileEdits> workspace_edits(json.Value edit) {
     return out;
 }
 
-/// `new_text` applied to `lines` by `edits` (any order; later ranges first so
-/// earlier positions stay valid). Positions are UTF-16 columns.
+/** `new_text` applied to `lines` by `edits` (any order; later ranges first so
+ * earlier positions stay valid). Positions are UTF-16 columns. */
 pub List<str> apply_edits(List<str> lines, List<TextEdit> edits) {
     List<TextEdit> ordered = [];
     for (TextEdit one in edits) {
@@ -793,8 +793,8 @@ pub List<str> apply_edits(List<str> lines, List<TextEdit> edits) {
         }
         str inserted = one.new_text;
         if (one.end_line >= lines.size() && inserted.ends_with("\n")) {
-            // the edit runs to the end of the document, whose last line break
-            // is not a line of its own here
+            /* the edit runs to the end of the document, whose last line break
+             * is not a line of its own here */
             inserted = inserted.substr(0, inserted.size() - 1);
         }
         str replaced = head.substr(0, start_byte) + inserted + tail.substr(end_byte, tail.size());
@@ -828,8 +828,8 @@ pub type Server {
     pub Map<str, int> versions = {};
     /// The `capabilities` of the initialize answer (Null until it arrives).
     pub json.Value capabilities = json.Value.Null;
-    /// The last bytes the server wrote to standard error (it is drained, never
-    /// closed: a closed stderr kills servers that log, clangd among them).
+    /** The last bytes the server wrote to standard error (it is drained, never
+     * closed: a closed stderr kills servers that log, clangd among them). */
     pub str log = "";
     /// What the server says it is busy with ($/progress), "" when idle.
     pub str progress = "";
@@ -890,8 +890,8 @@ pub void Server.respond_to(Message request, json.Value result) {
     transmit(encode(message));
 }
 
-/// Whether the server announced support for `feature` (a capability key such
-/// as "renameProvider"); true when the capabilities are not known yet.
+/** Whether the server announced support for `feature` (a capability key such
+ * as "renameProvider"); true when the capabilities are not known yet. */
 pub bool Server.can_do(str feature) {
     if (is_null(capabilities)) {
         return true;
@@ -922,8 +922,8 @@ pub bool Server.can_do(str feature) {
     }
 }
 
-/// How the server wants document changes: 2 incremental, 1 the whole text (also when it says nothing, as
-/// before), after `textDocumentSync` or a dynamic registration.
+/** How the server wants document changes: 2 incremental, 1 the whole text (also when it says nothing, as
+ * before), after `textDocumentSync` or a dynamic registration. */
 pub int Server.sync_kind() {
     if (synced >= 0) {
         return synced;
@@ -946,9 +946,9 @@ pub void Server.did_open(str key, str language, List<str> lines) {
     notify("textDocument/didOpen", object(["textDocument"], [object(["uri", "languageId", "version", "text"], [text(uri_of(key)), text(language), number(1), text(lines.join("\n") + "\n")])]));
 }
 
-/// `textDocument/didChange` for `key` after its buffer became `lines`: one ranged change when the server
-/// announced incremental sync and the previous text is known, else the whole text. Nothing is sent (and the
-/// version stays) when the text is the same as the server's.
+/** `textDocument/didChange` for `key` after its buffer became `lines`: one ranged change when the server
+ * announced incremental sync and the previous text is known, else the whole text. Nothing is sent (and the
+ * version stays) when the text is the same as the server's. */
 pub void Server.did_change(str key, List<str> lines) {
     json.Value event = json.Value.Null;
     bool is_incremental = sync_kind() == 2 && snapshots.contains(key);
@@ -996,9 +996,9 @@ void Server.set_capability(str key, json.Value value) {
     capabilities = json.Value.Object(copy);
 }
 
-/// `client/registerCapability`: every registration of a method that is a capability sets it (so `can_do` and the
-/// trigger characters see it); `textDocument/didChange` sets the sync kind; `workspace/didChangeWatchedFiles` is
-/// remembered (the client then reports saved, created and deleted files).
+/** `client/registerCapability`: every registration of a method that is a capability sets it (so `can_do` and the
+ * trigger characters see it); `textDocument/didChange` sets the sync kind; `workspace/didChangeWatchedFiles` is
+ * remembered (the client then reports saved, created and deleted files). */
 pub void Server.register(json.Value parameters) {
     for (json.Value one in items_of(member(parameters, "registrations"))) {
         str id = text_of(member(one, "id"));
@@ -1053,8 +1053,8 @@ pub void Server.unregister(json.Value parameters) {
     }
 }
 
-/// `workspace/didChangeWatchedFiles` for the files in `paths` (change type 1 created, 2 changed, 3 deleted),
-/// when the server registered for it.
+/** `workspace/didChangeWatchedFiles` for the files in `paths` (change type 1 created, 2 changed, 3 deleted),
+ * when the server registered for it. */
 pub void Server.report_files(List<str> paths, List<int> kinds) {
     if (watchers.size() == 0 || is_dead) {
         return;
@@ -1075,8 +1075,8 @@ pub List<str> Server.trigger_characters() {
     return out;
 }
 
-/// Whether typing `typed` commits the selected completion item `item` (its own `commitCharacters`, else the
-/// server's `allCommitCharacters`).
+/** Whether typing `typed` commits the selected completion item `item` (its own `commitCharacters`, else the
+ * server's `allCommitCharacters`). */
 pub bool Server.is_commit_character(json.Value item, str typed) {
     List<json.Value> own = items_of(member(item, "commitCharacters"));
     if (own.size() == 0) {
@@ -1161,8 +1161,8 @@ List<Message> Server.read_messages(int wait_ns) {
     return out;
 }
 
-/// Wait up to `timeout_ms` for the response to request `id`. Everything else that arrives meanwhile is kept
-/// for the next `poll`. None when the time ran out or the server died.
+/** Wait up to `timeout_ms` for the response to request `id`. Everything else that arrives meanwhile is kept
+ * for the next `poll`. None when the time ran out or the server died. */
 pub Option<Message> Server.await(int id, int timeout_ms) {
     int deadline = timer.monotonic_ns() + timeout_ms * 1000000;
     Option<Message> found = Option<Message>.None;
@@ -1193,8 +1193,8 @@ pub void Server.stop() {
         notify("exit", json.Value.Null);
     }
     if (!is_dead && children.size() > 0) {
-        // give the server a moment to exit on its own, so the processes it
-        // started (proc-macro servers, tsserver) go with it
+        /* give the server a moment to exit on its own, so the processes it
+         * started (proc-macro servers, tsserver) go with it */
         for (int round in 0 .. 12) {
             children[0].stdout.set_deadline_ns(timer.monotonic_ns() + 25000000);
             match (children[0].stdout.read(65536)) {
@@ -1275,8 +1275,8 @@ pub Server start(str name, List<str> argv, str root) {
     json.Value rename = object(["prepareSupport", "dynamicRegistration"], [json.Value.Bool(false), yes]);
     json.Value action = object(["isPreferredSupport", "dataSupport", "resolveSupport", "dynamicRegistration"], [json.Value.Bool(false), yes, object(["properties"], [json.Value.Array([text("edit")])]), yes]);
     json.Value document_capabilities = object(["completion", "synchronization", "hover", "signatureHelp", "inlayHint", "definition", "references", "rename", "codeAction", "formatting", "semanticTokens", "publishDiagnostics"], [completion, synchronization, markup, signature, plain, definition, plain, rename, action, plain, semantic_tokens_capability(), diagnostics]);
-    // workspaceFolders is deliberately not declared: pyright then never starts
-    // analysing (the root is passed as rootUri and as one workspace folder)
+    /* workspaceFolders is deliberately not declared: pyright then never starts
+     * analysing (the root is passed as rootUri and as one workspace folder) */
     json.Value workspace_capabilities = object(["applyEdit", "workspaceEdit", "didChangeWatchedFiles"], [json.Value.Bool(true), object(["documentChanges", "resourceOperations", "failureHandling"], [json.Value.Bool(true), json.Value.Array([text("create"), text("rename"), text("delete")]), text("abort")]), plain]);
     json.Value window_capabilities = object(["workDoneProgress"], [json.Value.Bool(true)]);
     json.Value general = object(["positionEncodings"], [json.Value.Array([text("utf-16")])]);
@@ -1287,8 +1287,8 @@ pub Server start(str name, List<str> argv, str root) {
     return server;
 }
 
-/// What m3 tells a server about semantic tokens: whole-document requests, relative encoding, single-line tokens,
-/// the standard types and modifiers (engine/MED_semtok.m31 draws them over the lexical highlighter).
+/** What m3 tells a server about semantic tokens: whole-document requests, relative encoding, single-line tokens,
+ * the standard types and modifiers (engine/MED_semtok.m31 draws them over the lexical highlighter). */
 json.Value semantic_tokens_capability() {
     List<json.Value> types = [];
     for (str one in MED_semtok.STANDARD_TYPES) {
@@ -1344,8 +1344,8 @@ pub str documentation_text(json.Value value) {
     return text_of(member(value, "value"));
 }
 
-/// A signature help result as lines: the active signature, the active
-/// parameter and the documentation. Empty when there is no signature.
+/** A signature help result as lines: the active signature, the active
+ * parameter and the documentation. Empty when there is no signature. */
 pub List<str> signature_lines(json.Value result) {
     List<str> lines = [];
     List<json.Value> signatures = items_of(member(result, "signatures"));
@@ -1390,8 +1390,8 @@ pub List<str> signature_lines(json.Value result) {
     return lines;
 }
 
-/// A completion snippet as plain text: placeholders `${1:name}` become their
-/// default, `$1` / `${1}` / `$0` vanish, `\$` is a dollar sign.
+/** A completion snippet as plain text: placeholders `${1:name}` become their
+ * default, `$1` / `${1}` / `$0` vanish, `\$` is a dollar sign. */
 pub str plain_snippet(str snippet) {
     bytes raw = snippet.to_bytes();
     bytes out = [];

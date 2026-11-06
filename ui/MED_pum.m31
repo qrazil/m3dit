@@ -1,22 +1,22 @@
-// The completion popup that follows the cursor (nvim's pum, blink.cmp's menu): the items a language
-// server offered, narrowed and ranked by what is typed after the anchor, one selected row, a scroll
-// window, a documentation panel beside the list, and the drawing of both.
-//
-// Everything here is plain data and drawing: no server, no editor. `ui/MED_app.m31` owns the state
-// (one `Pum`), feeds it the items of a `textDocument/completion` answer and the text typed since,
-// and calls `draw` from `render`. Cells only ever get text that went through `clean`, so a label or
-// a documentation string with a control character in it can never reach the terminal as one.
-//
-// API
+/* The completion popup that follows the cursor (nvim's pum, blink.cmp's menu): the items a language
+ * server offered, narrowed and ranked by what is typed after the anchor, one selected row, a scroll
+ * window, a documentation panel beside the list, and the drawing of both.
+ *
+ * Everything here is plain data and drawing: no server, no editor. `ui/MED_app.m31` owns the state
+ * (one `Pum`), feeds it the items of a `textDocument/completion` answer and the text typed since,
+ * and calls `draw` from `render`. Cells only ever get text that went through `clean`, so a label or
+ * a documentation string with a control character in it can never reach the terminal as one.
+ *
+ * API */
 // ---
-//   MED_pum.parse(list)                     List<Item> of a completion result (an array)
-//   MED_pum.fit(prefix, text)               Match: score (-1 none) and the matched byte offsets
-//   MED_pum.open(items, row, anchor, prefix, is_incomplete)    Pum
-//   pum.refilter(prefix)                    narrow and rank for the text typed so far
-//   pum.move(delta)                         the selection (-1 is none; it wraps through none)
-//   pum.item()                              the selected Item (label "" when none)
-//   MED_pum.place(pum, anchor_x, cursor_y, bounds, doc_lines)    Layout
-//   MED_pum.draw(buffer, pum, layout, styles ...)
+/*   MED_pum.parse(list)                     List<Item> of a completion result (an array)
+ *   MED_pum.fit(prefix, text)               Match: score (-1 none) and the matched byte offsets
+ *   MED_pum.open(items, row, anchor, prefix, is_incomplete)    Pum
+ *   pum.refilter(prefix)                    narrow and rank for the text typed so far
+ *   pum.move(delta)                         the selection (-1 is none; it wraps through none)
+ *   pum.item()                              the selected Item (label "" when none)
+ *   MED_pum.place(pum, anchor_x, cursor_y, bounds, doc_lines)    Layout
+ *   MED_pum.draw(buffer, pum, layout, styles ...) */
 
 import encoding.json;
 import tui.core.TUI_buffer;
@@ -81,9 +81,9 @@ pub type Pum {
     pub bool is_incomplete = false;
 }
 
-/// Narrow and rank for `typed` (the text from the anchor to the cursor). A prefix that only grew narrows the
-/// rows already shown (a longer prefix never matches more); anything else rescans every item. The selection is
-/// kept on the same item when it is still shown, else cleared; an item the server preselected starts selected.
+/** Narrow and rank for `typed` (the text from the anchor to the cursor). A prefix that only grew narrows the
+ * rows already shown (a longer prefix never matches more); anything else rescans every item. The selection is
+ * kept on the same item when it is still shown, else cleared; an item the server preselected starts selected. */
 pub void Pum.refilter(str typed) {
     str kept = "";
     if (selected >= 0 && selected < shown.size()) {
@@ -165,8 +165,8 @@ pub void Pum.keep_selection_visible(int rows) {
     }
 }
 
-/// Move the selection by `delta` rows. -1 (nothing selected) sits before the first row and after the last, as
-/// in nvim's menu: CTRL-N past the end goes back to what was typed.
+/** Move the selection by `delta` rows. -1 (nothing selected) sits before the first row and after the last, as
+ * in nvim's menu: CTRL-N past the end goes back to what was typed. */
 pub void Pum.move(int delta) {
     if (shown.size() == 0) {
         selected = -1;
@@ -352,9 +352,9 @@ bool is_boundary(bytes text, int position) {
     return is_upper(text[position]) && !is_upper(before);
 }
 
-/// How `prefix` fits `text`: -1 for no match; otherwise higher is better. Tiers: the same prefix with the same
-/// case, the prefix ignoring case, a substring position a word start, any substring, then (for two or more typed
-/// characters) the characters in order, rewarding word starts and runs. `marks` are the matched byte offsets.
+/** How `prefix` fits `text`: -1 for no match; otherwise higher is better. Tiers: the same prefix with the same
+ * case, the prefix ignoring case, a substring position a word start, any substring, then (for two or more typed
+ * characters) the characters in order, rewarding word starts and runs. `marks` are the matched byte offsets. */
 pub Match fit(str prefix, str text) {
     bytes typed = prefix.to_bytes();
     bytes full = text.to_bytes();
@@ -494,8 +494,8 @@ pub Pum open(List<Item> items, int row, int anchor, str prefix, bool is_incomple
 
 // ---------------------------------------------------------------- documentation text
 
-/// The documentation panel's lines for `item`: its detail (a signature) and its documentation, wrapped to
-/// `width` cells; Markdown fences are dropped and the text is cleaned. Empty when the item has neither.
+/** The documentation panel's lines for `item`: its detail (a signature) and its documentation, wrapped to
+ * `width` cells; Markdown fences are dropped and the text is cleaned. Empty when the item has neither. */
 pub List<str> doc_lines(Item item, int width) {
     List<str> out = [];
     if (width < 4) {
@@ -568,10 +568,10 @@ pub int list_width(Pum pum, int limit) {
     return width;
 }
 
-/// Where the list goes for a cursor position screen row `cursor_y` and an anchor position screen column `anchor_x`, inside
-/// `bounds`: under the cursor row when it fits (or when there is more room under than over), else over it,
-/// never on the cursor row. `doc` are the documentation lines of the selected item (the panel is placed beside
-/// the list, on the right when it fits, else on the left, else not position all).
+/** Where the list goes for a cursor position screen row `cursor_y` and an anchor position screen column `anchor_x`, inside
+ * `bounds`: under the cursor row when it fits (or when there is more room under than over), else over it,
+ * never on the cursor row. `doc` are the documentation lines of the selected item (the panel is placed beside
+ * the list, on the right when it fits, else on the left, else not position all). */
 pub Layout place(Pum pum, int anchor_x, int cursor_y, TUI_geometry.Rect bounds, List<str> doc) {
     Layout out = Layout();
     int right = bounds.x + bounds.width;

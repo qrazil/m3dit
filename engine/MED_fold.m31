@@ -1,13 +1,13 @@
-// Manual folds: creating, opening, closing and deleting them (the z commands
-// and `:fold`). The fold list and the lookups live on the Editor; the rows a
-// closed fold hides are handled by the motions, operators and the window.
-//
-// API
+/* Manual folds: creating, opening, closing and deleting them (the z commands
+ * and `:fold`). The fold list and the lookups live on the Editor; the rows a
+ * closed fold hides are handled by the motions, operators and the window.
+ *
+ * API */
 // ---
-//   MED_fold.create(editor, first, last)       a new, closed fold over rows first ..= last
-//   MED_fold.did_z_command(editor, key, count) zo zc za zO zC zA zv zR zM zm zr zx zX zd zD zE zn zN zi zj zk
-//   MED_fold.open_at(editor, row)              open every closed fold that holds `row`
-//   MED_fold.set_range(editor, a, b, is_closed, is_bang)   :foldopen / :foldclose
+/*   MED_fold.create(editor, first, last)       a new, closed fold over rows first ..= last
+ *   MED_fold.did_z_command(editor, key, count) zo zc za zO zC zA zv zR zM zm zr zx zX zd zD zE zn zN zi zj zk
+ *   MED_fold.open_at(editor, row)              open every closed fold that holds `row`
+ *   MED_fold.set_range(editor, a, b, is_closed, is_bang)   :foldopen / :foldclose */
 
 import engine.MED_autofold;
 import engine.MED_buffer;
@@ -78,9 +78,9 @@ pub void open_at(MED_editor.Editor editor, int row) {
     }
 }
 
-// Open or close at `row` the way Vim's setManualFold does: from the outermost
-// fold inwards, opening the first closed one, or closing the deepest open one.
-// True when a fold holds `row`.
+/* Open or close at `row` the way Vim's setManualFold does: from the outermost
+ * fold inwards, opening the first closed one, or closing the deepest open one.
+ * True when a fold holds `row`. */
 bool did_set_manual(MED_editor.Editor editor, int row, bool is_opening, bool is_recursive) {
     List<int> chain = holding(editor, row);
     if (chain.size() == 0) {

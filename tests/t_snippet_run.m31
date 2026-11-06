@@ -1,15 +1,15 @@
-// The engine half of the snippet oracle (tests/oracles/oracle_snippet.py).
-//
-// Usage: t_snippet_run CASES_FILE
-//
-// Each line is one case, tab separated:
-//
-//   index  hex(text)  row  col  hex(body)  key,key,key...
-//
-// It builds an Editor on the text, puts the cursor at (row, col) and types the keys; key 63300 expands the snippet body
-// at the cursor in the current mode. It prints one line: index, hex(text), row, col, mode (n i s v), the Visual anchor
-// row and column (or -), and whether a snippet is still active. The nvim driver (tests/oracles/snippet_driver.lua)
-// prints the same.
+/* The engine half of the snippet oracle (tests/oracles/oracle_snippet.py).
+ *
+ * Usage: t_snippet_run CASES_FILE
+ *
+ * Each line is one case, tab separated:
+ *
+ *   index  hex(text)  row  col  hex(body)  key,key,key...
+ *
+ * It builds an Editor on the text, puts the cursor at (row, col) and types the keys; key 63300 expands the snippet body
+ * at the cursor in the current mode. It prints one line: index, hex(text), row, col, mode (n i s v), the Visual anchor
+ * row and column (or -), and whether a snippet is still active. The nvim driver (tests/oracles/snippet_driver.lua)
+ * prints the same. */
 
 import engine.MED_editor;
 import engine.MED_vim;

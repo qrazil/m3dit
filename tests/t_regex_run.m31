@@ -1,12 +1,12 @@
-// The engine half of the regex oracle (tests/oracles/oracle_regex.py).
-//
-// Usage: t_regex_run CASES_FILE
-//
-// A case line is tab separated: index, hex(pattern), hex(text), flags where
-// flags holds `i` (ignorecase) and `s` (smartcase). The result line is
-// `index  srow  scol  erow  ecol  hex(whole);hex(\1);...;hex(\9)` for the first
-// match in row 0 (byte offsets, `\zs`/`\ze` applied), `index none` for no match and
-// `index err` when the pattern does not compile. nvim_regex.lua prints the same.
+/* The engine half of the regex oracle (tests/oracles/oracle_regex.py).
+ *
+ * Usage: t_regex_run CASES_FILE
+ *
+ * A case line is tab separated: index, hex(pattern), hex(text), flags where
+ * flags holds `i` (ignorecase) and `s` (smartcase). The result line is
+ * `index  srow  scol  erow  ecol  hex(whole);hex(\1);...;hex(\9)` for the first
+ * match in row 0 (byte offsets, `\zs`/`\ze` applied), `index none` for no match and
+ * `index err` when the pattern does not compile. nvim_regex.lua prints the same. */
 
 import engine.MED_regex;
 import engine.MED_buffer;

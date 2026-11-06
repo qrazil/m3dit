@@ -1,23 +1,23 @@
-// Ex command lines: `:s`, `:g`, `:d`, `:normal` and the rest, with Vim's ranges.
-//
-// API
+/* Ex command lines: `:s`, `:g`, `:d`, `:normal` and the rest, with Vim's ranges.
+ *
+ * API */
 // ---
-//   MED_ex.feed(ed, key)          one key, then whatever ex lines it queued
-//   MED_ex.feed_keys(ed, keys)    many keys
-//   MED_ex.drain(ed)              run queued ex lines and continue stopped macros
-//   MED_ex.run_line(ed, line)     one command line (what follows `:`); false on error
-//
-// MED_vim cannot call this module (m31 has no import cycles and no function
-// values), so a `:` line typed in a key sequence only lands in `ed.ex_queue`.
-// Callers that feed keys use `MED_ex.feed` instead of `MED_vim.feed`: it runs
-// the queue after every key and continues a macro that an ex line interrupted.
-//
-// Line numbers are 1-based inside this module (0 is a valid address for `:m0`,
-// `:t0`, `:0put`) and the editor's rows are 0-based.
-//
-// Not supported, by design (see DESIGN.md section 7): `\=` expressions in the
-// replacement, `:s///c` confirmation, `:!` filters and `:r`/`:w` on the file
-// system (those are requests for the UI layer).
+/*   MED_ex.feed(ed, key)          one key, then whatever ex lines it queued
+ *   MED_ex.feed_keys(ed, keys)    many keys
+ *   MED_ex.drain(ed)              run queued ex lines and continue stopped macros
+ *   MED_ex.run_line(ed, line)     one command line (what follows `:`); false on error
+ *
+ * MED_vim cannot call this module (m31 has no import cycles and no function
+ * values), so a `:` line typed in a key sequence only lands in `ed.ex_queue`.
+ * Callers that feed keys use `MED_ex.feed` instead of `MED_vim.feed`: it runs
+ * the queue after every key and continues a macro that an ex line interrupted.
+ *
+ * Line numbers are 1-based inside this module (0 is a valid address for `:m0`,
+ * `:t0`, `:0put`) and the editor's rows are 0-based.
+ *
+ * Not supported, by design (see DESIGN.md section 7): `\=` expressions in the
+ * replacement, `:s///c` confirmation, `:!` filters and `:r`/`:w` on the file
+ * system (those are requests for the UI layer). */
 
 import io;
 import engine.MED_autocmd;
@@ -42,8 +42,8 @@ import engine.MED_surround;
 
 // ------------------------------------------------------------------- driver
 
-/// Process one key, then run the ex lines it queued. Mappings apply: the key
-/// joins the typeahead and is resolved against the `:map` tables.
+/** Process one key, then run the ex lines it queued. Mappings apply: the key
+ * joins the typeahead and is resolved against the `:map` tables. */
 pub void feed(MED_editor.Editor editor, int key) {
     if (editor.ta_keys.size() == 0 && !editor.maps.has_any_mapping() && !editor.local_maps.has_any_mapping()) {
         feed_plain(editor, key);
@@ -73,16 +73,16 @@ void feed_plain(MED_editor.Editor editor, int key) {
     MED_view.update(editor);
 }
 
-/// Where a typeahead key came from: typed, or expanded from a mapping (which
-/// may be mapped again, or not for `:noremap`).
+/** Where a typeahead key came from: typed, or expanded from a mapping (which
+ * may be mapped again, or not for `:noremap`). */
 const int TYPED = 0;
 const int MAPPED = 1;
 const int NOREMAP = 2;
 const int MAX_EXPANSIONS = 1000;
 
-/// Resolve the typeahead: expand mappings and feed what is left to the editor.
-/// A key that begins a longer mapping stays queued until the next key, or
-/// until `flush_maps`.
+/** Resolve the typeahead: expand mappings and feed what is left to the editor.
+ * A key that begins a longer mapping stays queued until the next key, or
+ * until `flush_maps`. */
 pub void pump(MED_editor.Editor editor, bool is_flush) {
     int expansions = 0;
     bool did_feed_mapped = false;
@@ -148,17 +148,17 @@ pub void pump(MED_editor.Editor editor, bool is_flush) {
         }
     }
     if (did_feed_mapped && editor.pending.size() == 0 && (editor.mode == MED_editor.NORMAL || editor.mode == MED_editor.VISUAL)) {
-        // the mapping is done: what it changed is one undo step now (the next typed key would close it anyway), so the
-        // modified flag and `u` agree with the screen at once
+        /* the mapping is done: what it changed is one undo step now (the next typed key would close it anyway), so the
+         * modified flag and `u` agree with the screen at once */
         editor.end_block();
     }
 }
 
-// `<Cmd>` at the front of the typeahead: the keys of the mapping up to the next <CR> are an ex line. It runs here,
-// in the mode the editor is in (Visual keeps its selection, Insert its session), is not echoed and is not
-// remembered in the `:` register or the history. In operator-pending mode the line may move the cursor, and the
-// operator then applies from where the cursor was to where the line left it, as a characterwise exclusive motion
-// (nvim's nv_colon).
+/* `<Cmd>` at the front of the typeahead: the keys of the mapping up to the next <CR> are an ex line. It runs here,
+ * in the mode the editor is in (Visual keeps its selection, Insert its session), is not echoed and is not
+ * remembered in the `:` register or the history. In operator-pending mode the line may move the cursor, and the
+ * operator then applies from where the cursor was to where the line left it, as a characterwise exclusive motion
+ * (nvim's nv_colon). */
 void run_cmd_key(MED_editor.Editor editor) {
     int stop = -1;
     int index = 1;
@@ -278,8 +278,8 @@ void expand(MED_editor.Editor editor, MED_map.Mapping hit) {
     editor.ta_flags = flags;
 }
 
-/// No more keys are coming (end of input, or 'timeoutlen' passed): a pending
-/// prefix of a longer mapping is taken for what it is.
+/** No more keys are coming (end of input, or 'timeoutlen' passed): a pending
+ * prefix of a longer mapping is taken for what it is. */
 pub void flush_maps(MED_editor.Editor editor) {
     pump(editor, true);
 }
@@ -404,10 +404,10 @@ Step run_let(MED_editor.Editor editor, Cmd cmd) {
     return done();
 }
 
-// `:abbreviate` (Insert and command line), `:iabbrev` (Insert), `:cabbrev`
-// (command line) and the `nore` forms, which are the same here;
-// `:unabbreviate`, `:iunabbrev`, `:cunabbrev`; `:abclear`, `:iabclear`,
-// `:cabclear`. Without a right-hand side they list.
+/* `:abbreviate` (Insert and command line), `:iabbrev` (Insert), `:cabbrev`
+ * (command line) and the `nore` forms, which are the same here;
+ * `:unabbreviate`, `:iunabbrev`, `:cunabbrev`; `:abclear`, `:iabclear`,
+ * `:cabclear`. Without a right-hand side they list. */
 Step run_abbrev(MED_editor.Editor editor, Cmd cmd) {
     str name = cmd.name;
     str mode = "!";
@@ -473,8 +473,8 @@ Step run_abbrev(MED_editor.Editor editor, Cmd cmd) {
     return done();
 }
 
-// Remove the abbreviation `lhs` (every one when empty) for `mode` ("!": all);
-// an entry for both modes keeps the other mode. False when none matched.
+/* Remove the abbreviation `lhs` (every one when empty) for `mode` ("!": all);
+ * an entry for both modes keeps the other mode. False when none matched. */
 bool did_abbrev_remove(MED_editor.Editor editor, str lhs, str mode) {
     List<str> keep_lhs = [];
     List<str> keep_rhs = [];
@@ -624,8 +624,8 @@ Step let_register(MED_editor.Editor editor, str text) {
         editor.regs.set_unnamed(MED_register.Reg(lines, kind));
         return done();
     }
-    // an upper-case name appends, as `.=` does: the text joins the last line
-    // unless it is a whole line, and the register takes the type of the new text
+    /* an upper-case name appends, as `.=` does: the text joins the last line
+     * unless it is a whole line, and the register takes the type of the new text */
     bool is_upper = name.byte_at(0) >= 65 && name.byte_at(0) <= 90;
     if (is_append || is_upper) {
         match (editor.regs.get(MED_case.lower(name))) {
@@ -766,8 +766,8 @@ pub void drain(MED_editor.Editor editor) {
     }
 }
 
-// Run one line with its own queue and macro frames, so that a nested `:normal`
-// cannot run what belongs to the caller.
+/* Run one line with its own queue and macro frames, so that a nested `:normal`
+ * cannot run what belongs to the caller. */
 bool did_run_isolated(MED_editor.Editor editor, str line) {
     List<str> saved_queue = editor.ex_queue;
     List<MED_editor.Resume> saved_resume = editor.resume;
@@ -840,8 +840,8 @@ int last_line(MED_editor.Editor editor) {
     return editor.buffer.line_count();
 }
 
-/// What one step of a command line leaves: success, and the text of the next
-/// command after a `|`.
+/** What one step of a command line leaves: success, and the text of the next
+ * command after a `|`. */
 type Step {
     bool is_ok = true;
     bool is_more = false;
@@ -885,8 +885,8 @@ type Addr {
     str error = "";
 }
 
-// Where the pattern of a `/pat/` address (and its offsets) ends: just past what
-// do_search() would take for it.
+/* Where the pattern of a `/pat/` address (and its offsets) ends: just past what
+ * do_search() would take for it. */
 int address_end(str text, int start, int delim) {
     str rest = text.substr(start, text.size());
     int end = MED_search.skip_regexp(rest, delim);
@@ -1131,8 +1131,8 @@ bool is_tab_address_command(str name) {
     return name == "tab" || name == "tabnew" || name == "tabedit" || name == "tabnext" || name == "tabprevious" || name == "tabNext" || name == "tabclose" || name == "tabonly" || name == "tabmove" || name == "tabfirst" || name == "tabrewind" || name == "tablast";
 }
 
-/// The tab page number a range such as `2`, `.`, `$`, `+1`, `-` or `$-1` stands for, -1 when it is none of those (a
-/// pattern, a mark, `%` or a list of addresses).
+/** The tab page number a range such as `2`, `.`, `$`, `+1`, `-` or `$-1` stands for, -1 when it is none of those (a
+ * pattern, a mark, `%` or a list of addresses). */
 int tab_address(str range, int count, int current) {
     int index = skip_white(range, 0);
     int value = current;
@@ -1173,9 +1173,9 @@ int tab_address(str range, int count, int current) {
     return value;
 }
 
-// `:[N]tab {cmd}`: the window the command opens goes to a new tab page (after page N, 0 for first; default after the
-// current one). `:tab split` and `:tab new` (and the vertical forms) are the commands that open one; any other command
-// runs as it is, which is what nvim does too (`:tab edit file` opens no page).
+/* `:[N]tab {cmd}`: the window the command opens goes to a new tab page (after page N, 0 for first; default after the
+ * current one). `:tab split` and `:tab new` (and the vertical forms) are the commands that open one; any other command
+ * runs as it is, which is what nvim does too (`:tab edit file` opens no page). */
 Step run_tab_modifier(MED_editor.Editor editor, Cmd cmd) {
     str rest = cmd.arg.trim();
     if (rest.size() == 0) {
@@ -1202,16 +1202,16 @@ Step run_tab_modifier(MED_editor.Editor editor, Cmd cmd) {
     return done();
 }
 
-/// The commands the UI layer carries out (they need files, buffers or windows): the editor's table, which the
-/// front end fills from `MED_cmdtab` and the registered plugins.
+/** The commands the UI layer carries out (they need files, buffers or windows): the editor's table, which the
+ * front end fills from `MED_cmdtab` and the registered plugins. */
 bool is_ui_command(MED_editor.Editor editor, str name) {
     return editor.ui_commands.contains(name);
 }
 
 // ------------------------------------------------------------ command table
 
-// "full:shortest": a word names the first command whose full name it starts
-// and whose shortest form it reaches (Vim's order matters for ambiguity).
+/* "full:shortest": a word names the first command whose full name it starts
+ * and whose shortest form it reaches (Vim's order matters for ambiguity). */
 List<str> command_table() {
     return ["substitute:1", "delete:1", "move:1", "t:1", "copy:2", "join:1", "global:1", "vglobal:1", "yank:1", "undo:1", "print:1", "put:2", "normal:4", "execute:3", "k:1", "mark:2", "nohlsearch:3", "set:2", "echo:2", "echomsg:5", "redraw:4", "messages:3", "highlight:2", "syntax:2", "filetype:5", "version:2", "history:3", "pwd:2", "setlocal:4", "setglobal:4", "undojoin:5", "redo:3", "read:1", "sort:3", "number:2", "quit:1", "write:1", "wq:2", "delmarks:4", "earlier:2", "later:3", "list:1", "z:1", "update:2", "xit:1", "wall:2", "qall:2", "wqall:3", "xall:2", "registers:3", "display:2", "marks:5", "jumps:2", "changes:7", "startinsert:4", "stopinsert:5", "retab:3", "left:2", "right:2", "center:2", "noautocmd:3", "edit:1", "enew:3", "bnext:2", "bprevious:2", "bNext:2", "buffer:1", "bdelete:2", "bwipeout:2", "bunload:3", "bfirst:2", "brewind:2", "blast:2", "ls:2", "buffers:7", "files:5", "close:3", "only:2", "split:2", "vsplit:2", "new:3", "vnew:3", "wincmd:4", "Rename:3", "Delete:3", "Create:3", "Mkdir:2", "resize:3", "vertical:4", "tab:3", "tabnew:6", "tabedit:4", "tabnext:4", "tabprevious:4", "tabNext:4", "tabfirst:6", "tabrewind:4", "tablast:4", "tabclose:4", "tabonly:4", "tabs:4", "tabmove:4", "Files:1", "Buffers:2", "Grep:1", "Commands:3", "help:1", "Explore:2", "Sexplore:3", "Vexplore:3", "Neotree:7", "NeoTree:7", "Keys:4", "Plugins:7", "PluginEnable:12", "PluginDisable:13", "Recent:6", "Registers:9", "Symbols:7", "Branches:8", "Commits:7", "Changed:7", "colorscheme:4", "theme:5", "checktime:6", "recover:3", "Session:7", "fold:2", "foldopen:5", "foldclose:5", "map:3", "nmap:2", "vmap:2", "xmap:2", "omap:2", "imap:2", "cmap:2", "noremap:2", "nnoremap:2", "vnoremap:2", "xnoremap:2", "onoremap:3", "inoremap:3", "cnoremap:3", "unmap:3", "nunmap:3", "vunmap:2", "xunmap:2", "ounmap:2", "iunmap:2", "cunmap:2", "mapclear:4", "nmapclear:5", "vmapclear:5", "xmapclear:5", "omapclear:5", "imapclear:5", "cmapclear:5", "let:3", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "cabbrev:2", "cnoreabbrev:5", "cunabbrev:4", "cabclear:4", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "source:2", "terminal:2", "Lsp:3", "copen:3", "cclose:3", "cc:2", "clist:3", "cwindow:4", "cdo:3", "cfdo:3", "bufdo:4", "cnext:2", "cprevious:2", "cNext:3", "cfirst:4", "clast:3", "autocmd:2", "augroup:3", "doautocmd:5", "command:3", "delcommand:4", "args:2", "next:1", "Next:1", "previous:4", "first:3", "rewind:3", "last:2", "wnext:2", "argadd:4", "argdelete:4", "argdo:5", "windo:5", "tabdo:6", "tag:2", "tselect:2", "tjump:3", "tnext:3", "tprevious:2", "tNext:2", "trewind:2", "tfirst:3", "tlast:2", "pop:2", "tags:4", "make:3", "lmake:3", "grep:2", "lgrep:3", "vimgrep:3", "lvimgrep:5", "file:1", "preserve:3", "visual:2", "Formatter:9", "Profile:7", "append:1", "insert:1", "change:1", "exinput:7", "write!:99"];
 }
@@ -1286,8 +1286,8 @@ type Split {
     str rest = "";
 }
 
-// Split `arg` at the first unescaped `|`; a `\|` loses its backslash. With
-// `is_comment` a `"` starts a comment that runs to the end.
+/* Split `arg` at the first unescaped `|`; a `\|` loses its backslash. With
+ * `is_comment` a `"` starts a comment that runs to the end. */
 Split split_bar(str arg, bool is_comment) {
     Split split = Split();
     List<int> out = [];
@@ -1320,9 +1320,9 @@ Split split_bar(str arg, bool is_comment) {
     return split;
 }
 
-// Like split_bar() for the commands whose argument is an expression
-// (`:execute`, `:echo`): a `|` inside a string belongs to it and a quote
-// starts a string, not a comment.
+/* Like split_bar() for the commands whose argument is an expression
+ * (`:execute`, `:echo`): a `|` inside a string belongs to it and a quote
+ * starts a string, not a comment. */
 Split split_bar_expr(str arg) {
     Split split = Split();
     List<int> codes = arg.chars();
@@ -1655,8 +1655,8 @@ void set_pcmark(MED_editor.Editor editor) {
 
 // ------------------------------------------------------------------ commands
 
-// The register and count of `:d`, `:y` and friends, then the flags `p # l`.
-// Returns an error message, "" when fine.
+/* The register and count of `:d`, `:y` and friends, then the flags `p # l`.
+ * Returns an error message, "" when fine. */
 str reg_count(MED_editor.Editor editor, Cmd cmd, bool needs_reg, bool needs_count) {
     str first_text = cmd.arg;
     if (needs_reg && first_text != "" && !(needs_count && is_digit(at(first_text, 0)))) {
@@ -2296,8 +2296,8 @@ Step cmd_delmarks(MED_editor.Editor editor, Cmd cmd) {
 
 // ---------------------------------------------------------------------- :set
 
-// `:set` words: separated by white space; a backslash keeps a space (or a
-// backslash) in the word.
+/* `:set` words: separated by white space; a backslash keeps a space (or a
+ * backslash) in the word. */
 List<str> set_words(str arg) {
     List<str> words = [];
     str word = "";
@@ -2481,8 +2481,8 @@ bool is_listed(List<str> names, str name) {
     return false;
 }
 
-// A string option's new value for `=`, `+=` (append), `^=` (prepend) and `-=`;
-// comma-separated options add and remove items, flag options characters.
+/* A string option's new value for `=`, `+=` (append), `^=` (prepend) and `-=`;
+ * comma-separated options add and remove items, flag options characters. */
 str string_value(str name, str current, str operator, str value) {
     if (operator == "=" || value == "") {
         if (operator == "=") {
@@ -2614,8 +2614,8 @@ Step cmd_set(MED_editor.Editor editor, Cmd cmd) {
             return fail(editor, "E518: Unknown option: " + word);
         }
         if (spec.name == "transparent" && operator == "" && !is_query && !is_reset) {
-            // the one string option that reads like a flag: `:set transparent` is on, `notransparent` off
-            // (explicitly: the theme's own key no longer decides), `transparent!` flips it
+            /* the one string option that reads like a flag: `:set transparent` is on, `notransparent` off
+             * (explicitly: the theme's own key no longer decides), `transparent!` flips it */
             str now = option_text(editor, spec);
             bool is_now_on = now != "" && now != "auto" && now != "off" && now != "false" && now != "no" && now != "0";
             if (is_invert) {
@@ -2986,9 +2986,9 @@ Step cmd_align(MED_editor.Editor editor, Cmd cmd) {
     return done();
 }
 
-// `:[range]retab[!] [N]`: rewrite each run of white space that holds a tab (with `!`, also runs of two or more
-// spaces) for tabstop N (the current 'tabstop' without N), with tabs unless 'expandtab' is set; then 'tabstop' is N.
-// Vim's ex_retab: columns are measured with the old tabstop, the new one only decides the layout.
+/* `:[range]retab[!] [N]`: rewrite each run of white space that holds a tab (with `!`, also runs of two or more
+ * spaces) for tabstop N (the current 'tabstop' without N), with tabs unless 'expandtab' is set; then 'tabstop' is N.
+ * Vim's ex_retab: columns are measured with the old tabstop, the new one only decides the layout. */
 Step cmd_retab(MED_editor.Editor editor, Cmd cmd) {
     int new_tab = editor.tab;
     str given = cmd.arg.trim();
@@ -3088,8 +3088,8 @@ Step cmd_retab(MED_editor.Editor editor, Cmd cmd) {
 
 // ------------------------------------------------------- autocommands and user commands (MED_autocmd)
 
-/// Run the autocommands of `event` for `subject` (a path, the file type for FileType), as Vim does at that moment.
-/// A command that fails shows its error; a chain of autocommands that start each other stops after a few levels.
+/** Run the autocommands of `event` for `subject` (a path, the file type for FileType), as Vim does at that moment.
+ * A command that fails shows its error; a chain of autocommands that start each other stops after a few levels. */
 pub void fire_event(MED_editor.Editor editor, str event, str subject) {
     if (editor.autocmds.size() == 0 || editor.autocmd_depth >= 4) {
         return;
@@ -3521,8 +3521,8 @@ Step cmd_global(MED_editor.Editor editor, Cmd cmd_value) {
     return global_loop(editor, cmd);
 }
 
-// Run `cmd` on the marked lines that are left; stops at a `:s///c` prompt (the
-// answer to it, in sub_key, comes back here) or when a command fails.
+/* Run `cmd` on the marked lines that are left; stops at a `:s///c` prompt (the
+ * answer to it, in sub_key, comes back here) or when a command fails. */
 Step global_loop(MED_editor.Editor editor, str cmd) {
     bool is_ok = true;
     while (editor.gmarks.size() > 0) {
@@ -3618,9 +3618,9 @@ int case_map(int char_code, int mode) {
     return char_code;
 }
 
-/// The text a match is replaced with, before line breaks and backslashes are
-/// resolved (Vim's vim_regsub_multi() with REGSUB_BACKSLASH | REGSUB_MAGIC):
-/// a CR is a line break, a backslash protects the next character.
+/** The text a match is replaced with, before line breaks and backslashes are
+ * resolved (Vim's vim_regsub_multi() with REGSUB_BACKSLASH | REGSUB_MAGIC):
+ * a CR is a line break, a backslash protects the next character. */
 str expand_sub(str sub, MED_regex.Match match_value) {
     List<int> codes = sub.chars();
     List<int> out = [];
@@ -3709,8 +3709,8 @@ str expand_sub(str sub, MED_regex.Match match_value) {
     return str.from_chars(out);
 }
 
-// The text of a `\=` result as the substitution loop wants it: a NL is a line
-// break, a backslash stays a backslash (and a backslash before a NL is a NUL).
+/* The text of a `\=` result as the substitution loop wants it: a NL is a line
+ * break, a backslash stays a backslash (and a backslash before a NL is a NUL). */
 str expr_replacement(str text) {
     List<int> codes = text.chars();
     List<int> out = [];
@@ -3771,8 +3771,8 @@ void append_above(MED_editor.Editor editor, int row, str text) {
 
 const int MAXCOL = 2147483647;
 
-// The loop of Vim's do_sub(): `line1` and `line2_in` are 1-based, the rest of the
-// state is 0-based rows. `sub` is the replacement after `~` was expanded.
+/* The loop of Vim's do_sub(): `line1` and `line2_in` are 1-based, the rest of the
+ * state is 0-based rows. `sub` is the replacement after `~` was expanded. */
 
 // The prompt of `:s///c`: the key that answers it comes back through sub_key().
 Step sub_prompt(MED_editor.Editor editor, MED_editor.SubRun run) {
@@ -4405,8 +4405,8 @@ int flt_cmp(SortCtx sort_context, int index, int other_index) {
     return marker * left;
 }
 
-// strtod() as a decimal key: the sign (0 for zero), the exponent of the first
-// significant digit and the significant digits without trailing zeros.
+/* strtod() as a decimal key: the sign (0 for zero), the exponent of the first
+ * significant digit and the significant digits without trailing zeros. */
 SortCtx flt_push(SortCtx sort_context, str key) {
     int offset = 0;
     while (offset < key.size() && (key.byte_at(offset) == 32 || key.byte_at(offset) == 9)) {
@@ -4790,8 +4790,8 @@ Step cmd_sort(MED_editor.Editor editor, Cmd cmd) {
             is_same_order = false;
         }
     }
-    // nothing moved: the step is saved for undo but, as in nvim, no change is
-    // noted (`.` and the change list stay)
+    /* nothing moved: the step is saved for undo but, as in nvim, no change is
+     * noted (`.` and the change list stay) */
     editor.is_change_unnoted = is_same_order;
     editor.is_adjust_off = true;
     editor.change(MED_buffer.Pos(left, 0), MED_buffer.Pos(right, editor.buffer.line_size(right)), out.join("\n"));
@@ -4807,8 +4807,8 @@ Step cmd_sort(MED_editor.Editor editor, Cmd cmd) {
 
 // ------------------------------------------------------------------ shell: :! and :r
 
-// The shell command with the previous one in place of an unescaped `!` and the
-// file name in place of an unescaped `%` (`\!` and `\%` are literal).
+/* The shell command with the previous one in place of an unescaped `!` and the
+ * file name in place of an unescaped `%` (`\!` and `\%` are literal). */
 str expand_shell(MED_editor.Editor editor, str text) {
     str out = "";
     int index = 0;

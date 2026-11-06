@@ -1,17 +1,17 @@
-// Surroundings: `ys{motion}{symbol}`, `yss`, `yS`, `ySS`, `ds{symbol}`,
-// `cs{old}{new}`, `cS`, and `S` / `gS` in Visual mode.
-//
-// A port of Tim Pope's surround.vim (the plugin the oracle can load next to
-// nvim, see tests/oracles/corpus/63_surround.txt). The plugin is built from
-// Normal mode commands on the unnamed register, so this is too: it runs
-// those commands on the engine, which keeps the register, mark and cursor
-// effects the same. The typed input (the replacement, a tag, a function
-// name) is collected by MED_vim before `apply` runs.
-//
-// API
+/* Surroundings: `ys{motion}{symbol}`, `yss`, `yS`, `ySS`, `ds{symbol}`,
+ * `cs{old}{new}`, `cS`, and `S` / `gS` in Visual mode.
+ *
+ * A port of Tim Pope's surround.vim (the plugin the oracle can load next to
+ * nvim, see tests/oracles/corpus/63_surround.txt). The plugin is built from
+ * Normal mode commands on the unnamed register, so this is too: it runs
+ * those commands on the engine, which keeps the register, mark and cursor
+ * effects the same. The typed input (the replacement, a tag, a function
+ * name) is collected by MED_vim before `apply` runs.
+ *
+ * API */
 // ---
-//   MED_surround.apply(editor)       run the command the editor collected
-//   MED_surround.wrap(...)           the plugin's s:wrap (pure text work)
+/*   MED_surround.apply(editor)       run the command the editor collected
+ *   MED_surround.wrap(...)           the plugin's s:wrap (pure text work) */
 
 import engine.MED_buffer;
 import engine.MED_editor;
@@ -108,9 +108,9 @@ str fix_indent(MED_editor.Editor editor, str text, str padding) {
 
 // ------------------------------------------------------------------- s:wrap
 
-/// The text `string` (of register type `type`: "v", "V" or "b") with the
-/// surroundings `symbol` names. `removed` is what a `cs` took away (for the
-/// attributes of a changed tag), `input` the typed tag / function / environment.
+/** The text `string` (of register type `type`: "v", "V" or "b") with the
+ * surroundings `symbol` names. `removed` is what a `cs` took away (for the
+ * attributes of a changed tag), `input` the typed tag / function / environment. */
 pub str wrap(MED_editor.Editor editor, str text_in, str symbol, str shape, str removed, bool is_special, str last_deleted, str input) {
     str keeper = text_in;
     str newchar = symbol;
@@ -480,11 +480,11 @@ bool is_bracket_char(int code) {
     return code == 91 || code == 93 || code == 40 || code == 41 || code == 123 || code == 125 || code == 60 || code == 62;
 }
 
-// s:dosurround(char[, newchar[, special]]), in two halves: `prepare` takes
-// the surroundings out (everything before the text is wrapped), `finish`
-// wraps the kept text and puts it back. A tag, function or environment typed
-// in between is asked for only when `prepare` found something to change.
-// Returns false when there was nothing (the editor is left as it was).
+/* s:dosurround(char[, newchar[, special]]), in two halves: `prepare` takes
+ * the surroundings out (everything before the text is wrapped), `finish`
+ * wraps the kept text and puts it back. A tag, function or environment typed
+ * in between is asked for only when `prepare` found something to change.
+ * Returns false when there was nothing (the editor is left as it was). */
 bool did_prepare(MED_editor.Editor editor, str target, str newchar, bool is_special, bool has_new, int count_in) {
     editor.was_sur_startofline = editor.is_startofline;
     editor.is_startofline = true;
@@ -694,8 +694,8 @@ str strip_comment(str keeper) {
 
 // ------------------------------------------------------------------ opfunc
 
-// s:opfunc: wrap the text of the last motion (`marks [ ]`) or the last
-// Visual area; `kind` is "symbol", "line" or the visual mode ("v", "V", "b").
+/* s:opfunc: wrap the text of the last motion (`marks [ ]`) or the last
+ * Visual area; `kind` is "symbol", "line" or the visual mode ("v", "V", "b"). */
 void opfunc(MED_editor.Editor editor, str kind, str symbol, bool is_special) {
     Saved saved = save_unnamed(editor);
     str shape = "v";
@@ -723,8 +723,8 @@ void opfunc(MED_editor.Editor editor, str kind, str symbol, bool is_special) {
         }
     }
     if (shape == "b" && keeper.ends_with("\n")) {
-        // the plugin writes the text back with setreg(), which drops the
-        // empty last line of a block
+        /* the plugin writes the text back with setreg(), which drops the
+         * empty last line of a block */
         keeper = keeper.substr(0, keeper.size() - 1);
     }
     str wrapped = wrap(editor, keeper, symbol, shape, "", is_special, editor.sur_last_deleted, editor.sur_input);
@@ -735,8 +735,8 @@ void opfunc(MED_editor.Editor editor, str kind, str symbol, bool is_special) {
 
 // ------------------------------------------------------------------- apply
 
-/// `cs` / `cS` with a tag, function or environment to ask for: take the
-/// surroundings out now. False when there are none (nothing was typed then).
+/** `cs` / `cS` with a tag, function or environment to ask for: take the
+ * surroundings out now. False when there are none (nothing was typed then). */
 pub bool did_begin_change(MED_editor.Editor editor) {
     editor.block_hold = editor.block_hold + 1;
     if (!did_prepare(editor, editor.sur_old, editor.sur_new, editor.sur_command == "cS", true, editor.sur_count)) {

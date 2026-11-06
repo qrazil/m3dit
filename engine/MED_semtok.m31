@@ -1,18 +1,18 @@
-// Semantic tokens (LSP 3.17) as an overlay on the lexical highlighter: the tokens a language server computed for
-// a buffer, kept per row as byte ranges with the syntax class they stand for (`SYN_class`, so the theme's class
-// to colour map is the only colour table), painted over the classes `MED_hl` got from the lexer.
-//
-// The tokens are valid for the text they were computed from. A row whose text differs now (it was edited, or
-// rows were inserted above it) shows its lexical colours until the next answer arrives; a row that still has the
-// same text keeps its tokens, wherever the edit was made. Positions arrive as UTF-16 columns relative to the
-// previous token (`textDocument/semanticTokens/full`); `decode` turns them into byte ranges with the rows' text.
-//
-// API
+/* Semantic tokens (LSP 3.17) as an overlay on the lexical highlighter: the tokens a language server computed for
+ * a buffer, kept per row as byte ranges with the syntax class they stand for (`SYN_class`, so the theme's class
+ * to colour map is the only colour table), painted over the classes `MED_hl` got from the lexer.
+ *
+ * The tokens are valid for the text they were computed from. A row whose text differs now (it was edited, or
+ * rows were inserted above it) shows its lexical colours until the next answer arrives; a row that still has the
+ * same text keeps its tokens, wherever the edit was made. Positions arrive as UTF-16 columns relative to the
+ * previous token (`textDocument/semanticTokens/full`); `decode` turns them into byte ranges with the rows' text.
+ *
+ * API */
 // ---
-//   MED_semtok.decode(data, types, modifiers, lines)     Tokens of a `data` array
-//   MED_semtok.class_of(type, bits, modifiers)           the SYN_class of a token (-1: leave the lexical one)
-//   MED_semtok.overlay(tokens, row, line, classes)       `classes` with the tokens of the row painted over
-//   MED_semtok.describe(tokens, row, byte)               "function declaration", "" when no token is there
+/*   MED_semtok.decode(data, types, modifiers, lines)     Tokens of a `data` array
+ *   MED_semtok.class_of(type, bits, modifiers)           the SYN_class of a token (-1: leave the lexical one)
+ *   MED_semtok.overlay(tokens, row, line, classes)       `classes` with the tokens of the row painted over
+ *   MED_semtok.describe(tokens, row, byte)               "function declaration", "" when no token is there */
 
 import syntax.core.SYN_class;
 
@@ -66,8 +66,8 @@ int pow2(int exponent) {
     return out;
 }
 
-/// The syntax class a token of type `kind` with modifier `bits` is drawn as; -1 for the types the lexical
-/// highlighter does better (variables and parameters, whose plain colour the lexer already gives).
+/** The syntax class a token of type `kind` with modifier `bits` is drawn as; -1 for the types the lexical
+ * highlighter does better (variables and parameters, whose plain colour the lexer already gives). */
 pub int class_of(str kind, int bits, List<str> modifiers) {
     if (kind == "namespace" || kind == "type" || kind == "class" || kind == "enum" || kind == "interface" || kind == "struct" || kind == "typeParameter") {
         return SYN_class.TYPE;
@@ -117,8 +117,8 @@ pub int class_of(str kind, int bits, List<str> modifiers) {
     return -1;
 }
 
-/// The tokens of a `data` array (five numbers per token: line and start relative to the previous token, length,
-/// type, modifiers) for the buffer `lines`. Tokens outside the buffer are dropped.
+/** The tokens of a `data` array (five numbers per token: line and start relative to the previous token, length,
+ * type, modifiers) for the buffer `lines`. Tokens outside the buffer are dropped. */
 pub Tokens decode(List<int> data, List<str> types, List<str> modifiers, List<str> lines) {
     Tokens out = Tokens();
     out.texts = lines.slice(0, lines.size());
@@ -165,8 +165,8 @@ pub Tokens decode(List<int> data, List<str> types, List<str> modifiers, List<str
     return out;
 }
 
-/// `classes` (a class per byte of `line`, empty without a lexer) with the tokens of `row` painted over, when the
-/// row still has the text the tokens were computed for.
+/** `classes` (a class per byte of `line`, empty without a lexer) with the tokens of `row` painted over, when the
+ * row still has the text the tokens were computed for. */
 pub List<int> overlay(Tokens tokens, int row, str line, List<int> classes) {
     if (tokens.count == 0 || row >= tokens.texts.size() || tokens.texts[row] != line) {
         return classes;

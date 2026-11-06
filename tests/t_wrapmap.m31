@@ -1,8 +1,8 @@
-// Layout of a wrapping line under 'linebreak', 'breakat', 'showbreak' and 'breakindent' (engine/MED_wrapmap.m31), and what the
-// window draws for it. The expected values are nvim's: virtcol() of every character, and the text of the screen rows
-// (screenstring() after :redraw in `nvim --headless -u NONE`), so the test needs no nvim itself.
-//
-// nvim's own tests of the same thing are the corpus 112 in tests/oracles (the engine against nvim, 500 cases).
+/* Layout of a wrapping line under 'linebreak', 'breakat', 'showbreak' and 'breakindent' (engine/MED_wrapmap.m31), and what the
+ * window draws for it. The expected values are nvim's: virtcol() of every character, and the text of the screen rows
+ * (screenstring() after :redraw in `nvim --headless -u NONE`), so the test needs no nvim itself.
+ *
+ * nvim's own tests of the same thing are the corpus 112 in tests/oracles (the engine against nvim, 500 cases). */
 
 import io;
 import term;

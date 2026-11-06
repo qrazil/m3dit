@@ -1,28 +1,28 @@
-// Folds that follow the text: 'foldmethod' indent and marker, and the 'foldlevel' that decides which of them
-// are closed. Manual folds stay in MED_fold; both kinds live in `editor.folds`.
-//
-// API
+/* Folds that follow the text: 'foldmethod' indent and marker, and the 'foldlevel' that decides which of them
+ * are closed. Manual folds stay in MED_fold; both kinds live in `editor.folds`.
+ *
+ * API */
 // ---
-//   MED_autofold.sync(editor)              bring `editor.folds` up to date with the text and the fold options; called at
-//                                          the start of every key (cheap when nothing changed)
-//   MED_autofold.new_level(editor)         'foldlevel' changed: top-level folds follow it again (nvim's newFoldLevel)
-//   MED_autofold.deepest(editor)           the deepest nesting of the current folds (zR)
-//   MED_autofold.refresh_closed(editor)    recompute `is_closed` of the folds that follow 'foldlevel'
-//   MED_autofold.did_move_to(editor, is_updown, is_forward, count)   nvim's foldMoveTo: zj zk (updown) and [z ]z
-//
-// Model (nvim's fold.c): a fold is closed when it follows 'foldlevel' (`is_level`, the state of a fold nobody opened or
-// closed by hand) and its depth (0 for the outermost) is at least 'foldlevel', or by its own flag when a `zo` / `zc`
-// changed it. A fold below a level-following one follows the level too. A fold that has `foldminlines` or fewer lines
-// is never shown closed.
-//
-// indent: the level of a line is its indent divided by 'shiftwidth' (the 'tabstop' when that is 0), at most
-// 'foldnestmax'. Blank lines and lines that start with a character of 'foldignore' (default `#`) get the lower level of the
-// lines around them. A run of lines at level >= k is a fold of level k; the line before an indented block is not in it.
-// marker: `{{{` opens and `}}}` closes a fold (a number after the marker sets the level); the fold spans both marker
-// lines. 'foldmarker' changes the markers.
-//
-// Not done: foldmethod expr, syntax and diff; `zf`, `zd`, `zD` and `zE` under indent and marker (they report E350 and
-// friends where nvim would edit the markers or refuse).
+/*   MED_autofold.sync(editor)              bring `editor.folds` up to date with the text and the fold options; called at
+ *                                          the start of every key (cheap when nothing changed)
+ *   MED_autofold.new_level(editor)         'foldlevel' changed: top-level folds follow it again (nvim's newFoldLevel)
+ *   MED_autofold.deepest(editor)           the deepest nesting of the current folds (zR)
+ *   MED_autofold.refresh_closed(editor)    recompute `is_closed` of the folds that follow 'foldlevel'
+ *   MED_autofold.did_move_to(editor, is_updown, is_forward, count)   nvim's foldMoveTo: zj zk (updown) and [z ]z
+ *
+ * Model (nvim's fold.c): a fold is closed when it follows 'foldlevel' (`is_level`, the state of a fold nobody opened or
+ * closed by hand) and its depth (0 for the outermost) is at least 'foldlevel', or by its own flag when a `zo` / `zc`
+ * changed it. A fold below a level-following one follows the level too. A fold that has `foldminlines` or fewer lines
+ * is never shown closed.
+ *
+ * indent: the level of a line is its indent divided by 'shiftwidth' (the 'tabstop' when that is 0), at most
+ * 'foldnestmax'. Blank lines and lines that start with a character of 'foldignore' (default `#`) get the lower level of the
+ * lines around them. A run of lines at level >= k is a fold of level k; the line before an indented block is not in it.
+ * marker: `{{{` opens and `}}}` closes a fold (a number after the marker sets the level); the fold spans both marker
+ * lines. 'foldmarker' changes the markers.
+ *
+ * Not done: foldmethod expr, syntax and diff; `zf`, `zd`, `zD` and `zE` under indent and marker (they report E350 and
+ * friends where nvim would edit the markers or refuse). */
 
 import engine.MED_editor;
 import engine.MED_num;
@@ -166,8 +166,8 @@ int marker_number(str line, int from) {
 
 const int MARKER_MAX_LEVEL = 20;
 
-// The fold levels of the lines of foldmethod=marker: for each line the level it has (`levels`), the level after it
-// (`nexts`) and how many folds start on it (`starts`), as nvim's foldlevelMarker finds them.
+/* The fold levels of the lines of foldmethod=marker: for each line the level it has (`levels`), the level after it
+ * (`nexts`) and how many folds start on it (`starts`), as nvim's foldlevelMarker finds them. */
 pub List<List<int>> marker_levels(MED_editor.Editor editor, str open_marker, str close_marker) {
     List<int> levels = [];
     List<int> nexts = [];
@@ -228,13 +228,13 @@ pub List<List<int>> marker_levels(MED_editor.Editor editor, str open_marker, str
     return [levels, nexts, starts];
 }
 
-/// The folds of foldmethod=marker: `{{{` and `}}}` with optional levels, built the way nvim's foldUpdateIEMS does for a
-/// whole buffer (checked against nvim by a fuzz over marker lines with and without jump levels, corpus 112+).
-///
-/// A fold of depth d is the line a fold of that depth starts on (a start marker that reaches depth d) and every later line
-/// whose level is at least d, up to the next start of depth d. A line at level d with no start marker belongs to the
-/// last fold of that depth when it lies in the same fold one depth up and nothing has re-entered that fold in between
-/// (lines below the level d - 1 between two runs of the parent break it, unless the fold reaches the end of the run before).
+/** The folds of foldmethod=marker: `{{{` and `}}}` with optional levels, built the way nvim's foldUpdateIEMS does for a
+ * whole buffer (checked against nvim by a fuzz over marker lines with and without jump levels, corpus 112+).
+ *
+ * A fold of depth d is the line a fold of that depth starts on (a start marker that reaches depth d) and every later line
+ * whose level is at least d, up to the next start of depth d. A line at level d with no start marker belongs to the
+ * last fold of that depth when it lies in the same fold one depth up and nothing has re-entered that fold in between
+ * (lines below the level d - 1 between two runs of the parent break it, unless the fold reaches the end of the run before). */
 pub List<MED_editor.Fold> marker_folds(MED_editor.Editor editor) {
     str markers = editor.opts.get("foldmarker").or("{{{,}}}");
     int comma = markers.index_of(",").or(-1);
@@ -346,8 +346,8 @@ pub int deepest(MED_editor.Editor editor) {
     return best;
 }
 
-/// Recompute `is_closed` of every fold that follows 'foldlevel' (itself or through a fold around it); folds with
-/// their own flag keep theirs.
+/** Recompute `is_closed` of every fold that follows 'foldlevel' (itself or through a fold around it); folds with
+ * their own flag keep theirs. */
 pub void refresh_closed(MED_editor.Editor editor) {
     int fdl = editor.option_number("foldlevel", 0);
     int minlines = editor.option_number("foldminlines", 1);
@@ -377,8 +377,8 @@ List<MED_editor.Fold> sorted_indexes(MED_editor.Editor editor) {
     return sorted(editor.folds);
 }
 
-/// 'foldlevel' changed (zm, zr, zM, zR, zx, `:set foldlevel`): the outermost folds follow it again, then every
-/// level-following fold is closed or opened by its depth.
+/** 'foldlevel' changed (zm, zr, zM, zR, zx, `:set foldlevel`): the outermost folds follow it again, then every
+ * level-following fold is closed or opened by its depth. */
 pub void new_level(MED_editor.Editor editor) {
     List<MED_editor.Fold> ordered = sorted(editor.folds);
     List<int> ends = [];
@@ -437,8 +437,8 @@ pub void sync(MED_editor.Editor editor) {
     }
     bool is_new_method = method != editor.fold_method;
     if (!is_new_method) {
-        // keep what the user did to a fold that is still there (same first and last row; of several folds with the
-        // same rows, the one at the same depth: they come in the same order)
+        /* keep what the user did to a fold that is still there (same first and last row; of several folds with the
+         * same rows, the one at the same depth: they come in the same order) */
         for (int slot in 0 .. fresh.size()) {
             MED_editor.Fold now = fresh[slot];
             int earlier = 0;
@@ -461,8 +461,8 @@ pub void sync(MED_editor.Editor editor) {
                 }
             }
             if (!is_matched) {
-                // an edit changed where the fold ends (a marker typed or removed): it is still the fold that starts on
-                // that row, as nvim's foldUpdate keeps the fold and moves its end
+                /* an edit changed where the fold ends (a marker typed or removed): it is still the fold that starts on
+                 * that row, as nvim's foldUpdate keeps the fold and moves its end */
                 int earlier_start = 0;
                 for (int before in 0 .. slot) {
                     if (fresh[before].start == now.start) {
@@ -520,8 +520,8 @@ Tree tree_of(MED_editor.Editor editor) {
     return tree;
 }
 
-// nvim's foldFind over one sibling list: the position in `siblings` of the fold that holds `row`, or minus the
-// position of the first fold after it, minus one (so -1 is "before the first", -len-1 "after the last").
+/* nvim's foldFind over one sibling list: the position in `siblings` of the fold that holds `row`, or minus the
+ * position of the first fold after it, minus one (so -1 is "before the first", -len-1 "after the last"). */
 int find_sibling(Tree tree, List<int> siblings, int row) {
     int low = 0;
     int high = siblings.size() - 1;
@@ -539,8 +539,8 @@ int find_sibling(Tree tree, List<int> siblings, int row) {
     return 0 - low - 1;
 }
 
-/// nvim's foldMoveTo: `zj` / `zk` (`is_updown`: to the start of the next fold / the end of the previous one) and `[z` /
-/// `]z` (to the start / end of the open fold around the cursor). False when the cursor does not move at all.
+/** nvim's foldMoveTo: `zj` / `zk` (`is_updown`: to the start of the next fold / the end of the previous one) and `[z` /
+ * `]z` (to the start / end of the open fold around the cursor). False when the cursor does not move at all. */
 pub bool did_move_to(MED_editor.Editor editor, bool is_updown, bool is_forward, int count) {
     if (editor.folds.size() == 0) {
         return false;

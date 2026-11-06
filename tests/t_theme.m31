@@ -1,8 +1,8 @@
-// Unit checks for the theme engine (ui/MED_theme.m31) and its use by the
-// editor: the file format, palettes, inheritance, scope fallback, colour depth,
-// the built-in themes (each must parse and define every scope the renderer asks
-// for), user themes from a temporary XDG directory, bad themes, and the
-// `:theme` / `:colorscheme` commands, completion, the picker and `--dump-sample`.
+/* Unit checks for the theme engine (ui/MED_theme.m31) and its use by the
+ * editor: the file format, palettes, inheritance, scope fallback, colour depth,
+ * the built-in themes (each must parse and define every scope the renderer asks
+ * for), user themes from a temporary XDG directory, bad themes, and the
+ * `:theme` / `:colorscheme` commands, completion, the picker and `--dump-sample`. */
 
 import fs;
 import io;
@@ -169,8 +169,8 @@ str escape_of(TUI_style.Colour colour, TUI_style.Depth depth) {
     }
 }
 
-// the `nth` (0-based) string literal after every `marker` of a source text;
-// `marker` ends with the opening quote of the first one
+/* the `nth` (0-based) string literal after every `marker` of a source text;
+ * `marker` ends with the opening quote of the first one */
 List<str> literals_after(str text, str marker, int nth) {
     List<str> found = [];
     int from = 0;

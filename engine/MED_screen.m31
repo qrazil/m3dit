@@ -1,11 +1,11 @@
-// Screen-line motions for wrapped lines: `gj`, `gk` and the cursor move of
-// CTRL-D / CTRL-U. A port of nvim's nv_screengo(), with the text width the
-// editor was told (`view_width`) for the first and the following rows.
-//
-// API
+/* Screen-line motions for wrapped lines: `gj`, `gk` and the cursor move of
+ * CTRL-D / CTRL-U. A port of nvim's nv_screengo(), with the text width the
+ * editor was told (`view_width`) for the first and the following rows.
+ *
+ * API */
 // ---
-//   MED_screen.is_wrapping(ed)              'wrap' is on and the width is known
-//   MED_screen.move(ed, is_forward, dist, is_end_forced)   Outcome: where `dist` screen rows away is
+/*   MED_screen.is_wrapping(ed)              'wrap' is on and the width is known
+ *   MED_screen.move(ed, is_forward, dist, is_end_forced)   Outcome: where `dist` screen rows away is */
 
 import engine.MED_editor;
 import engine.MED_motion;
@@ -39,9 +39,9 @@ int rounded_width(int length, int width) {
     return width;
 }
 
-/// The position `dist` screen rows forward or backward of the cursor, keeping
-/// the wanted column. `is_ok` is false when the buffer ended first (the
-/// position is where it got to).
+/** The position `dist` screen rows forward or backward of the cursor, keeping
+ * the wanted column. `is_ok` is false when the buffer ended first (the
+ * position is where it got to). */
 pub Outcome move(MED_editor.Editor editor, bool is_forward, int dist, bool is_end_forced) {
     Outcome outcome = Outcome();
     int width = editor.view_width;
@@ -105,8 +105,8 @@ pub Outcome move(MED_editor.Editor editor, bool is_forward, int dist, bool is_en
     bool is_one_more = editor.mode == MED_editor.VISUAL || editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE;
     int col = editor.col_for_want(row, want, is_one_more);
     if (col > 0) {
-        // landing on a character that got split at the end of the row: move
-        // one back when most of it is on the previous row
+        /* landing on a character that got split at the end of the row: move
+         * one back when most of it is on the previous row */
         int landed = editor.vcol_at(row, col);
         if (line.byte_at(col) == 9 && editor.mode == MED_editor.NORMAL) {
             // a Tab under the cursor counts by its last cell (w_virtcol)

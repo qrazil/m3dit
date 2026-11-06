@@ -1,26 +1,26 @@
-// Snippets: the LSP / VS Code snippet grammar, its expansion into text with tabstop ranges, and the session that
-// follows the tabstops through edits. Pure: nothing here knows the editor (engine/MED_snipops.m31 does).
-//
-// Grammar (https://microsoft.github.io/language-server-protocol/specification/#snippet_syntax):
-//   $1  ${1}  ${1:default}  ${1|one,two|}  $0       tabstops, placeholders (they nest), choices, the final stop
-//   $NAME  ${NAME}  ${NAME:default}                 variables; an unknown one becomes a tabstop that holds its name (nvim)
-//   ${1/regex/format/options}  ${NAME/regex/format/options}   transforms ($n ${n:/upcase} ${n:+if} ${n:?if:else} ${n:-else})
-//   \$ \} \\                                        escapes (and \, \| inside a choice)
-// A construct that does not parse stays text, as in VS Code (nvim gives an error instead).
-//
-// The expansion follows nvim's vim.snippet (runtime/lua/vim/snippet.lua) where that can parse the snippet: the lines
-// after the first get the indent of the line the snippet starts in, tabs become spaces under 'expandtab', the first
-// placeholder of an index gives the text of every stop with that index, and $0 is the end of the snippet unless given.
-//
-// API
+/* Snippets: the LSP / VS Code snippet grammar, its expansion into text with tabstop ranges, and the session that
+ * follows the tabstops through edits. Pure: nothing here knows the editor (engine/MED_snipops.m31 does).
+ *
+ * Grammar (https://microsoft.github.io/language-server-protocol/specification/#snippet_syntax):
+ *   $1  ${1}  ${1:default}  ${1|one,two|}  $0       tabstops, placeholders (they nest), choices, the final stop
+ *   $NAME  ${NAME}  ${NAME:default}                 variables; an unknown one becomes a tabstop that holds its name (nvim)
+ *   ${1/regex/format/options}  ${NAME/regex/format/options}   transforms ($n ${n:/upcase} ${n:+if} ${n:?if:else} ${n:-else})
+ *   \$ \} \\                                        escapes (and \, \| inside a choice)
+ * A construct that does not parse stays text, as in VS Code (nvim gives an error instead).
+ *
+ * The expansion follows nvim's vim.snippet (runtime/lua/vim/snippet.lua) where that can parse the snippet: the lines
+ * after the first get the indent of the line the snippet starts in, tabs become spaces under 'expandtab', the first
+ * placeholder of an index gives the text of every stop with that index, and $0 is the end of the snippet unless given.
+ *
+ * API */
 // ---
-//   MED_snippet.parse(body)                       List<Node>
-//   MED_snippet.expand(body, context)             Built: text, stops
-//   MED_snippet.Session                           tabstops that follow edits (gravity as nvim's extmarks)
-//   MED_snippet.Session.adjust(from, to, text)    keep every range in step with a splice
-//   MED_snippet.Session.dest_index(direction)     the index a jump goes to (-1: none)
-//   MED_snippet.transform_text(transform, text)   apply `/regex/format/options` to `text`
-//   MED_snippet.parse_user_file(json_text)        the snippets of a VS Code snippets file
+/*   MED_snippet.parse(body)                       List<Node>
+ *   MED_snippet.expand(body, context)             Built: text, stops
+ *   MED_snippet.Session                           tabstops that follow edits (gravity as nvim's extmarks)
+ *   MED_snippet.Session.adjust(from, to, text)    keep every range in step with a splice
+ *   MED_snippet.Session.dest_index(direction)     the index a jump goes to (-1: none)
+ *   MED_snippet.transform_text(transform, text)   apply `/regex/format/options` to `text`
+ *   MED_snippet.parse_user_file(json_text)        the snippets of a VS Code snippets file */
 
 import encoding.json;
 import engine.MED_buffer;
@@ -426,8 +426,8 @@ pub List<Node> parse(str body) {
 
 // ------------------------------------------------------------------------------------------------ transforms
 
-// The JavaScript regular expression `pattern` as a Vim one (MED_regex): groups, alternation, quantifiers, lazy
-// quantifiers, look-ahead and look-behind, \d \w \s, and the classes inside [].
+/* The JavaScript regular expression `pattern` as a Vim one (MED_regex): groups, alternation, quantifiers, lazy
+ * quantifiers, look-ahead and look-behind, \d \w \s, and the classes inside []. */
 pub str vim_regex_of(str pattern) {
     str out = "";
     List<str> closers = [];
@@ -988,8 +988,8 @@ type Expander {
     int variable_next = 0;
 }
 
-// Add `value` to the text, the way nvim does: tabs become spaces under 'expandtab', lines after the first get the
-// base indent.
+/* Add `value` to the text, the way nvim does: tabs become spaces under 'expandtab', lines after the first get the
+ * base indent. */
 void Expander.append(str value) {
     List<str> lines = value.split("\n");
     for (int index in 0 .. lines.size()) {
@@ -1273,8 +1273,8 @@ pub List<int> position_after(int row, int col, str text) {
     return [row + newlines, text.size() - last - 1];
 }
 
-/// A mark at (row, col) after the splice that replaced [from, to) by text ending at `end` (see position_after);
-/// `is_right` is its gravity. Returns [row, col].
+/** A mark at (row, col) after the splice that replaced [from, to) by text ending at `end` (see position_after);
+ * `is_right` is its gravity. Returns [row, col]. */
 pub List<int> mark_moved(int row, int col, int from_row, int from_col, int to_row, int to_col, List<int> end, bool is_right) {
     bool is_before_from = row < from_row || (row == from_row && col < from_col);
     if (is_before_from) {
@@ -1401,8 +1401,8 @@ List<str> json_words(json.Value value) {
     return words;
 }
 
-/// The entries of a VS Code snippets file ({"name": {"prefix": ..., "body": ..., "scope": "a,b"}}); a file that is not
-/// that gives none.
+/** The entries of a VS Code snippets file ({"name": {"prefix": ..., "body": ..., "scope": "a,b"}}); a file that is not
+ * that gives none. */
 pub List<Entry> parse_user_file(str source) {
     List<Entry> entries = [];
     match (json.parse(source)) {

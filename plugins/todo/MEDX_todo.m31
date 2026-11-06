@@ -1,8 +1,8 @@
-// The `todo` plugin: TODO FIXME HACK XXX NOTE WARN PERF BUG in a comment are drawn as a badge (theme scope `ui.todo`),
-// `:Todo` lists them across the project in the finder (the core's `todos` source: ripgrep or the built-in grep),
-// `:Todo next` and `:Todo prev` (`]t`, `[t` of `bracketed`) jump between them in the buffer, `<Space>ft` lists them.
-// It was a branch in `App.draw_line`, `:Todo` in the core's command table and a row of the finder keys. The highlight
-// is a `Decorator` (API 0.3.0); the option `todohl` still switches it off (`:set notodohl`).
+/* The `todo` plugin: TODO FIXME HACK XXX NOTE WARN PERF BUG in a comment are drawn as a badge (theme scope `ui.todo`),
+ * `:Todo` lists them across the project in the finder (the core's `todos` source: ripgrep or the built-in grep),
+ * `:Todo next` and `:Todo prev` (`]t`, `[t` of `bracketed`) jump between them in the buffer, `<Space>ft` lists them.
+ * It was a branch in `App.draw_line`, `:Todo` in the core's command table and a row of the finder keys. The highlight
+ * is a `Decorator` (API 0.3.0); the option `todohl` still switches it off (`:set notodohl`). */
 
 import engine.MED_buffer;
 import ext.MED_ext;

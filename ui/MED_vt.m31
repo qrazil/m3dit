@@ -1,14 +1,14 @@
-// A small terminal screen model for the built-in terminal pane: the text a
-// program prints, kept as lines, with the control characters and escape
-// sequences that line-oriented programs use (shells, build tools, `git`, `ls`):
-// carriage return, line feed, backspace, tab, erase in line, clear screen,
-// cursor left/right/up/down and column, and the colour and mode sequences,
-// which are read and dropped. Full-screen programs (editors, pagers, htop)
-// need a real emulator and are out of scope; see DESIGN.md.
-//
-//   MED_vt.Screen screen = MED_vt.Screen();
-//   screen.feed(text)        process printed text
-//   screen.lines             the lines so far (scrollback is capped)
+/* A small terminal screen model for the built-in terminal pane: the text a
+ * program prints, kept as lines, with the control characters and escape
+ * sequences that line-oriented programs use (shells, build tools, `git`, `ls`):
+ * carriage return, line feed, backspace, tab, erase in line, clear screen,
+ * cursor left/right/up/down and column, and the colour and mode sequences,
+ * which are read and dropped. Full-screen programs (editors, pagers, htop)
+ * need a real emulator and are out of scope; see DESIGN.md.
+ *
+ *   MED_vt.Screen screen = MED_vt.Screen();
+ *   screen.feed(text)        process printed text
+ *   screen.lines             the lines so far (scrollback is capped) */
 
 /// Lines kept; older ones are dropped.
 const int MAX_LINES = 5000;
@@ -100,8 +100,8 @@ void Screen.run_csi(int final_byte) {
             lines = lines.slice(0, row + 1);
         }
     } else if (final_byte == 72 || final_byte == 102) {
-        // cursor position: rows are relative to the top of what was printed
-        // since the last clear; without a real screen model, home is "here"
+        /* cursor position: rows are relative to the top of what was printed
+         * since the last clear; without a real screen model, home is "here" */
         col = parameter_at(parts, 1, 1) - 1;
         if (col < 0) {
             col = 0;

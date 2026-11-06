@@ -1,20 +1,20 @@
-// Key mappings: the tables behind `:map`, `:noremap` and friends.
-//
-// API
+/* Key mappings: the tables behind `:map`, `:noremap` and friends.
+ *
+ * API */
 // ---
-//   MED_map.Maps                     one table per mode, shared by every buffer
-//   MED_map.Mapping                      one mapping (lhs, rhs, flags)
-//   MED_map.kind_of(name)            what an ex command name does: "map", "unmap", "clear" or ""
-//   MED_map.modes_of(name, is_bang)  the mode letters a command name acts on ("nxo", "i", ...)
-//   MED_map.is_remapping(name)       false for the `noremap` family
-//   MED_map.split_arguments(text)         the flags, lhs and rhs of a `:map` line
-//   MED_map.resolve(table, keys, is_flush)   index of the map `keys` starts with, NONE or WAIT
-//   MED_map.add / did_remove / clear     edit a mode's table
-//
-// This module knows no editor: MED_ex feeds typed keys through `resolve` and
-// pushes the right-hand sides back as typeahead. Modes are one letter each:
-// n (Normal), x (Visual), o (operator-pending), i (Insert and Replace) and
-// c (command line); `:map` stands for n x o and `:map!` for i c.
+/*   MED_map.Maps                     one table per mode, shared by every buffer
+ *   MED_map.Mapping                      one mapping (lhs, rhs, flags)
+ *   MED_map.kind_of(name)            what an ex command name does: "map", "unmap", "clear" or ""
+ *   MED_map.modes_of(name, is_bang)  the mode letters a command name acts on ("nxo", "i", ...)
+ *   MED_map.is_remapping(name)       false for the `noremap` family
+ *   MED_map.split_arguments(text)         the flags, lhs and rhs of a `:map` line
+ *   MED_map.resolve(table, keys, is_flush)   index of the map `keys` starts with, NONE or WAIT
+ *   MED_map.add / did_remove / clear     edit a mode's table
+ *
+ * This module knows no editor: MED_ex feeds typed keys through `resolve` and
+ * pushes the right-hand sides back as typeahead. Modes are one letter each:
+ * n (Normal), x (Visual), o (operator-pending), i (Insert and Replace) and
+ * c (command line); `:map` stands for n x o and `:map!` for i c. */
 
 import engine.MED_key;
 
@@ -67,8 +67,8 @@ pub bool Maps.has_any(str mode) {
     return table(mode).size() > 0;
 }
 
-/// The mappings of `mode` that apply in a buffer whose own mappings are `local`: its `<buffer>` mappings first,
-/// then the global ones (Vim tries the buffer's first, and the first of two equally long matches wins).
+/** The mappings of `mode` that apply in a buffer whose own mappings are `local`: its `<buffer>` mappings first,
+ * then the global ones (Vim tries the buffer's first, and the first of two equally long matches wins). */
 pub List<Mapping> Maps.table_with(Maps local, str mode) {
     List<Mapping> own = local.table(mode);
     if (own.size() == 0) {
@@ -99,8 +99,8 @@ pub bool Maps.has_prefix(str mode, int key) {
     return false;
 }
 
-// Command names are the full names; MED_ex resolves abbreviations.
-// The mode prefix is "", "n", "v", "x", "o", "i" or "c".
+/* Command names are the full names; MED_ex resolves abbreviations.
+ * The mode prefix is "", "n", "v", "x", "o", "i" or "c". */
 const List<str> PREFIXES = ["n", "v", "x", "o", "i", "c", ""];
 
 // The mode prefix of `name` when it is `{prefix}{stem}`, or "?" when it is not.
@@ -155,9 +155,9 @@ pub str modes_of(str name, bool is_bang) {
     return prefix;
 }
 
-/// The longest mapping of `table` that `keys` begins with; WAIT when `keys`
-/// is also the start of a longer one (unless `is_flush`, or the match is
-/// `<nowait>`), NONE when no mapping matches.
+/** The longest mapping of `table` that `keys` begins with; WAIT when `keys`
+ * is also the start of a longer one (unless `is_flush`, or the match is
+ * `<nowait>`), NONE when no mapping matches. */
 pub int resolve(List<Mapping> table, List<int> keys, bool is_flush) {
     int best = NONE;
     int best_length = 0;
@@ -193,8 +193,8 @@ pub int resolve(List<Mapping> table, List<int> keys, bool is_flush) {
     return best;
 }
 
-/// Define `added`, replacing a mapping with the same left-hand side. A new
-/// mapping goes first: Vim tries the newest mappings first.
+/** Define `added`, replacing a mapping with the same left-hand side. A new
+ * mapping goes first: Vim tries the newest mappings first. */
 pub void add(List<Mapping> table, Mapping added) {
     int index = find(table, added.lhs);
     if (index >= 0) {
@@ -260,8 +260,8 @@ pub void clear(List<Mapping> table) {
     }
 }
 
-/// What `:map` was given, split: the flags (`<nowait>`...), the left- and the
-/// right-hand side as text. `error` is set for a flag that is not supported.
+/** What `:map` was given, split: the flags (`<nowait>`...), the left- and the
+ * right-hand side as text. `error` is set for a flag that is not supported. */
 pub type Args {
     pub str lhs = "";
     pub str rhs = "";
@@ -282,9 +282,9 @@ str literal(List<int> chars, int index) {
     return str.from_chars([char_code]);
 }
 
-/// Split the argument of a map command. The left-hand side ends at the first
-/// white space; `\` and CTRL-V make the next character literal; the
-/// right-hand side is the rest, without leading white space.
+/** Split the argument of a map command. The left-hand side ends at the first
+ * white space; `\` and CTRL-V make the next character literal; the
+ * right-hand side is the rest, without leading white space. */
 pub Args split_arguments(str text) {
     Args parsed = Args();
     List<int> chars = text.chars();
@@ -359,8 +359,8 @@ pub Mapping make(Args parsed, bool is_noremap, str leader) {
     return made;
 }
 
-/// The lines `:map` lists for one mode letter; with `prefix` only the
-/// mappings whose left-hand side begins with it.
+/** The lines `:map` lists for one mode letter; with `prefix` only the
+ * mappings whose left-hand side begins with it. */
 pub List<str> describe(List<Mapping> table, str mode, List<int> prefix, bool is_local) {
     List<str> lines = [];
     for (Mapping candidate in table) {

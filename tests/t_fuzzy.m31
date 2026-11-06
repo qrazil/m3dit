@@ -1,5 +1,5 @@
-// Unit checks for MED_fuzzy: matching, smart-case, extended syntax, ranking,
-// highlight positions.
+/* Unit checks for MED_fuzzy: matching, smart-case, extended syntax, ranking,
+ * highlight positions. */
 
 import tests.MED_check;
 import ui.MED_fuzzy;

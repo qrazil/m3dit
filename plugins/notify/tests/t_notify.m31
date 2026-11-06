@@ -1,6 +1,6 @@
-// The `notify` plugin through the App: :Notify makes a box, long text wraps, boxes age out on Tick, x
-// becomes an error box, the history lists them, the box is drawn in the top right corner, and with the plugin off a
-// message stays in the message line.
+/* The `notify` plugin through the App: :Notify makes a box, long text wraps, boxes age out on Tick, x
+ * becomes an error box, the history lists them, the box is drawn in the top right corner, and with the plugin off a
+ * message stays in the message line. */
 
 import tests.MED_check;
 import tui.core.TUI_buffer;

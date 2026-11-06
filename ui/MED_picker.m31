@@ -1,21 +1,21 @@
-// The picker's state machine: a prompt, a ranked list and a selection. No
-// drawing and no I/O; the front end fills `entries`, feeds keys, and carries
-// out the result.
-//
-// Kinds: files, buffers, grep (the prompt is the search, not a filter),
-// commands (the palette), help (the keymap), explore (one directory), marks,
-// and list (everything else: recent files, lines, quickfix, git branches and
-// commits, symbols ... an entry has a file position or an action).
-//
-// Keys (engine key codes): printable characters edit the prompt; Backspace,
-// CTRL-U (clear) and CTRL-W (word) delete; Down/CTRL-N/CTRL-J and Up/CTRL-P/
-// CTRL-K move; PageUp/PageDown jump a page; Enter accepts; Esc/CTRL-C/CTRL-G
-// cancel; CTRL-H toggles hidden files, Tab (CTRL-I) toggles the ignore rules,
-// CTRL-F toggles fixed-string grep; CTRL-T marks or unmarks the entry (and moves
-// on), CTRL-Q sends the marked entries (all shown ones when none is marked) to
-// the quickfix list; CTRL-S / CTRL-V accept into a new window
-// below / beside (files, buffers, grep). In the explorer `-` on an empty prompt goes
-// up a directory.
+/* The picker's state machine: a prompt, a ranked list and a selection. No
+ * drawing and no I/O; the front end fills `entries`, feeds keys, and carries
+ * out the result.
+ *
+ * Kinds: files, buffers, grep (the prompt is the search, not a filter),
+ * commands (the palette), help (the keymap), explore (one directory), marks,
+ * and list (everything else: recent files, lines, quickfix, git branches and
+ * commits, symbols ... an entry has a file position or an action).
+ *
+ * Keys (engine key codes): printable characters edit the prompt; Backspace,
+ * CTRL-U (clear) and CTRL-W (word) delete; Down/CTRL-N/CTRL-J and Up/CTRL-P/
+ * CTRL-K move; PageUp/PageDown jump a page; Enter accepts; Esc/CTRL-C/CTRL-G
+ * cancel; CTRL-H toggles hidden files, Tab (CTRL-I) toggles the ignore rules,
+ * CTRL-F toggles fixed-string grep; CTRL-T marks or unmarks the entry (and moves
+ * on), CTRL-Q sends the marked entries (all shown ones when none is marked) to
+ * the quickfix list; CTRL-S / CTRL-V accept into a new window
+ * below / beside (files, buffers, grep). In the explorer `-` on an empty prompt goes
+ * up a directory. */
 
 import ui.MED_frecency;
 import ui.MED_fuzzy;
@@ -124,13 +124,13 @@ pub type Picker {
     pub bool is_loading = false;
     /// Entries arrived that the ranking does not include yet.
     pub bool is_dirty = false;
-    /// The entries are file paths: ranked by file name first, with a relevance
-    /// percentage per row and frecency (files, recent files).
+    /** The entries are file paths: ranked by file name first, with a relevance
+     * percentage per row and frecency (files, recent files). */
     pub bool is_path = false;
     /// Show the relevance percentage and frecency marker (`:set nofinderscore` hides them).
     pub bool is_score_shown = true;
-    /// Frecency per entry: heat in thousandths and the epoch second of the last visit
-    /// (empty, or shorter than `entries`, for entries never visited).
+    /** Frecency per entry: heat in thousandths and the epoch second of the last visit
+     * (empty, or shorter than `entries`, for entries never visited). */
     pub List<int> heat = [];
     pub List<int> recency = [];
     /// The ranking boost of each entry, from its heat (kept in step by `set_frecency`).
@@ -139,8 +139,8 @@ pub type Picker {
     pub List<int> percents = [];
     /// The entry texts, kept beside `entries` so a keystroke does not rebuild them.
     pub List<str> texts = [];
-    /// Every entry the last ranking matched, and the prompt it was for: a longer prompt
-    /// of the same kind only looks at these.
+    /** Every entry the last ranking matched, and the prompt it was for: a longer prompt
+     * of the same kind only looks at these. */
     pub List<int> pool = [];
     pub bool has_pool = false;
     pub str pool_query = "";
@@ -186,8 +186,8 @@ pub void Picker.set_entries(List<Entry> fresh) {
     refilter();
 }
 
-/// Frecency for the entries: heat (thousandths) and last visit per entry, in order
-/// (call it after `set_entries`, which forgets any). Ranks again.
+/** Frecency for the entries: heat (thousandths) and last visit per entry, in order
+ * (call it after `set_entries`, which forgets any). Ranks again. */
 pub void Picker.set_frecency(List<int> fresh_heat, List<int> fresh_recency) {
     heat = fresh_heat;
     recency = fresh_recency;
@@ -204,9 +204,9 @@ pub bool Picker.is_frecent(int index) {
     return index < boosts.size() && boosts[index] >= MED_frecency.MARK_FROM;
 }
 
-/// Whether a longer prompt can be answered from the matches of the shorter one: it
-/// extends it, and neither has a negation (which a longer term can relax) or a `$` (which
-/// a longer term moves).
+/** Whether a longer prompt can be answered from the matches of the shorter one: it
+ * extends it, and neither has a negation (which a longer term can relax) or a `$` (which
+ * a longer term moves). */
 pub bool Picker.can_narrow(str typed) {
     if (!has_pool || pool_query.size() == 0 || !typed.starts_with(pool_query)) {
         return false;
@@ -264,8 +264,8 @@ pub void Picker.refilter() {
     }
 }
 
-/// The empty prompt of a path picker: files that were visited first (by heat, then
-/// recency), then the rest in the order the source gave.
+/** The empty prompt of a path picker: files that were visited first (by heat, then
+ * recency), then the rest in the order the source gave. */
 void Picker.list_by_heat() {
     List<Hot> hot = [];
     List<bool> is_taken = [false; entries.size()];
@@ -303,9 +303,9 @@ pub void Picker.refresh() {
     }
 }
 
-/// Add entries from a source that is still delivering. With an empty prompt
-/// they are listed at once and the selection stays; with a prompt `is_dirty`
-/// says the ranking is stale (the front end ranks again at a calm moment).
+/** Add entries from a source that is still delivering. With an empty prompt
+ * they are listed at once and the selection stays; with a prompt `is_dirty`
+ * says the ranking is stale (the front end ranks again at a calm moment). */
 pub void Picker.append(List<Entry> batch) {
     bool is_listed_directly = !is_filter() || MED_fuzzy.parse(query).is_empty();
     for (Entry entry in batch) {

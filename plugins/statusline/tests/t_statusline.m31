@@ -1,6 +1,6 @@
-// The `statusline` plugin through the App: the segment (branch, hunks, diagnostics) follows the host's answers within a
-// Tick, and the buffer line is the plugin's: shown from two buffers, switched by :set nobufferline and by
-// :PluginDisable, a plus on a modified buffer.
+/* The `statusline` plugin through the App: the segment (branch, hunks, diagnostics) follows the host's answers within a
+ * Tick, and the buffer line is the plugin's: shown from two buffers, switched by :set nobufferline and by
+ * :PluginDisable, a plus on a modified buffer. */
 
 import io;
 import os;

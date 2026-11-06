@@ -1,10 +1,10 @@
-// The project's files for the pickers: a walk that honours .gitignore.
-//
-// `project_root()` is the nearest ancestor of the working directory with a
-// `.git` (spelled relative, "." or "../.."), else ".". `list_files(root, ...)`
-// returns the paths below it relative to `root`, `/` separated, files only,
-// depth first in name order. It never enters `.git` or an ignored directory,
-// does not follow symbolic links, and skips dot files unless asked.
+/* The project's files for the pickers: a walk that honours .gitignore.
+ *
+ * `project_root()` is the nearest ancestor of the working directory with a
+ * `.git` (spelled relative, "." or "../.."), else ".". `list_files(root, ...)`
+ * returns the paths below it relative to `root`, `/` separated, files only,
+ * depth first in name order. It never enters `.git` or an ignored directory,
+ * does not follow symbolic links, and skips dot files unless asked. */
 
 import fs;
 import io;
@@ -48,8 +48,8 @@ str read_text(str path) {
     }
 }
 
-/// The files below `root`; dot files only when `is_hidden_shown`, ignored files
-/// only when `is_ignore_used` is false.
+/** The files below `root`; dot files only when `is_hidden_shown`, ignored files
+ * only when `is_ignore_used` is false. */
 pub List<str> list_files(str root, bool is_hidden_shown, bool is_ignore_used) {
     List<str> out = [];
     MED_ignore.Ignore ignore = MED_ignore.Ignore();
@@ -100,8 +100,8 @@ void walk_directory(str root, str relative_directory, bool is_hidden_shown, bool
     ignore.truncate(mark);
 }
 
-/// The entries of one directory for the explorer: directories first (with a
-/// trailing `/`), then files, each group in name order.
+/** The entries of one directory for the explorer: directories first (with a
+ * trailing `/`), then files, each group in name order. */
 pub List<str> list_directory(str directory, bool is_hidden_shown) {
     List<str> dirs = [];
     List<str> files = [];

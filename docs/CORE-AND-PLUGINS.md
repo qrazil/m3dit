@@ -1141,7 +1141,7 @@ scripts/           build.sh (profiles), check_plugins.sh (R2, R3), gen_*.sh
 tests/             core tests, oracles, golden screens (tests/screen_pty.py)
 ```
 
-`m31c fmt --check -r .` and `m31c lint .` already run over the whole tree and so cover `plugins/`. A plugin's
+`m31c -fmt --check --recursive .` and `m31c -lint .` already run over the whole tree and so cover `plugins/`. A plugin's
 oracle corpora and unit tests move with it; the corpus runner already skips corpora whose `#plugins:` header
 names something not available, and the same mechanism skips plugin corpora in a build without that plugin.
 
@@ -1279,7 +1279,7 @@ A step is done when the **default** build passes the full suite and the golden s
 | UI behaviour | pty scenarios (`tests/e2e.py`, `finder_pty.py`, `git_pty.py`, `lsp_pty.py`, `anim_pty.py`, `width_pty.py`, `ext_pty.py`) | unchanged |
 | **Screens** | new `tests/screen_pty.py`: about 25 scripted scenarios on the `pyte` emulator the width tests already use, dumping text and a style hash; **baseline recorded from 0.15.0 in S0**, compared at every step for default and, where the feature remains, minimal | DESIGN says there is no nvim oracle for pickers and buffers; this is the oracle for the UI: the old build |
 | Performance | `bench/uxperf.py --check --json`, `bench/bench.py`, `bench/finder_bench.m31` | bytes columns are deterministic and must be equal; latency within the budget; startup +1 ms at most |
-| Hygiene | `m31c fmt --check -r .`, `m31c lint .`, `scripts/check_plugins.sh` | in the gate |
+| Hygiene | `m31c -fmt --check --recursive .`, `m31c -lint .`, `scripts/check_plugins.sh` | in the gate |
 
 ---
 

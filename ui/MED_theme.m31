@@ -1,54 +1,54 @@
-// Themes: the editor's colours as data, in Helix's model.
-//
-// A theme is a TOML file: a `[palette]` of named colours and a table from
-// scope names to styles. `inherits = "other"` starts from another theme.
-//
-//     inherits = "tokyonight"
-//     "comment"       = { fg = "gray", modifiers = ["italic"] }
-//     "ui.linenr"     = "gray"                      # a bare colour is a foreground
-//     "ui.statusline" = { fg = "bg", bg = "blue", underline = { style = "line" } }
-//     [palette]
-//     gray = "#565f89"
-//
-// Colours are `#rrggbb` (`#rrggbbaa` too, the alpha ignored), `#rgb`, a 16-colour name (black red green yellow blue
-// magenta cyan gray light-red .. light-cyan light-gray white), a palette name,
-// `default`, or a number 0..255 (an xterm palette index). Modifiers: bold dim
-// italic underlined reversed crossed_out (slow_blink, rapid_blink and hidden are
-// accepted and ignored: the `tui` style has no bit for them), and `underline`
-// sets the underline modifier (its colour is checked but not drawn, for the
-// same reason).
-//
-// Only the TOML this needs is read: `#` comments, `[palette]`, `key = value`
-// (quoted or bare, dotted keys are scope names, not tables), strings,
-// arrays and inline tables, the last two continuing over lines.
-//
-// Scope lookup is Helix's: `keyword.control.return` is tried, then
-// `keyword.control`, then `keyword`. Before the prefixes, a scope that Helix
-// themes do not know (`ui.statusline.visual`, `ui.which-key`, `search.match`)
-// is looked up under the names Helix themes do have (`FALLBACKS`).
-//
-// The API:
-//
-//   MED_theme.load(name, directory)        Result<Theme, str>: a user file wins over a built-in
-//   MED_theme.available(directory)         every name `load` accepts, sorted
-//   MED_theme.parse_layer(name, text)     one file, no inheritance (for tests)
-//   theme.look(scope)                     the style a renderer draws `scope` in
-//   theme.class_look(class, variant)      a syntax class, on a plain / cursor line / ruler cell
-//
-// `look` is `ui.background` and `ui.text` laid under the scope's own style, so
-// a theme with no `ui.background` leaves the terminal's own background alone
-// (Helix's transparent background) and every cell the editor draws still gets
-// the same base.
-//
-// Transparency (docs/TRANSPARENCY.md). A terminal shows the desktop through a
-// cell only when the cell's background is the terminal's default, so a theme
-// that paints panels, popups or bars leaves holes in a translucent window.
-// `theme.set_transparency(ALL)` (`:set transparent`, M3_TRANSPARENT, a theme's
-// own `transparent = true`) makes `style` -- the one place every scope's style
-// comes through -- drop the background of every scope that is not an
-// interactive highlight (`transparent_style`): no widget has to know. OFF
-// returns the theme's styles untouched, so the default output is the same bytes
-// as before the mode existed. POPUPS does the same for popups and menus only.
+/* Themes: the editor's colours as data, in Helix's model.
+ *
+ * A theme is a TOML file: a `[palette]` of named colours and a table from
+ * scope names to styles. `inherits = "other"` starts from another theme.
+ *
+ *     inherits = "tokyonight"
+ *     "comment"       = { fg = "gray", modifiers = ["italic"] }
+ *     "ui.linenr"     = "gray"                      # a bare colour is a foreground
+ *     "ui.statusline" = { fg = "bg", bg = "blue", underline = { style = "line" } }
+ *     [palette]
+ *     gray = "#565f89"
+ *
+ * Colours are `#rrggbb` (`#rrggbbaa` too, the alpha ignored), `#rgb`, a 16-colour name (black red green yellow blue
+ * magenta cyan gray light-red .. light-cyan light-gray white), a palette name,
+ * `default`, or a number 0..255 (an xterm palette index). Modifiers: bold dim
+ * italic underlined reversed crossed_out (slow_blink, rapid_blink and hidden are
+ * accepted and ignored: the `tui` style has no bit for them), and `underline`
+ * sets the underline modifier (its colour is checked but not drawn, for the
+ * same reason).
+ *
+ * Only the TOML this needs is read: `#` comments, `[palette]`, `key = value`
+ * (quoted or bare, dotted keys are scope names, not tables), strings,
+ * arrays and inline tables, the last two continuing over lines.
+ *
+ * Scope lookup is Helix's: `keyword.control.return` is tried, then
+ * `keyword.control`, then `keyword`. Before the prefixes, a scope that Helix
+ * themes do not know (`ui.statusline.visual`, `ui.which-key`, `search.match`)
+ * is looked up under the names Helix themes do have (`FALLBACKS`).
+ *
+ * The API:
+ *
+ *   MED_theme.load(name, directory)        Result<Theme, str>: a user file wins over a built-in
+ *   MED_theme.available(directory)         every name `load` accepts, sorted
+ *   MED_theme.parse_layer(name, text)     one file, no inheritance (for tests)
+ *   theme.look(scope)                     the style a renderer draws `scope` in
+ *   theme.class_look(class, variant)      a syntax class, on a plain / cursor line / ruler cell
+ *
+ * `look` is `ui.background` and `ui.text` laid under the scope's own style, so
+ * a theme with no `ui.background` leaves the terminal's own background alone
+ * (Helix's transparent background) and every cell the editor draws still gets
+ * the same base.
+ *
+ * Transparency (docs/TRANSPARENCY.md). A terminal shows the desktop through a
+ * cell only when the cell's background is the terminal's default, so a theme
+ * that paints panels, popups or bars leaves holes in a translucent window.
+ * `theme.set_transparency(ALL)` (`:set transparent`, M3_TRANSPARENT, a theme's
+ * own `transparent = true`) makes `style` -- the one place every scope's style
+ * comes through -- drop the background of every scope that is not an
+ * interactive highlight (`transparent_style`): no widget has to know. OFF
+ * returns the theme's styles untouched, so the default output is the same bytes
+ * as before the mode existed. POPUPS does the same for popups and menus only. */
 
 import fs;
 import io;
@@ -63,38 +63,38 @@ pub const str LIGHT = "default-light";
 /// The same two drawn with the terminal's own 16 colours (the default at 16 colours).
 pub const str DARK_16 = "term16-dark";
 pub const str LIGHT_16 = "term16-light";
-/// Transparency modes: nothing dropped (the default), every surface, or only
-/// the popups and menus. AUTO is "the option says nothing: ask the theme".
+/** Transparency modes: nothing dropped (the default), every surface, or only
+ * the popups and menus. AUTO is "the option says nothing: ask the theme". */
 pub const int OFF = 0;
 pub const int ALL = 1;
 pub const int POPUPS = 2;
 pub const int AUTO = -1;
 /// A word that is no mode.
 pub const int BAD_MODE = -2;
-/// The ink a highlighted row gets when the theme gave it a background and no
-/// text colour: near black on a light background, near white on a dark one.
+/** The ink a highlighted row gets when the theme gave it a background and no
+ * text colour: near black on a light background, near white on a dark one. */
 const int INK_DARK = 0x16181d;
 const int INK_LIGHT = 0xe6e8ee;
 /// How deep an `inherits` chain or a palette reference may go.
 const int MAX_DEPTH = 8;
-/// The variants of `class_look`: the plain background, the cursor line (and
-/// cursor column), and a colour column.
+/** The variants of `class_look`: the plain background, the cursor line (and
+ * cursor column), and a colour column. */
 pub const int PLAIN = 0;
 pub const int ON_CURSOR_LINE = 1;
 pub const int ON_RULER = 2;
-/// The scope each of the 25 `SYN_class` values is drawn in, by class number.
-/// PROPERTY and MEMBER share Helix's `variable.other.member`; CALL is
-/// `function.call` (themes that do not tell it from a definition fall back to
-/// `function`).
+/** The scope each of the 25 `SYN_class` values is drawn in, by class number.
+ * PROPERTY and MEMBER share Helix's `variable.other.member`; CALL is
+ * `function.call` (themes that do not tell it from a definition fall back to
+ * `function`). */
 const Array<str> CLASS_SCOPES = ["variable", "comment", "string", "constant.numeric", "keyword", "type", "function", "keyword.directive", "constant", "operator", "string.special", "markup.heading", "variable.other.member", "tag", "attribute", "punctuation.special", "function.call", "diff.plus", "diff.minus", "markup.link.url", "markup.italic", "markup.bold", "markup.raw", "variable.builtin", "variable.other.member"];
-/// Scopes the renderer asks for that Helix themes lack, and where to look
-/// instead: "scope=alternative,alternative". The alternatives are tried in
-/// order, each with its own prefixes and fallbacks, before the scope's own
-/// prefixes.
+/** Scopes the renderer asks for that Helix themes lack, and where to look
+ * instead: "scope=alternative,alternative". The alternatives are tried in
+ * order, each with its own prefixes and fallbacks, before the scope's own
+ * prefixes. */
 const Array<str> FALLBACKS = ["ui.statusline.visual=ui.statusline.select", "ui.statusline.replace=ui.statusline.insert", "ui.statusline.command=ui.statusline.normal", "ui.statusline.terminal=ui.statusline.insert", "ui.cursorline=ui.cursorline.primary", "ui.cursorcolumn=ui.cursorcolumn.primary,ui.cursorline", "ui.virtual.ruler=ui.cursorline", "ui.virtual.indent-guide=ui.virtual.whitespace", "ui.virtual.inlay-hint=ui.text.inactive", "ui.text.inactive=comment", "ui.bufferline=ui.statusline.inactive", "ui.bufferline.active=ui.statusline", "ui.which-key=ui.popup.info,ui.help,ui.popup", "ui.which-key.title=ui.text.focus", "ui.picker=ui.popup,ui.menu", "ui.picker.title=ui.text.focus", "ui.picker.match=special", "ui.picker.selected=ui.menu.selected,ui.text.focus", "ui.picker.preview=ui.picker", "ui.prompt=ui.text", "ui.tree.directory=ui.text.directory,function", "ui.tree.hidden=ui.text.inactive", "ui.todo=warning", "search.match=ui.highlight,ui.selection", "search.current=ui.cursor.match,ui.selection.primary,ui.selection", "ui.window=ui.virtual.whitespace", "ui.gutter=", "ui.linenr.selected=ui.linenr", "ui.cursor.match=ui.selection", "ui.popup.info=ui.popup", "ui.menu.selected=ui.selection", "ui.selection.primary=ui.selection", "markup.heading=markup.heading.1,markup.heading.marker,keyword", "markup.link.url=markup.link,markup.link.text,markup.link.label,function", "markup.raw=markup.raw.inline,markup.raw.block,string", "operator=keyword.operator", "punctuation.special=punctuation.delimiter,punctuation.bracket,special,operator", "diagnostic.error=error", "diagnostic.warning=warning", "diagnostic.info=info", "diagnostic.hint=hint"];
 
-/// The scopes every built-in theme must resolve to a style (a test keeps
-/// them honest): the ones the renderer asks for.
+/** The scopes every built-in theme must resolve to a style (a test keeps
+ * them honest): the ones the renderer asks for. */
 pub List<str> required_scopes() {
     return ["ui.text", "ui.text.inactive", "ui.linenr", "ui.linenr.selected", "ui.cursor", "ui.cursorline", "ui.selection", "ui.statusline", "ui.statusline.normal", "ui.statusline.insert", "ui.statusline.visual", "ui.statusline.replace", "ui.statusline.command", "ui.statusline.inactive", "ui.bufferline", "ui.bufferline.active", "ui.popup", "ui.which-key", "ui.menu", "ui.menu.selected", "ui.picker", "ui.picker.match", "ui.picker.selected", "ui.prompt", "ui.virtual.indent-guide", "ui.virtual.whitespace", "ui.virtual.ruler", "ui.virtual.inlay-hint", "ui.window", "ui.tree.directory", "ui.todo", "search.match", "search.current", "error", "warning", "info", "hint", "diff.plus", "diff.minus", "diff.delta", "special"];
 }
@@ -114,8 +114,8 @@ pub bool is_empty(TUI_style.Style style) {
 
 // ------------------------------------------------------------- transparency
 
-/// The mode a word names: "" and "auto" are AUTO, on / true / yes / 1 / all are
-/// ALL, off / false / no / 0 are OFF, "popups" is POPUPS; anything else BAD_MODE.
+/** The mode a word names: "" and "auto" are AUTO, on / true / yes / 1 / all are
+ * ALL, off / false / no / 0 are OFF, "popups" is POPUPS; anything else BAD_MODE. */
 pub int mode_of(str word) {
     str lower = word.trim().to_lower();
     if (lower == "" || lower == "auto") {
@@ -144,29 +144,29 @@ pub str mode_name(int mode) {
     return "off";
 }
 
-/// Whether `scope` is `prefix` itself or something under it (`ui.cursor` and
-/// `ui.cursor.primary.insert`, not `ui.cursorline`).
+/** Whether `scope` is `prefix` itself or something under it (`ui.cursor` and
+ * `ui.cursor.primary.insert`, not `ui.cursorline`). */
 bool is_under(str scope, str prefix) {
     return scope == prefix || scope.starts_with(prefix + ".");
 }
 
-/// The scopes whose background is the point of them: what is selected, found,
-/// under the cursor or on the cursor's line, the colour column, a highlighted
-/// row of a list. They keep an explicit background in every mode.
+/** The scopes whose background is the point of them: what is selected, found,
+ * under the cursor or on the cursor's line, the colour column, a highlighted
+ * row of a list. They keep an explicit background in every mode. */
 pub bool is_highlight(str scope) {
     return is_under(scope, "ui.selection") || is_under(scope, "ui.highlight") || scope.starts_with("ui.cursor") || scope == "ui.virtual.ruler" || scope == "ui.menu.selected" || scope == "ui.picker.selected" || scope == "ui.picker.match" || is_under(scope, "ui.text.focus") || is_under(scope, "search");
 }
 
-/// The highlighted rows of lists: a theme that gives them a background and no
-/// text colour gets one that reads on it (`INK_DARK` / `INK_LIGHT`), because the
-/// text colour left to the terminal might be the other polarity.
+/** The highlighted rows of lists: a theme that gives them a background and no
+ * text colour gets one that reads on it (`INK_DARK` / `INK_LIGHT`), because the
+ * text colour left to the terminal might be the other polarity. */
 bool is_row_highlight(str scope) {
     return scope == "ui.menu.selected" || scope == "ui.picker.selected" || scope == "ui.text.focus";
 }
 
-/// The scopes that are a coloured badge, text on a coloured block (the mode
-/// name in the statusline, a TODO, a jump label): without the block the colour
-/// moves to the text (`transparent_style`).
+/** The scopes that are a coloured badge, text on a coloured block (the mode
+ * name in the statusline, a TODO, a jump label): without the block the colour
+ * moves to the text (`transparent_style`). */
 pub bool is_badge(str scope) {
     if (scope.starts_with("ui.statusline.")) {
         str mode = scope.substr(14, scope.size());
@@ -175,8 +175,8 @@ pub bool is_badge(str scope) {
     return scope == "ui.todo" || scope == "ui.virtual.jump-label";
 }
 
-/// The scopes of popups and menus (not their highlighted rows): the surfaces
-/// that POPUPS makes transparent.
+/** The scopes of popups and menus (not their highlighted rows): the surfaces
+ * that POPUPS makes transparent. */
 pub bool is_popup(str scope) {
     return is_under(scope, "ui.popup") || is_under(scope, "ui.which-key") || is_under(scope, "ui.help") || is_under(scope, "ui.menu") || is_under(scope, "ui.picker") || is_under(scope, "ui.prompt");
 }
@@ -196,9 +196,9 @@ int rgb_value(TUI_style.Colour colour) {
     }
 }
 
-/// A text colour that reads on `background`: near black on a light one, near
-/// white on a dark one (perceived brightness, no gamma: it only has to be on
-/// the right side of the middle).
+/** A text colour that reads on `background`: near black on a light one, near
+ * white on a dark one (perceived brightness, no gamma: it only has to be on
+ * the right side of the middle). */
 pub TUI_style.Colour ink_for(TUI_style.Colour background) {
     int rgb = rgb_value(background);
     int ink = INK_LIGHT;
@@ -208,19 +208,19 @@ pub TUI_style.Colour ink_for(TUI_style.Colour background) {
     return TUI_style.Colour.Rgb(ink / 65536, ink / 256 % 256, ink % 256);
 }
 
-/// The style `scope` is drawn in under transparency `mode`, given the style
-/// the theme defines for it. The whole rule:
-///
-///   * a highlight scope (`is_highlight`) keeps its background; a highlighted
-///     row of a list without a text colour gets `ink_for` its background;
-///   * a badge (`is_badge`) trades its background for the text colour, so the
-///     colour stays and the block goes (bold stays);
-///   * every other scope loses its background, and a reversed one its
-///     reversal (reverse video paints the terminal's text colour as a
-///     background);
-///   * POPUPS leaves everything but the scopes of popups (`is_popup`) alone.
-///
-/// Nothing here reads a colour of the desktop, or knows one.
+/** The style `scope` is drawn in under transparency `mode`, given the style
+ * the theme defines for it. The whole rule:
+ *
+ *   * a highlight scope (`is_highlight`) keeps its background; a highlighted
+ *     row of a list without a text colour gets `ink_for` its background;
+ *   * a badge (`is_badge`) trades its background for the text colour, so the
+ *     colour stays and the block goes (bold stays);
+ *   * every other scope loses its background, and a reversed one its
+ *     reversal (reverse video paints the terminal's text colour as a
+ *     background);
+ *   * POPUPS leaves everything but the scopes of popups (`is_popup`) alone.
+ *
+ * Nothing here reads a colour of the desktop, or knows one. */
 pub TUI_style.Style transparent_style(int mode, str scope, TUI_style.Style style) {
     if (mode == OFF || mode == AUTO) {
         return style;
@@ -246,9 +246,9 @@ pub TUI_style.Style transparent_style(int mode, str scope, TUI_style.Style style
 
 // ------------------------------------------------------------------ colours
 
-/// The 16-colour names. `gray` is bright black and `light-gray` plain white,
-/// as in Helix's own 16-colour themes (a gray background under a light-gray
-/// foreground).
+/** The 16-colour names. `gray` is bright black and `light-gray` plain white,
+ * as in Helix's own 16-colour themes (a gray background under a light-gray
+ * foreground). */
 Option<TUI_style.Colour> named_colour(str name) {
     List<str> names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "light-gray", "gray", "light-red", "light-green", "light-yellow", "light-blue", "light-magenta", "light-cyan", "white"];
     for (int index in 0 .. names.size()) {
@@ -315,8 +315,8 @@ pub Result<TUI_style.Colour, str> parse_colour(str text) {
     return Result<TUI_style.Colour, str>.Err("unknown colour \"" + text + "\" (not in [palette], and not a #hex, a 16-colour name or 0..255)");
 }
 
-/// A colour as a style names it: a palette entry (which may itself name
-/// another) or a colour spelled out.
+/** A colour as a style names it: a palette entry (which may itself name
+ * another) or a colour spelled out. */
 Result<TUI_style.Colour, str> resolve_colour(str text, Map<str, str> palette, int depth) {
     if (depth > MAX_DEPTH) {
         return Result<TUI_style.Colour, str>.Err("palette entry \"" + text + "\" refers back to itself");
@@ -340,8 +340,8 @@ const int NODE_STRING = 0;
 const int NODE_ARRAY = 1;
 const int NODE_TABLE = 2;
 
-/// A value of the file: a string (`text`), an array (`items`) or an inline
-/// table (`keys[i]` is `items[i]`'s key).
+/** A value of the file: a string (`text`), an array (`items`) or an inline
+ * table (`keys[i]` is `items[i]`'s key). */
 type Node {
     int kind = 0;
     str text = "";
@@ -365,8 +365,8 @@ void Reader.skip_blank() {
     }
 }
 
-/// A quoted string starting at the cursor ("..." with \" \\ \n \t escapes, or
-/// '...' taken literally).
+/** A quoted string starting at the cursor ("..." with \" \\ \n \t escapes, or
+ * '...' taken literally). */
 Result<str, str> Reader.read_string() {
     int quote = text.byte_at(position);
     position = position + 1;
@@ -551,9 +551,9 @@ int open_depth(str line) {
     return depth;
 }
 
-/// One file as written: `inherits`, the palette as text, and the scopes in
-/// file order with their values and line numbers. `resolve` turns the values
-/// into styles once the parent's palette is known.
+/** One file as written: `inherits`, the palette as text, and the scopes in
+ * file order with their values and line numbers. `resolve` turns the values
+ * into styles once the parent's palette is known. */
 pub type Layer {
     pub str name;
     pub str inherits = "";
@@ -563,17 +563,17 @@ pub type Layer {
     pub Map<str, str> palette = {};
     /// The styles, resolved: palette applied, modifiers and underline read.
     pub Map<str, TUI_style.Style> entries = {};
-    /// Entries that could not be read (an unknown colour, a bad modifier): they
-    /// are left out, as Helix leaves them out, and reported.
+    /** Entries that could not be read (an unknown colour, a bad modifier): they
+     * are left out, as Helix leaves them out, and reported. */
     pub List<str> warnings = [];
     List<str> scopes = [];
     List<Node> nodes = [];
     List<int> lines = [];
 }
 
-/// Read every scope's value as a style, a palette name looked up first in
-/// this file's `[palette]`, then in `inherited` (the parent's, as in Helix).
-/// A value that cannot be read becomes a warning, not a failure.
+/** Read every scope's value as a style, a palette name looked up first in
+ * this file's `[palette]`, then in `inherited` (the parent's, as in Helix).
+ * A value that cannot be read becomes a warning, not a failure. */
 pub void Layer.resolve(Map<str, str> inherited) {
     Map<str, str> palette_all = {};
     for (str key in inherited.keys()) {
@@ -596,8 +596,8 @@ pub void Layer.resolve(Map<str, str> inherited) {
     }
 }
 
-/// The style a value stands for: a bare colour is a foreground; a table has
-/// `fg`, `bg`, `underline` and `modifiers`.
+/** The style a value stands for: a bare colour is a foreground; a table has
+ * `fg`, `bg`, `underline` and `modifiers`. */
 Result<TUI_style.Style, str> style_of(Node node, Map<str, str> palette) {
     if (node.kind == NODE_STRING) {
         TUI_style.Colour colour = resolve_colour(node.text, palette, 0)?;
@@ -646,8 +646,8 @@ Result<TUI_style.Style, str> style_of(Node node, Map<str, str> palette) {
     return Result<TUI_style.Style, str>.Ok(style);
 }
 
-/// One field of an underline: its colour must resolve and its style be one of
-/// the known ones (neither is drawn, see the header).
+/** One field of an underline: its colour must resolve and its style be one of
+ * the known ones (neither is drawn, see the header). */
 Result<bool, str> check_underline(str field, Node value, Map<str, str> palette) {
     if (value.kind != NODE_STRING) {
         return Result<bool, str>.Err("underline " + field + " is a string");
@@ -668,8 +668,8 @@ bool is_underline_style(str name) {
     return name == "line" || name == "curl" || name == "dashed" || name == "dotted" || name == "double_line" || name == "reset";
 }
 
-/// The attribute bit of a modifier name; the blink and hidden ones have no
-/// bit (0) and are accepted.
+/** The attribute bit of a modifier name; the blink and hidden ones have no
+ * bit (0) and are accepted. */
 Result<int, str> modifier_bit(str name) {
     if (name == "bold") {
         return Result<int, str>.Ok(TUI_style.BOLD);
@@ -695,8 +695,8 @@ Result<int, str> modifier_bit(str name) {
     return Result<int, str>.Err("unknown modifier \"" + name + "\" (bold dim italic underlined reversed crossed_out)");
 }
 
-/// Parse one theme file, without following `inherits`. Errors name the theme
-/// and the line.
+/** Parse one theme file, without following `inherits`. Errors name the theme
+ * and the line. */
 pub Result<Layer, str> parse_layer(str name, str text) {
     Layer layer = Layer(name);
     bool is_palette = false;
@@ -738,8 +738,8 @@ pub Result<Layer, str> parse_layer(str name, str text) {
     return Result<Layer, str>.Ok(layer);
 }
 
-/// One `key = value` line: `inherits`, a palette entry or a scope's style (kept
-/// as a node until the whole palette is known).
+/** One `key = value` line: `inherits`, a palette entry or a scope's style (kept
+ * as a node until the whole palette is known). */
 Result<bool, str> read_entry(Reader reader, bool is_palette, Layer layer, int number) {
     str key = reader.read_key()?;
     // `"diagnostic.info".underline = {..}`: a quoted scope, then the field of its style
@@ -795,8 +795,8 @@ Result<bool, str> read_entry(Reader reader, bool is_palette, Layer layer, int nu
 
 // -------------------------------------------------------------------- Theme
 
-/// A theme ready to draw with: every scope's style, after inheritance and
-/// palette, and the lookups the renderer makes memoised.
+/** A theme ready to draw with: every scope's style, after inheritance and
+ * palette, and the lookups the renderer makes memoised. */
 pub type Theme {
     pub str name;
     pub Map<str, TUI_style.Style> entries = {};
@@ -857,8 +857,8 @@ pub void Theme.set_transparency(int mode) {
     seal();
 }
 
-/// Where `scope` is defined, if anywhere: the scope itself, its fallbacks
-/// (`FALLBACKS`), then its dotted prefixes.
+/** Where `scope` is defined, if anywhere: the scope itself, its fallbacks
+ * (`FALLBACKS`), then its dotted prefixes. */
 Option<TUI_style.Style> Theme.find(str scope, int depth) {
     match (entries.get(scope)) {
         case Some(TUI_style.Style own): {
@@ -896,8 +896,8 @@ Option<TUI_style.Style> Theme.find(str scope, int depth) {
     return find(scope.substr(0, dot - 1), depth + 1);
 }
 
-/// The style `scope` is defined as (a plain style when nothing is), without
-/// the base.
+/** The style `scope` is defined as (a plain style when nothing is), without
+ * the base. */
 pub TUI_style.Style Theme.style(str scope) {
     match (found.get(scope)) {
         case Some(TUI_style.Style known): {
@@ -952,8 +952,8 @@ pub TUI_style.Style Theme.look(str scope) {
     return made;
 }
 
-/// `scope` laid over the look of `under` (`ui.statusline.insert` over
-/// `ui.statusline`): what Helix's own statusline does with its mode colours.
+/** `scope` laid over the look of `under` (`ui.statusline.insert` over
+ * `ui.statusline`): what Helix's own statusline does with its mode colours. */
 pub TUI_style.Style Theme.over(str under, str scope) {
     return look(under).merged(style(scope));
 }
@@ -973,8 +973,8 @@ pub TUI_style.Style Theme.look_of_first(List<str> scopes) {
     return base;
 }
 
-/// The syntax class `class_value`, as `variant` (PLAIN, ON_CURSOR_LINE, ON_RULER)
-/// wants the background.
+/** The syntax class `class_value`, as `variant` (PLAIN, ON_CURSOR_LINE, ON_RULER)
+ * wants the background. */
 pub TUI_style.Style Theme.class_look(int class_value, int variant) {
     int which = class_value;
     if (which < 0 || which >= SYN_class.COUNT) {
@@ -983,8 +983,8 @@ pub TUI_style.Style Theme.class_look(int class_value, int variant) {
     return class_looks[variant][which];
 }
 
-/// The cursor cell of a mode ("normal", "insert", "select"): `ui.cursor.primary.MODE`
-/// and the prefixes after it, reversed when the theme says nothing.
+/** The cursor cell of a mode ("normal", "insert", "select"): `ui.cursor.primary.MODE`
+ * and the prefixes after it, reversed when the theme says nothing. */
 pub TUI_style.Style Theme.cursor(str mode) {
     TUI_style.Style defined = style("ui.cursor.primary." + mode);
     if (is_empty(defined)) {
@@ -1016,8 +1016,8 @@ pub bool is_valid_name(str name) {
     return true;
 }
 
-/// The directory user themes live in: `$XDG_CONFIG_HOME/m3/themes`, else
-/// `$HOME/.config/m3/themes` (macOS too), "" when neither is set.
+/** The directory user themes live in: `$XDG_CONFIG_HOME/m3/themes`, else
+ * `$HOME/.config/m3/themes` (macOS too), "" when neither is set. */
 pub str user_directory(str config_home, str home) {
     if (config_home.size() > 0) {
         return config_home + "/m3/themes";
@@ -1038,8 +1038,8 @@ pub bool is_builtin(str name) {
     return MED_theme_data.NAMES.contains(name);
 }
 
-/// The file text of theme `name`: the user's file when `directory` has one
-/// (and `is_user_allowed`), else the built-in.
+/** The file text of theme `name`: the user's file when `directory` has one
+ * (and `is_user_allowed`), else the built-in. */
 Result<str, str> source_of(str name, str directory, bool is_user_allowed) {
     if (!is_valid_name(name)) {
         return Result<str, str>.Err("invalid theme name \"" + name + "\"");
@@ -1063,8 +1063,8 @@ Result<str, str> source_of(str name, str directory, bool is_user_allowed) {
     return Result<str, str>.Err("unknown theme \"" + name + "\"");
 }
 
-/// A theme and the ones it inherits from, merged: the child's entries over
-/// the parent's, the palettes laid over each other, the warnings of every file.
+/** A theme and the ones it inherits from, merged: the child's entries over
+ * the parent's, the palettes laid over each other, the warnings of every file. */
 type Merged {
     str transparent = "";
     Map<str, TUI_style.Style> entries = {};
@@ -1108,10 +1108,10 @@ Result<Merged, str> merge_chain(str name, str directory, bool is_user_allowed, L
     return Result<Merged, str>.Ok(out);
 }
 
-/// Theme `name`: a user file in `directory` (or the built-in of that name),
-/// with its `inherits` chain followed. A file that cannot be parsed, a missing
-/// parent or a loop is an error; an entry that cannot be read is a warning
-/// (`theme.warnings`) and is left out.
+/** Theme `name`: a user file in `directory` (or the built-in of that name),
+ * with its `inherits` chain followed. A file that cannot be parsed, a missing
+ * parent or a loop is an error; an entry that cannot be read is a warning
+ * (`theme.warnings`) and is left out. */
 pub Result<Theme, str> load(str name, str directory) {
     Merged merged = merge_chain(name, directory, true, [])?;
     Theme theme = Theme.make(name, merged.entries);
@@ -1120,8 +1120,8 @@ pub Result<Theme, str> load(str name, str directory) {
     return Result<Theme, str>.Ok(theme);
 }
 
-/// Every theme name `load` takes: the built-ins and the `.toml` files of
-/// `directory`, sorted.
+/** Every theme name `load` takes: the built-ins and the `.toml` files of
+ * `directory`, sorted. */
 pub List<str> available(str directory) {
     List<str> names = [];
     for (str name in MED_theme_data.NAMES) {
@@ -1147,9 +1147,9 @@ pub List<str> available(str directory) {
     return names;
 }
 
-/// The built-in that `:set background=` and the terminal's depth choose:
-/// `default` or `default-light`, drawn with the terminal's own 16 colours when
-/// that is all there is.
+/** The built-in that `:set background=` and the terminal's depth choose:
+ * `default` or `default-light`, drawn with the terminal's own 16 colours when
+ * that is all there is. */
 pub str default_for(bool is_light, bool is_sixteen) {
     if (is_light) {
         if (is_sixteen) {

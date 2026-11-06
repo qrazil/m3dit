@@ -1,6 +1,6 @@
-// Key profiles through the App (docs/KEYMAP-REVIEW.md B1): a profile is a whole key tree. `default` is the sane IDE tree,
-// `legacy` the tree of 0.21.0, `minimal` bare vi (no leader, no plugin keys), `nvim` the owner's keys on the legacy tree;
-// `:Profile NAME` swaps one for another and nothing of the old one stays.
+/* Key profiles through the App (docs/KEYMAP-REVIEW.md B1): a profile is a whole key tree. `default` is the sane IDE tree,
+ * `legacy` the tree of 0.21.0, `minimal` bare vi (no leader, no plugin keys), `nvim` the owner's keys on the legacy tree;
+ * `:Profile NAME` swaps one for another and nothing of the old one stays. */
 
 import io;
 import os;

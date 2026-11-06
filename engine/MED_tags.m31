@@ -1,14 +1,14 @@
-// Tags files (vi's `ctags` support): `:tag NAME`, CTRL-], CTRL-T, `:tags`, `-t NAME`.
-//
-// A tags file is lines of `NAME<TAB>FILE<TAB>ADDRESS[;"<TAB>FIELDS]`. The address is a line number or a search
-// pattern between `/.../` or `?...?` (`\/` and `\\` escape the delimiter and the backslash; `^` and `$` at the ends
-// anchor the line, everything else is literal, as vi searches a tag with `nomagic`). Lines that start with `!` are
-// header lines. Module API:
-//
-//   MED_tags.Tag                    one entry: name, file, address, kind
-//   MED_tags.entries_of(text, name) the entries of a tags file whose name is `name` (case follows `is_ignore`)
-//   MED_tags.line_of(lines, address) the 0-based line an address names, or -1
-//   MED_tags.files_of(option, current_directory)  the tags files an option value names, in order
+/* Tags files (vi's `ctags` support): `:tag NAME`, CTRL-], CTRL-T, `:tags`, `-t NAME`.
+ *
+ * A tags file is lines of `NAME<TAB>FILE<TAB>ADDRESS[;"<TAB>FIELDS]`. The address is a line number or a search
+ * pattern between `/.../` or `?...?` (`\/` and `\\` escape the delimiter and the backslash; `^` and `$` at the ends
+ * anchor the line, everything else is literal, as vi searches a tag with `nomagic`). Lines that start with `!` are
+ * header lines. Module API:
+ *
+ *   MED_tags.Tag                    one entry: name, file, address, kind
+ *   MED_tags.entries_of(text, name) the entries of a tags file whose name is `name` (case follows `is_ignore`)
+ *   MED_tags.line_of(lines, address) the 0-based line an address names, or -1
+ *   MED_tags.files_of(option, current_directory)  the tags files an option value names, in order */
 
 pub type Tag {
     pub str name = "";
@@ -59,8 +59,8 @@ pub List<Tag> entries_of(str text, str name, bool is_ignore) {
     return found;
 }
 
-/// The text between the delimiters of a search address, `\/` and `\\` undone; ^ and $ at the ends are returned
-/// through `anchors` as "^", "$" or "^$" in the first element.
+/** The text between the delimiters of a search address, `\/` and `\\` undone; ^ and $ at the ends are returned
+ * through `anchors` as "^", "$" or "^$" in the first element. */
 List<str> pattern_of(str address) {
     List<str> result = ["", ""];
     if (address.size() < 2) {
@@ -139,8 +139,8 @@ pub int line_of(List<str> lines, str address) {
     return -1;
 }
 
-/// The tags files `option` ('tags': comma separated; `./name` is relative to the directory of the current file,
-/// a trailing `;` after a name is Vim's upward search and is read as the plain name) for a file in `directory`.
+/** The tags files `option` ('tags': comma separated; `./name` is relative to the directory of the current file,
+ * a trailing `;` after a name is Vim's upward search and is read as the plain name) for a file in `directory`. */
 pub List<str> files_of(str option, str directory) {
     List<str> files = [];
     for (str part in option.split(",")) {

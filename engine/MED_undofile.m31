@@ -1,28 +1,28 @@
-// Persistent undo: the undo tree of an Editor as text, and back.
-//
-// API
+/* Persistent undo: the undo tree of an Editor as text, and back.
+ *
+ * API */
 // ---
-//   MED_undofile.encode(editor)          -> str   the whole undo tree plus a fingerprint of the buffer text
-//   MED_undofile.did_restore(editor, data)   -> bool  load a tree into a fresh editor when the fingerprint
-//                                                 matches the buffer text; false (editor untouched) otherwise
-//   MED_undofile.fingerprint(text)       -> str   size and two 32-bit FNV-1a lanes of `text`
-//   MED_undofile.file_name(path)         -> str   the state-directory file name for a buffer path
-//
-// The format is line oriented and has no native counterpart (nvim's undo files are
-// binary and version specific), so there is no oracle for it; tests/t_undofile.m31
-// checks the round trip. Strings are escaped (`\\`, `\n`, `\t`, `\r`) so a record is
-// one line and fields are tab separated.
-//
-//   m3undo 1
-//   fingerprint SIZE H1 H2
-//   current N
-//   saved N N N ...
-//   node SEQ PARENT REDO_CHILD BEFORE_ROW BEFORE_COL EDITS MARKS
-//   e ROW COL REMOVED INSERTED          (EDITS of them)
-//   m NAME ROW COL                      (MARKS of them)
-//
-// A tree whose text no longer matches the file is dropped, never applied: undoing
-// edits against a different text would corrupt the buffer.
+/*   MED_undofile.encode(editor)          -> str   the whole undo tree plus a fingerprint of the buffer text
+ *   MED_undofile.did_restore(editor, data)   -> bool  load a tree into a fresh editor when the fingerprint
+ *                                                 matches the buffer text; false (editor untouched) otherwise
+ *   MED_undofile.fingerprint(text)       -> str   size and two 32-bit FNV-1a lanes of `text`
+ *   MED_undofile.file_name(path)         -> str   the state-directory file name for a buffer path
+ *
+ * The format is line oriented and has no native counterpart (nvim's undo files are
+ * binary and version specific), so there is no oracle for it; tests/t_undofile.m31
+ * checks the round trip. Strings are escaped (`\\`, `\n`, `\t`, `\r`) so a record is
+ * one line and fields are tab separated.
+ *
+ *   m3undo 1
+ *   fingerprint SIZE H1 H2
+ *   current N
+ *   saved N N N ...
+ *   node SEQ PARENT REDO_CHILD BEFORE_ROW BEFORE_COL EDITS MARKS
+ *   e ROW COL REMOVED INSERTED          (EDITS of them)
+ *   m NAME ROW COL                      (MARKS of them)
+ *
+ * A tree whose text no longer matches the file is dropped, never applied: undoing
+ * edits against a different text would corrupt the buffer. */
 
 import engine.MED_buffer;
 import engine.MED_editor;
@@ -31,8 +31,8 @@ pub const str MAGIC = "m3undo 1";
 /// The most text an undo file may carry; a bigger tree is not written.
 pub const int MAX_BYTES = 8000000;
 
-/// The state-directory file for the buffer at absolute `path`: the path with `/` as `%`,
-/// as nvim names its undo files.
+/** The state-directory file for the buffer at absolute `path`: the path with `/` as `%`,
+ * as nvim names its undo files. */
 pub str file_name(str path) {
     return "undo/" + path.split("/").join("%");
 }
@@ -156,8 +156,8 @@ List<int> numbers(str line) {
     return out;
 }
 
-/// Load the tree in `data` into `editor`, whose buffer holds the text the tree was saved for. True when
-/// the tree was taken; false (and `editor` unchanged) for anything malformed or for other text.
+/** Load the tree in `data` into `editor`, whose buffer holds the text the tree was saved for. True when
+ * the tree was taken; false (and `editor` unchanged) for anything malformed or for other text. */
 pub bool did_restore(MED_editor.Editor editor, str data) {
     List<str> lines = data.split("\n");
     if (lines.size() < 5 || lines[0] != MAGIC || !lines[1].starts_with("fingerprint ")) {

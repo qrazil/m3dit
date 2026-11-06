@@ -1,24 +1,24 @@
-// The front end's keymap as data: leader sequences, the prefix help of g z [ ]
-// and CTRL-W, the command palette and the `?` help are all built from the same
-// rows, and docs/KEYMAP.md is generated from them (scripts/gen_keymap.sh), so
-// the documentation cannot drift from what the keys do.
-//
-// A row is a `Binding`:
-//   keys     the keys after <Space> for a leader row, the whole sequence for a
-//            prefix row ("" for a palette command that has no key)
-//   label    what which-key, the palette and the help show
-//   action   `picker:NAME` opens a picker, `ex:LINE` runs an ex line,
-//            `keys:NOTATION` feeds keys to the editor, `app:NAME` is a front-end
-//            action, `""` marks a group (a prefix such as `f`) or a note
-//   plugin   the built-in plugin that owns the row (MED_plugin); rows of a
-//            disabled plugin are not shown or run
-//   mode     "n" Normal, "x" Visual, "i" Insert
-//   source   "vim" a Vim/nvim default (the engine is checked against nvim),
-//            "config" mirrors the owner's nvim config, "m3" a built-in extra
-//
-// A group row only names a prefix: `("f", "+find", "")`. Everything else is a
-// leaf. `lookup` says whether what was typed is a leaf, a prefix of more keys,
-// or nothing.
+/* The front end's keymap as data: leader sequences, the prefix help of g z [ ]
+ * and CTRL-W, the command palette and the `?` help are all built from the same
+ * rows, and docs/KEYMAP.md is generated from them (scripts/gen_keymap.sh), so
+ * the documentation cannot drift from what the keys do.
+ *
+ * A row is a `Binding`:
+ *   keys     the keys after <Space> for a leader row, the whole sequence for a
+ *            prefix row ("" for a palette command that has no key)
+ *   label    what which-key, the palette and the help show
+ *   action   `picker:NAME` opens a picker, `ex:LINE` runs an ex line,
+ *            `keys:NOTATION` feeds keys to the editor, `app:NAME` is a front-end
+ *            action, `""` marks a group (a prefix such as `f`) or a note
+ *   plugin   the built-in plugin that owns the row (MED_plugin); rows of a
+ *            disabled plugin are not shown or run
+ *   mode     "n" Normal, "x" Visual, "i" Insert
+ *   source   "vim" a Vim/nvim default (the engine is checked against nvim),
+ *            "config" mirrors the owner's nvim config, "m3" a built-in extra
+ *
+ * A group row only names a prefix: `("f", "+find", "")`. Everything else is a
+ * leaf. `lookup` says whether what was typed is a leaf, a prefix of more keys,
+ * or nothing. */
 
 import ext.MED_ext;
 import tui.widgets.TUI_menu;
@@ -49,9 +49,9 @@ Binding visual_row(str source, str plugin, str keys, str label, str action) {
     return Binding(keys, label, action, plugin: plugin, mode: "x", source: source);
 }
 
-/// The leader tree (keys after <Space>) of a profile (docs/KEYMAP-REVIEW.md B1): `minimal` has none (bare vi, `<Space>`
-/// moves right), `default` is the tree of sane IDE keys, `nvim` and `legacy` are the tree of 0.21.0 (the `nvim` profile adds
-/// the owner's own maps on top, `engine/MED_profile.m31`).
+/** The leader tree (keys after <Space>) of a profile (docs/KEYMAP-REVIEW.md B1): `minimal` has none (bare vi, `<Space>`
+ * moves right), `default` is the tree of sane IDE keys, `nvim` and `legacy` are the tree of 0.21.0 (the `nvim` profile adds
+ * the owner's own maps on top, `engine/MED_profile.m31`). */
 pub List<Binding> defaults(str profile) {
     if (profile == "minimal") {
         return [];
@@ -66,8 +66,8 @@ void tree(List<Binding> rows, str plugin, str keys, str label, str action) {
     rows.push(Binding(keys, label, action, plugin: plugin, source: "m3"));
 }
 
-/// The `default` profile: docs/KEYMAP-REVIEW.md section 3.1 for the features m3 has (a key for a feature that is only planned
-/// is not listed). Plugin keys (harpoon, git hunks, todo) come from the plugins' `MapSpec`s.
+/** The `default` profile: docs/KEYMAP-REVIEW.md section 3.1 for the features m3 has (a key for a feature that is only planned
+ * is not listed). Plugin keys (harpoon, git hunks, todo) come from the plugins' `MapSpec`s. */
 List<Binding> default_rows() {
     List<Binding> rows = [];
     tree(rows, "finder", " ", "Find files", "picker:files");
@@ -251,8 +251,8 @@ pub List<Binding> commands() {
     return [Binding("", "Write file", "ex:write"), Binding("", "Write all buffers", "ex:wall"), Binding("", "Write and quit", "ex:wq"), Binding("", "Quit without saving", "ex:quit!"), Binding("", "New empty buffer", "ex:enew"), Binding("", "Undo", "ex:undo"), Binding("", "Redo", "ex:redo"), Binding("", "Show line numbers", "ex:set number"), Binding("", "Hide line numbers", "ex:set nonumber"), Binding("", "Clear search highlight", "ex:nohlsearch"), Binding("", "Reload the file", "ex:edit!"), Binding("", "Sort lines", "ex:sort"), Binding("", "First buffer", "ex:bfirst"), Binding("", "Last buffer", "ex:blast"), Binding("", "New window", "ex:new"), Binding("", "New window on the right", "ex:vnew"), Binding("", "List the built-in plugins", "ex:Plugins"), Binding("", "Pick a colour scheme (theme)", "picker:themes"), Binding("", "Browse every key", "ex:Keys"), Binding("", "Open the quickfix list", "picker:quickfix"), Binding("", "Open a terminal", "ex:terminal")];
 }
 
-// One prefix row as text: "SEQUENCE|label". A control key is spelled `^W` and
-// is a single character in the sequence.
+/* One prefix row as text: "SEQUENCE|label". A control key is spelled `^W` and
+ * is a single character in the sequence. */
 List<Binding> prefix_data(str plugin, str source, List<str> specs) {
     List<Binding> rows = [];
     for (str spec in specs) {
@@ -264,9 +264,9 @@ List<Binding> prefix_data(str plugin, str source, List<str> specs) {
     return rows;
 }
 
-/// The help of the multi-key prefixes of Normal mode: g, z, [, ], CTRL-W and
-/// the register / mark prefixes. The engine does the work; these rows only say
-/// what each next key is, for which-key and `:Keys`.
+/** The help of the multi-key prefixes of Normal mode: g, z, [, ], CTRL-W and
+ * the register / mark prefixes. The engine does the work; these rows only say
+ * what each next key is, for which-key and `:Keys`. */
 pub List<Binding> prefixes() {
     List<Binding> rows = [];
     for (Binding row in prefix_data("core", "vim", ["g :: +goto", "gg :: first line", "ge :: back to end of word", "gE :: back to end of WORD", "gi :: insert where insert stopped", "gI :: insert at column 1", "gJ :: join lines without a space", "gj :: down a screen line", "gk :: up a screen line", "g0 :: start of screen line", "g^ :: first non-blank of screen line", "g$ :: end of screen line", "gm :: middle of screen line", "gM :: middle of the text line", "go :: go to byte", "gp :: put after, cursor after", "gP :: put before, cursor after", "gq :: format lines", "gw :: format, keep cursor", "gu :: lowercase", "gU :: uppercase", "g~ :: swap case", "g? :: rot13", "gv :: reselect visual", "g; :: older change position", "g, :: newer change position", "ga :: ascii of character", "g8 :: utf-8 bytes of character", "gf :: edit file under cursor", "gn :: search match as selection", "gN :: previous match as selection", "g& :: repeat :s on all lines", "g_ :: last non-blank", "g- :: older text state", "g+ :: newer text state", "g* :: search word, no boundaries", "g# :: search word backwards, no boundaries", "gR :: virtual replace mode", "gs :: sleep"])) {
@@ -330,9 +330,9 @@ pub List<Binding> notes() {
     return [Binding("jk", "Insert mode: leave to Normal mode (:set nojk_escape turns it off)", "", plugin: "core", mode: "i", source: "config", is_full: true), Binding("<Space>", "Normal mode: leader key", "", source: "config", is_full: true), Binding("<C-^>", "Normal mode: alternate buffer", "", source: "vim", is_full: true), Binding("<A-j>/<A-k>", "Normal and Visual: move the line or selection down / up", "", plugin: "move", is_full: true), Binding("<A-h>/<A-l>", "Normal and Visual: shift the line or selection left / right", "", plugin: "move", is_full: true), Binding("<C-q>", "Picker: send the marked (or all) entries to the quickfix list", "", plugin: "finder", is_full: true), Binding("<C-t>", "Picker: mark or unmark the entry", "", plugin: "finder", is_full: true), Binding("<Tab>", "Insert and Select mode: jump to the next snippet tabstop (an active snippet; nvim 0.11's default)", "", mode: "i", source: "vim", is_full: true), Binding("<S-Tab>", "Insert and Select mode: jump to the previous snippet tabstop (Insert mode types a Tab otherwise, as nvim does)", "", mode: "i", source: "vim", is_full: true), Binding("<Tab>", "Insert mode: expand the snippet whose prefix stands before the cursor (snippets.json, VS Code format, next to the keymap file)", "", mode: "i", is_full: true), Binding("<C-Space>", "Insert mode: ask the language server for completions (a picker; with :set lspcomplete=auto the popup)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<Tab>/<C-n>/<Down>", "Insert mode, completion popup open: select the next item (past the last one nothing is selected)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<S-Tab>/<C-p>/<Up>", "Insert mode, completion popup open: select the previous item", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<C-y>/<CR>", "Insert mode, completion popup open: accept the selected item (<CR> with nothing selected is a line break)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("<C-e>", "Insert mode, completion popup open: close it and keep what was typed (<Esc> closes it and leaves Insert mode)", "", plugin: "lsp", mode: "i", source: "m3", is_full: true), Binding("Select", "Select mode (after a jump onto a placeholder): a typed character or <CR> replaces it, <BS> and <Del> remove it, <Esc> leaves, <C-g> turns it into Visual mode", "", mode: "i", source: "vim", is_full: true)];
 }
 
-/// Whether `typed` names a leaf, a prefix of longer sequences, or nothing.
-/// A sequence that is both a leaf and a prefix counts as a leaf. Rows whose
-/// mode is not `mode` are not considered.
+/** Whether `typed` names a leaf, a prefix of longer sequences, or nothing.
+ * A sequence that is both a leaf and a prefix counts as a leaf. Rows whose
+ * mode is not `mode` are not considered. */
 pub int lookup(List<Binding> table, str typed, str mode = "n") {
     int found = NO_BINDING;
     for (Binding row in table) {
@@ -382,8 +382,8 @@ pub str shown_keys(str keys) {
     return out;
 }
 
-/// What each key that can follow `typed` does, for which-key: a leaf shows its
-/// label, a group its `+name` (or `+more`).
+/** What each key that can follow `typed` does, for which-key: a leaf shows its
+ * label, a group its `+name` (or `+more`). */
 pub List<TUI_menu.Item> next_items(List<Binding> table, str typed, str mode = "n") {
     List<str> keys = [];
     List<str> labels = [];
@@ -444,9 +444,9 @@ bool has_group_member(MED_ext.Registry registry, str prefix) {
     return false;
 }
 
-/// The keys of the compiled plugins as rows, from their `MapSpec`s and group labels (so `:Keys`, the command palette
-/// and docs/KEYMAP.md list them like the core's own). A leader key (`<Space>ha`) is relative to `<Space>` as the core's
-/// rows are; the others are whole sequences. A plugin that is off leaves its rows out.
+/** The keys of the compiled plugins as rows, from their `MapSpec`s and group labels (so `:Keys`, the command palette
+ * and docs/KEYMAP.md list them like the core's own). A leader key (`<Space>ha`) is relative to `<Space>` as the core's
+ * rows are; the others are whole sequences. A plugin that is off leaves its rows out. */
 pub List<Binding> plugin_rows(MED_ext.Registry registry) {
     List<Binding> rows = [];
     for (MED_ext.GroupEntry group in registry.groups) {

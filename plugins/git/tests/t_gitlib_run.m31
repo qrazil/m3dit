@@ -1,18 +1,18 @@
-// The m3 half of the git oracle (tests/oracles/oracle_git.py): the library calls and the App's git commands,
-// run on repositories the python driver built with real `git`.
-//
-// Usage (the current directory is a repository, PWD set by the driver):
-//
-//   t_gitlib_run base FILE            MEDX_git_hunk.head_lines: the gutter's base, or NONE
-//   t_gitlib_run libbase FILE         the library alone: LINES..., UNTRACKED or FAILED
-//   t_gitlib_run blame FILE           one commit id per line of HEAD's file (empty for none)
-//   t_gitlib_run log FILE [FROM TO]   commit ids, newest first (the line range as `git log -L`)
-//   t_gitlib_run show REV             MEDX_git_lib.show_lines, or NONE
-//   t_gitlib_run diff WHAT            MEDX_git_lib.diff_lines (working, index, head), or NONE
-//   t_gitlib_run app FILE KEYS        open FILE in the App, type KEYS (Enter is \r, Escape \x1b, a render
-//                                     after every key), print the notice, list entries, overlay and buffer
-//
-// Every output line starts with a tag and a tab, so the driver can compare without guessing.
+/* The m3 half of the git oracle (tests/oracles/oracle_git.py): the library calls and the App's git commands,
+ * run on repositories the python driver built with real `git`.
+ *
+ * Usage (the current directory is a repository, PWD set by the driver):
+ *
+ *   t_gitlib_run base FILE            MEDX_git_hunk.head_lines: the gutter's base, or NONE
+ *   t_gitlib_run libbase FILE         the library alone: LINES..., UNTRACKED or FAILED
+ *   t_gitlib_run blame FILE           one commit id per line of HEAD's file (empty for none)
+ *   t_gitlib_run log FILE [FROM TO]   commit ids, newest first (the line range as `git log -L`)
+ *   t_gitlib_run show REV             MEDX_git_lib.show_lines, or NONE
+ *   t_gitlib_run diff WHAT            MEDX_git_lib.diff_lines (working, index, head), or NONE
+ *   t_gitlib_run app FILE KEYS        open FILE in the App, type KEYS (Enter is \r, Escape \x1b, a render
+ *                                     after every key), print the notice, list entries, overlay and buffer
+ *
+ * Every output line starts with a tag and a tab, so the driver can compare without guessing. */
 
 import fs;
 import io;

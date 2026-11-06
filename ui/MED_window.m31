@@ -1,29 +1,29 @@
-// Windows: the layout tree and the geometry of the split screen.
-//
-// A tree whose leaves are windows and whose branches hold their children side
-// by side (`is_vertical`, made by :vsplit) or one above the other (:split).
-// Every window has its own status line as its last row, so stacked windows
-// need no separator; windows side by side are parted by a one-column
-// separator, which belongs to the frame of the window on its left.
-//
-// The sizes follow nvim's frame model (window.c): every node keeps the size
-// it was given (`width` and `height` include the separator and the status
-// line), and the operations that change the layout did_resize frames the way nvim
-// does: a split halves the window and then equalizes ('equalalways', the
-// current window first and at least 'winwidth' wide), a close gives the space
-// to the neighbour and equalizes, `:did_resize` takes the room from the frames
-// after the window and then before it, a change of the screen size shrinks
-// the last frames first and gives extra room to the last one. The differential
-// test against nvim is tests/oracles/oracle_windows.py.
-//
-// Pure data and arithmetic, no terminal: the front end (MED_app) owns the
-// buffers and asks this module where everything goes.
+/* Windows: the layout tree and the geometry of the split screen.
+ *
+ * A tree whose leaves are windows and whose branches hold their children side
+ * by side (`is_vertical`, made by :vsplit) or one above the other (:split).
+ * Every window has its own status line as its last row, so stacked windows
+ * need no separator; windows side by side are parted by a one-column
+ * separator, which belongs to the frame of the window on its left.
+ *
+ * The sizes follow nvim's frame model (window.c): every node keeps the size
+ * it was given (`width` and `height` include the separator and the status
+ * line), and the operations that change the layout did_resize frames the way nvim
+ * does: a split halves the window and then equalizes ('equalalways', the
+ * current window first and at least 'winwidth' wide), a close gives the space
+ * to the neighbour and equalizes, `:did_resize` takes the room from the frames
+ * after the window and then before it, a change of the screen size shrinks
+ * the last frames first and gives extra room to the last one. The differential
+ * test against nvim is tests/oracles/oracle_windows.py.
+ *
+ * Pure data and arithmetic, no terminal: the front end (MED_app) owns the
+ * buffers and asks this module where everything goes. */
 
 import engine.MED_text;
 
-/// One window: the buffer it shows and, while it is not the active window,
-/// where its cursor and view are. (The active window's own values live in the
-/// editor and are stored back here whenever the front end saves its state.)
+/** One window: the buffer it shows and, while it is not the active window,
+ * where its cursor and view are. (The active window's own values live in the
+ * editor and are stored back here whenever the front end saves its state.) */
 pub type Win {
     pub int id;
     pub int buffer_id;
@@ -33,9 +33,9 @@ pub type Win {
     pub int left_column = 0;
 }
 
-/// A leaf (`win_id` > 0) or a branch (`kids`). `width` and `height` are the
-/// size of the frame: a leaf's include its status line row and, unless it is
-/// at the right edge of the screen, the separator column. 0 until placed.
+/** A leaf (`win_id` > 0) or a branch (`kids`). `width` and `height` are the
+ * size of the frame: a leaf's include its status line row and, unless it is
+ * at the right edge of the screen, the separator column. 0 until placed. */
 pub type Node {
     pub int win_id = 0;
     pub bool is_vertical = false;
@@ -45,8 +45,8 @@ pub type Node {
     int tag = 0;
 }
 
-/// A rectangle of the screen for window `win_id` (0 for a separator). A
-/// window's height includes its status line row.
+/** A rectangle of the screen for window `win_id` (0 for a separator). A
+ * window's height includes its status line row. */
 pub type Placed {
     pub int win_id;
     pub int x;
@@ -64,8 +64,8 @@ pub const int GO_LEFT = 104;
 pub const int GO_DOWN = 106;
 pub const int GO_UP = 107;
 pub const int GO_RIGHT = 108;
-// nvim's 'winwidth' (the least width of the current window while equalizing),
-// 'winminwidth', 'winheight' and 'winminheight'.
+/* nvim's 'winwidth' (the least width of the current window while equalizing),
+ * 'winminwidth', 'winheight' and 'winminheight'. */
 const int WIN_WIDTH = 20;
 const int WIN_MIN_WIDTH = 1;
 const int WIN_HEIGHT = 1;
@@ -117,9 +117,9 @@ int first_leaf(Node node) {
 
 // ------------------------------------------------------------------ minimums
 
-// The least width of a frame; the window `current` counts 'winwidth' (0: none
-// does). `is_edge`: the frame touches the right edge of the screen, so its
-// windows have no separator.
+/* The least width of a frame; the window `current` counts 'winwidth' (0: none
+ * does). `is_edge`: the frame touches the right edge of the screen, so its
+ * windows have no separator. */
 int min_width(Node node, int current, bool is_edge) {
     if (is_leaf(node)) {
         int own = WIN_MIN_WIDTH;
@@ -168,9 +168,9 @@ int min_height(Node node, int current) {
 
 // ------------------------------------------------------------------ resizing
 
-// nvim's frame_new_height: give the frame `height`; a column of frames
-// changes its bottom frame first (its top one when `is_top_first`), shrinking
-// the frames above when that one is at its least.
+/* nvim's frame_new_height: give the frame `height`; a column of frames
+ * changes its bottom frame first (its top one when `is_top_first`), shrinking
+ * the frames above when that one is at its least. */
 void new_height(Node node, int height, bool is_top_first) {
     int wanted = height;
     if (!is_leaf(node)) {
@@ -220,8 +220,8 @@ void new_height(Node node, int height, bool is_top_first) {
     node.height = wanted;
 }
 
-// nvim's frame_new_width (see new_height); the last frame of a row gives up
-// its separator when it is the one at the right edge.
+/* nvim's frame_new_width (see new_height); the last frame of a row gives up
+ * its separator when it is the one at the right edge. */
 void new_width(Node node, int width, bool is_left_first, bool is_edge) {
     int wanted = width;
     if (!is_leaf(node)) {
@@ -272,11 +272,11 @@ void new_width(Node node, int width, bool is_left_first, bool is_edge) {
     node.width = wanted;
 }
 
-// nvim's win_equal_rec: size the frames of `node` equally ('b' both
-// directions, 'h' widths only, 'v' heights only). The frame holding
-// `current_id` is sized first and at least 'winwidth' wide; `is_current`
-// (only the frame that was split or closed) skips the frames whose size does
-// not change.
+/* nvim's win_equal_rec: size the frames of `node` equally ('b' both
+ * directions, 'h' widths only, 'v' heights only). The frame holding
+ * `current_id` is sized first and at least 'winwidth' wide; `is_current`
+ * (only the frame that was split or closed) skips the frames whose size does
+ * not change. */
 void equal_into(Node node, int current_id, bool is_current, bool is_top, str direction, int width, int height, bool is_edge) {
     if (is_leaf(node)) {
         node.width = width;
@@ -422,19 +422,19 @@ void equal_tree(Node root, int current_id, bool is_current, str direction) {
     equal_into(root, current_id, is_current, true, direction, root.width, root.height, true);
 }
 
-/// `CTRL-W =`: every window shares the space equally again; `current_id`, the
-/// active window, gets the odd cells.
+/** `CTRL-W =`: every window shares the space equally again; `current_id`, the
+ * active window, gets the odd cells. */
 pub void equalize(Node root, int current_id) {
     equal_tree(root, current_id, false, "b");
 }
 
 // ------------------------------------------------------------------ geometry
 
-/// Fit the tree to an area of `width` x `height` cells whose top left is
-/// (`x`, `y`), then say where each window and separator goes. The sizes the
-/// tree has are kept; a tree that is new takes the area, and one whose area
-/// changed (the terminal was resized) shrinks its last frames first and gives
-/// extra room to the last one, as nvim does.
+/** Fit the tree to an area of `width` x `height` cells whose top left is
+ * (`x`, `y`), then say where each window and separator goes. The sizes the
+ * tree has are kept; a tree that is new takes the area, and one whose area
+ * changed (the terminal was resized) shrinks its last frames first and gives
+ * extra room to the last one, as nvim does. */
 pub Layout place(Node root, int x, int y, int width, int height) {
     if (root.width == 0 || root.height == 0) {
         if (is_leaf(root)) {
@@ -503,8 +503,8 @@ pub int window_at(Layout layout, int x, int y) {
 
 // ------------------------------------------------------------------ paths
 
-// The nodes from `node` down to window `id` (empty when there is none) and,
-// for each but the first, its index in its parent.
+/* The nodes from `node` down to window `id` (empty when there is none) and,
+ * for each but the first, its index in its parent. */
 bool did_find_chain(Node node, int id, List<Node> nodes, List<int> indexes) {
     nodes.push(node);
     if (is_leaf(node)) {
@@ -538,8 +538,8 @@ bool is_chain_edge(List<Node> nodes, List<int> indexes, int depth) {
 
 // ------------------------------------------------------------------ splitting
 
-/// Whether window `target` can be split (nvim's E36 test): its frame, and the
-/// frames beside it up the tree, must keep their least sizes.
+/** Whether window `target` can be split (nvim's E36 test): its frame, and the
+ * frames beside it up the tree, must keep their least sizes. */
 pub bool can_split(Node root, int target, bool is_vertical) {
     List<Node> nodes = [];
     List<int> indexes = [];
@@ -578,9 +578,9 @@ pub bool can_split(Node root, int target, bool is_vertical) {
     return root.height >= WIN_MIN_HEIGHT + 1 + 1 + minimum;
 }
 
-/// Split the window `target`: the new window `new_id` goes before it (left or
-/// above) or, when `is_after`, after it, and becomes the one the space is
-/// shared for. Returns the new root.
+/** Split the window `target`: the new window `new_id` goes before it (left or
+ * above) or, when `is_after`, after it, and becomes the one the space is
+ * shared for. Returns the new root. */
 pub Node split(Node root, int target, int new_id, bool is_vertical, bool is_after) {
     List<Node> nodes = [];
     List<int> indexes = [];
@@ -591,8 +591,8 @@ pub Node split(Node root, int target, int new_id, bool is_vertical, bool is_afte
     Node old = nodes[depth];
     bool is_edge = is_chain_edge(nodes, indexes, depth);
     bool is_sized = root.width > 0 && root.height > 0;
-    // 'equalalways' shares the space out again only when the halves do not
-    // fit, or one of the other windows of the branch is bigger than a half
+    /* 'equalalways' shares the space out again only when the halves do not
+     * fit, or one of the other windows of the branch is bigger than a half */
     bool is_equal = false;
     // the new window's frame and what is left of the old one
     Node fresh = leaf(new_id);
@@ -751,8 +751,8 @@ List<Node> pair(Node old, Node added, bool is_after) {
 
 // ------------------------------------------------------------------ closing
 
-/// The window that takes over when `id` closes (nvim: the first window of the
-/// frame before it, or after it for the first frame); 0 for the only window.
+/** The window that takes over when `id` closes (nvim: the first window of the
+ * frame before it, or after it for the first frame); 0 for the only window. */
 pub int successor(Node root, int id) {
     List<Node> nodes = [];
     List<int> indexes = [];
@@ -767,9 +767,9 @@ pub int successor(Node root, int id) {
     return first_leaf(parent.kids[position - 1]);
 }
 
-// Take window `id` out of the tree, handing its space to the neighbour.
-// Returns the direction the space went ("v" for a column, "h" for a row) and
-// leaves the branch it left in `left_branch` (tagged) for the caller.
+/* Take window `id` out of the tree, handing its space to the neighbour.
+ * Returns the direction the space went ("v" for a column, "h" for a row) and
+ * leaves the branch it left in `left_branch` (tagged) for the caller. */
 str remove_window(Node root, int id) {
     List<Node> nodes = [];
     List<int> indexes = [];
@@ -799,9 +799,9 @@ str remove_window(Node root, int id) {
     return "v";
 }
 
-/// Remove window `id`; its space goes to its neighbour and the windows are
-/// shared out again around `focus`, the window that becomes the active one.
-/// Returns the new root (the same root when `id` is the only window).
+/** Remove window `id`; its space goes to its neighbour and the windows are
+ * shared out again around `focus`, the window that becomes the active one.
+ * Returns the new root (the same root when `id` is the only window). */
 pub Node without(Node root, int id, int focus) {
     if (is_leaf(root)) {
         return root;
@@ -811,8 +811,8 @@ pub Node without(Node root, int id, int focus) {
         return root;
     }
     Node result = normalized(root);
-    // only the frame that lost the window is shared out again when the new
-    // active window is directly in it
+    /* only the frame that lost the window is shared out again when the new
+     * active window is directly in it */
     bool is_current = false;
     List<Node> nodes = [];
     List<int> indexes = [];
@@ -839,8 +839,8 @@ pub Node only(Node root, int id) {
     return one;
 }
 
-/// Branches with one child collapse into it; a branch inside a branch of the
-/// same direction is merged into it; empty branches vanish.
+/** Branches with one child collapse into it; a branch inside a branch of the
+ * same direction is merged into it; empty branches vanish. */
 Node normalized(Node node) {
     if (is_leaf(node)) {
         return node;
@@ -866,8 +866,8 @@ Node normalized(Node node) {
         only_kid.width = node.width;
         only_kid.height = node.height;
         if (node.tag == -1 && !is_leaf(only_kid)) {
-            // nvim moves the only child into the parent's frame: the branch
-            // that lost a window stays "the frame that was closed in"
+            /* nvim moves the only child into the parent's frame: the branch
+             * that lost a window stays "the frame that was closed in" */
             only_kid.tag = -1;
         }
         return only_kid;
@@ -875,9 +875,9 @@ Node normalized(Node node) {
     return node;
 }
 
-/// One tab page: the windows and layout it had when it was left, and which
-/// window was active (the active tab page's own live values are in the front
-/// end and are stored back here whenever it leaves the page).
+/** One tab page: the windows and layout it had when it was left, and which
+ * window was active (the active tab page's own live values are in the front
+ * end and are stored back here whenever it leaves the page). */
 pub type Page {
     pub List<Win> wins = [];
     pub Node layout = Node();
@@ -885,8 +885,8 @@ pub type Page {
     pub int previous_win = 0;
 }
 
-/// The window next to `active` in direction `direction` (GO_LEFT, GO_DOWN, GO_UP, GO_RIGHT) as
-/// seen from the screen cell (`ref_x`, `ref_y`), or 0 when there is none.
+/** The window next to `active` in direction `direction` (GO_LEFT, GO_DOWN, GO_UP, GO_RIGHT) as
+ * seen from the screen cell (`ref_x`, `ref_y`), or 0 when there is none. */
 pub int neighbor(Layout layout, int active, int direction, int ref_x, int ref_y) {
     Placed here = placed_of(layout, active);
     int best = 0;
@@ -939,8 +939,8 @@ pub int neighbor(Layout layout, int active, int direction, int ref_x, int ref_y)
 
 // ------------------------------------------------------------------ did_resize
 
-// nvim's frame_setheight: give the frame at `depth` of the chain `height`
-// rows, taking them from the frames after it and then before it.
+/* nvim's frame_setheight: give the frame at `depth` of the chain `height`
+ * rows, taking them from the frames after it and then before it. */
 void set_frame_height(Node root, List<Node> nodes, List<int> indexes, int depth, int height) {
     Node current = nodes[depth];
     int wanted = height;
@@ -1004,8 +1004,8 @@ void set_frame_height(Node root, List<Node> nodes, List<int> indexes, int depth,
     }
 }
 
-// nvim's frame_setwidth (the same with columns; a window cannot change the
-// width of the whole screen).
+/* nvim's frame_setwidth (the same with columns; a window cannot change the
+ * width of the whole screen). */
 void set_frame_width(Node root, List<Node> nodes, List<int> indexes, int depth, int width) {
     if (depth == 0) {
         return;
@@ -1066,9 +1066,9 @@ void set_frame_width(Node root, List<Node> nodes, List<int> indexes, int depth, 
     }
 }
 
-/// Give window `id` the height (or, `is_vertical`, the width) `size` cells of
-/// text, as far as the other windows allow (`:did_resize`, CTRL-W _ | + - < >).
-/// False when there is no such window.
+/** Give window `id` the height (or, `is_vertical`, the width) `size` cells of
+ * text, as far as the other windows allow (`:did_resize`, CTRL-W _ | + - < >).
+ * False when there is no such window. */
 pub bool did_resize(Node root, int id, int size, bool is_vertical) {
     List<Node> nodes = [];
     List<int> indexes = [];
@@ -1135,10 +1135,10 @@ Node parent_of(Node node, int id) {
     return Node();
 }
 
-// Put the kids of `parent` in a new order: position `position` gets the kid
-// that was at `from[position]`. Each window keeps its size; in a row the text
-// width travels and the separator column stays at the position (the last
-// window of a row at the screen edge has none).
+/* Put the kids of `parent` in a new order: position `position` gets the kid
+ * that was at `from[position]`. Each window keeps its size; in a row the text
+ * width travels and the separator column stays at the position (the last
+ * window of a row at the screen edge has none). */
 void reorder(Node root, int id, Node parent, List<int> from) {
     int count = parent.kids.size();
     List<Node> turned = [];
@@ -1171,9 +1171,9 @@ void reorder(Node root, int id, Node parent, List<int> from) {
     parent.kids = turned;
 }
 
-/// `CTRL-W x`: swap window `id` with the next one in its branch (the previous
-/// one when it is the last); each keeps its size. Returns the id of the other
-/// window, or 0.
+/** `CTRL-W x`: swap window `id` with the next one in its branch (the previous
+ * one when it is the last); each keeps its size. Returns the id of the other
+ * window, or 0. */
 pub int exchange(Node root, int id) {
     Node parent = parent_of(root, id);
     if (parent.kids.size() < 2) {
@@ -1203,9 +1203,9 @@ pub int exchange(Node root, int id) {
     return partner.win_id;
 }
 
-/// `CTRL-W r` (`is_down`) and `CTRL-W R`: rotate the windows of the branch
-/// that holds `id`; each keeps its own size. False when a kid is not a plain
-/// window.
+/** `CTRL-W r` (`is_down`) and `CTRL-W R`: rotate the windows of the branch
+ * that holds `id`; each keeps its own size. False when a kid is not a plain
+ * window. */
 pub bool did_rotate(Node root, int id, bool is_down) {
     Node parent = parent_of(root, id);
     if (parent.kids.size() < 2) {
@@ -1229,8 +1229,8 @@ pub bool did_rotate(Node root, int id, bool is_down) {
     return true;
 }
 
-/// `CTRL-W H J K L`: window `id` becomes a full height / width window at an
-/// edge (nvim's win_totop). Returns the new root.
+/** `CTRL-W H J K L`: window `id` becomes a full height / width window at an
+ * edge (nvim's win_totop). Returns the new root. */
 pub Node moved_to_edge(Node root, int id, int direction) {
     if (is_leaf(root)) {
         return root;
@@ -1344,8 +1344,8 @@ pub Node moved_to_edge(Node root, int id, int direction) {
     return result;
 }
 
-/// The tab page whose label the column `x` of the tab line falls on, or -1. The labels are drawn as ` label ` one
-/// after the other from column 0 (MED_app.draw_tabline); one the line has no room for is not drawn, so not hit.
+/** The tab page whose label the column `x` of the tab line falls on, or -1. The labels are drawn as ` label ` one
+ * after the other from column 0 (MED_app.draw_tabline); one the line has no room for is not drawn, so not hit. */
 pub int tab_at(List<str> labels, int width, int x) {
     int start = 0;
     for (int index in 0 .. labels.size()) {

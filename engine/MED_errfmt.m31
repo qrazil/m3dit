@@ -1,11 +1,11 @@
-// Compiler and grep output as quickfix places (`:make`, `:grep`).
-//
-// The formats understood are the ones every common tool prints: `FILE:LINE:COL: TEXT`, `FILE:LINE: TEXT` and
-// `FILE(LINE,COL): TEXT` / `FILE(LINE): TEXT`. Anything else (a banner, a summary) is not a place and is left out.
-//
-//   MED_errfmt.Place               file, 1-based line, 1-based column (0 when the line has none) and the text
-//   MED_errfmt.parse(lines)        the places of the lines, in order
-//   MED_errfmt.command_of(program, arguments)  `program` with `$*` replaced by `arguments` (or `arguments` appended)
+/* Compiler and grep output as quickfix places (`:make`, `:grep`).
+ *
+ * The formats understood are the ones every common tool prints: `FILE:LINE:COL: TEXT`, `FILE:LINE: TEXT` and
+ * `FILE(LINE,COL): TEXT` / `FILE(LINE): TEXT`. Anything else (a banner, a summary) is not a place and is left out.
+ *
+ *   MED_errfmt.Place               file, 1-based line, 1-based column (0 when the line has none) and the text
+ *   MED_errfmt.parse(lines)        the places of the lines, in order
+ *   MED_errfmt.command_of(program, arguments)  `program` with `$*` replaced by `arguments` (or `arguments` appended) */
 
 pub type Place {
     pub str file = "";

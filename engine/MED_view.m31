@@ -1,9 +1,9 @@
-// The window onto the buffer: which lines are shown, and the commands that
-// move it (CTRL-E CTRL-Y CTRL-D CTRL-U CTRL-F CTRL-B and the z family).
-//
-// This follows Vim's update_topline, scroll_cursor_halfway and pagescroll,
-// with lines that wrap ('wrap' and `view_width`) and with 'scrolloff' 0. The editor keeps `view_top` and `view_height`; the UI sets
-// the height and calls `update` after each key so the cursor stays visible.
+/* The window onto the buffer: which lines are shown, and the commands that
+ * move it (CTRL-E CTRL-Y CTRL-D CTRL-U CTRL-F CTRL-B and the z family).
+ *
+ * This follows Vim's update_topline, scroll_cursor_halfway and pagescroll,
+ * with lines that wrap ('wrap' and `view_width`) and with 'scrolloff' 0. The editor keeps `view_top` and `view_height`; the UI sets
+ * the height and calls `update` after each key so the cursor stays visible. */
 
 import engine.MED_autofold;
 import engine.MED_editor;
@@ -54,8 +54,8 @@ int shown_rows(MED_editor.Editor editor, int row) {
     return rows;
 }
 
-/// Vim's w_botline (0-based): the first line that is not completely shown,
-/// or the line count when the window reaches the end of the buffer.
+/** Vim's w_botline (0-based): the first line that is not completely shown,
+ * or the line count when the window reaches the end of the buffer. */
 pub int bottom(MED_editor.Editor editor) {
     int used = 0;
     int row = editor.view_top;
@@ -74,8 +74,8 @@ pub int bottom(MED_editor.Editor editor) {
     return count;
 }
 
-/// 'scrolloff': the lines kept above and below the cursor (a value past what
-/// the window holds centres the cursor line, as in Vim).
+/** 'scrolloff': the lines kept above and below the cursor (a value past what
+ * the window holds centres the cursor line, as in Vim). */
 pub int margin(MED_editor.Editor editor) {
     int wanted = editor.option_number("scrolloff", 0);
     if (wanted <= 0) {
@@ -106,9 +106,9 @@ void to_row(MED_editor.Editor editor, int row) {
     editor.col = editor.col_for_want(row, editor.want, editor.mode == MED_editor.VISUAL);
 }
 
-/// Vim's scroll_cursor_halfway: put the cursor line in the middle. `is_at_end`
-/// (zz) counts the empty rows past the end of the buffer as used;
-/// `is_prefer_above` (scrolling down to the cursor) puts the extra row above it.
+/** Vim's scroll_cursor_halfway: put the cursor line in the middle. `is_at_end`
+ * (zz) counts the empty rows past the end of the buffer as used;
+ * `is_prefer_above` (scrolling down to the cursor) puts the extra row above it. */
 pub void center(MED_editor.Editor editor, bool is_at_end, bool is_prefer_above) {
     int last = editor.buffer.line_count() - 1;
     int row = editor.row;
@@ -153,10 +153,10 @@ pub void center(MED_editor.Editor editor, bool is_at_end, bool is_prefer_above) 
     editor.view_top = top;
 }
 
-// Vim's scroll_cursor_bot: scroll just far enough to put the cursor line at
-// the bottom with 'scrolloff' lines below it, or centre it when that would
-// take a screenful. `is_set_topbot` (zb) starts from a window that ends at the
-// cursor line instead of the current one.
+/* Vim's scroll_cursor_bot: scroll just far enough to put the cursor line at
+ * the bottom with 'scrolloff' lines below it, or centre it when that would
+ * take a screenful. `is_set_topbot` (zb) starts from a window that ends at the
+ * cursor line instead of the current one. */
 void scroll_to_bottom(MED_editor.Editor editor, int min_scroll, bool is_set_topbot) {
     int last = editor.buffer.line_count() - 1;
     int height = editor.view_height;
@@ -253,8 +253,8 @@ void scroll_to_bottom(MED_editor.Editor editor, int min_scroll, bool is_set_topb
     }
 }
 
-// Vim's scroll_cursor_top: put the cursor line near the top with 'scrolloff'
-// lines above it (zt). `is_always` moves the window down as well as up.
+/* Vim's scroll_cursor_top: put the cursor line near the top with 'scrolloff'
+ * lines above it (zt). `is_always` moves the window down as well as up. */
 void scroll_to_top(MED_editor.Editor editor, int min_scroll, bool is_always) {
     int height = editor.view_height;
     int keep = margin(editor);
@@ -296,8 +296,8 @@ void scroll_to_top(MED_editor.Editor editor, int min_scroll, bool is_always) {
     }
 }
 
-// With 'wrap' a line can take several rows: scroll further until the cursor
-// line is in the window.
+/* With 'wrap' a line can take several rows: scroll further until the cursor
+ * line is in the window. */
 void fit_wrapped(MED_editor.Editor editor) {
     if (!editor.is_option_on("wrap", true) || editor.view_width < 1) {
         return;
@@ -312,9 +312,9 @@ void fit_wrapped(MED_editor.Editor editor) {
     }
 }
 
-/// Vim's curs_columns for 'nowrap': scroll sideways until the cursor is in
-/// the window, with 'sidescrolloff' columns to spare and 'sidescroll' columns
-/// per step (0, or a far jump: the cursor goes to the middle).
+/** Vim's curs_columns for 'nowrap': scroll sideways until the cursor is in
+ * the window, with 'sidescrolloff' columns to spare and 'sidescroll' columns
+ * per step (0, or a far jump: the cursor goes to the middle). */
 pub void horizontal(MED_editor.Editor editor) {
     if (editor.is_option_on("wrap", true)) {
         editor.view_left = 0;
@@ -365,13 +365,13 @@ pub void horizontal(MED_editor.Editor editor) {
     editor.view_left = target;
 }
 
-/// Vim's update_topline: scroll just enough to show the cursor line, or
-/// centre it when it is far away.
+/** Vim's update_topline: scroll just enough to show the cursor line, or
+ * centre it when it is far away. */
 pub void update(MED_editor.Editor editor) {
     MED_autofold.sync(editor);
     if (editor.folds.size() > 0 && !editor.is_fold_off) {
-        // the cursor is on the first line of a closed fold as far as the window
-        // is concerned, and the window starts at one
+        /* the cursor is on the first line of a closed fold as far as the window
+         * is concerned, and the window starts at one */
         int saved_row = editor.row;
         int start = editor.fold_start_of(editor.row);
         if (start >= 0) {
@@ -412,8 +412,8 @@ void update_view(MED_editor.Editor editor) {
     mark_valid(editor);
 }
 
-// The cursor on the top line must be on a row that shows (nvim's scrollup
-// with 'smoothscroll'): the wanted column moves into the visible rows.
+/* The cursor on the top line must be on a row that shows (nvim's scrollup
+ * with 'smoothscroll'): the wanted column moves into the visible rows. */
 void show_cursor_in_top(MED_editor.Editor editor) {
     int skip = top_skip(editor);
     if (skip == 0 || editor.row != editor.view_top || editor.view_width < 1) {
@@ -481,8 +481,8 @@ void update_lines(MED_editor.Editor editor) {
     }
 }
 
-/// Vim's cursor_correct for the row `row`: the row moved inside the window
-/// by the 'scrolloff' lines (fewer at the start and end of the buffer).
+/** Vim's cursor_correct for the row `row`: the row moved inside the window
+ * by the 'scrolloff' lines (fewer at the start and end of the buffer). */
 pub int corrected_row(MED_editor.Editor editor, int row) {
     int keep = editor.option_number("scrolloff", 0);
     int count = editor.buffer.line_count();
@@ -534,9 +534,9 @@ pub int corrected_row(MED_editor.Editor editor, int row) {
     return result;
 }
 
-// The window position is right for the cursor as it is (Vim's VALID_TOPLINE):
-// it is checked again only when the cursor line, the text or the window size
-// changes.
+/* The window position is right for the cursor as it is (Vim's VALID_TOPLINE):
+ * it is checked again only when the cursor line, the text or the window size
+ * changes. */
 void mark_valid(MED_editor.Editor editor) {
     editor.view_valid_row = editor.row;
     editor.view_valid_text = editor.current;
@@ -556,8 +556,8 @@ pub void cursor_correct(MED_editor.Editor editor) {
     mark_valid(editor);
 }
 
-/// Scroll the window `count` lines (up: the text moves up, CTRL-E). Returns
-/// whether it moved. The cursor is not touched.
+/** Scroll the window `count` lines (up: the text moves up, CTRL-E). Returns
+ * whether it moved. The cursor is not touched. */
 pub bool did_scroll_window(MED_editor.Editor editor, bool is_upward, int count) {
     int before = editor.view_top;
     if (editor.folds.size() > 0 && !editor.is_fold_off) {
@@ -655,9 +655,9 @@ int overlap(MED_editor.Editor editor, bool is_forward) {
     return min_height;
 }
 
-// nvim's scroll_with_sms: scroll the window `count` screen rows, then
-// continue to a line boundary. Returns the rows the cursor should follow
-// (`cursor_rows` is adjusted like curscount) through `editor.page_rows`.
+/* nvim's scroll_with_sms: scroll the window `count` screen rows, then
+ * continue to a line boundary. Returns the rows the cursor should follow
+ * (`cursor_rows` is adjusted like curscount) through `editor.page_rows`. */
 bool did_scroll_rows(MED_editor.Editor editor, bool is_forward, int count, int cursor_rows) {
     int start = editor.view_top;
     int last = editor.buffer.line_count() - 1;
@@ -687,8 +687,8 @@ bool did_scroll_rows(MED_editor.Editor editor, bool is_forward, int count, int c
     }
     int adjust = cursor_rows;
     if (sub > 0) {
-        // the cursor follows the partly shown top line: its wanted column
-        // moves into the rows that show (this sticks, as in nvim)
+        /* the cursor follows the partly shown top line: its wanted column
+         * moves into the rows that show (this sticks, as in nvim) */
         editor.view_top = line;
         editor.view_skip = sub;
         editor.view_skip_line = line;
@@ -698,8 +698,8 @@ bool did_scroll_rows(MED_editor.Editor editor, bool is_forward, int count, int c
         show_cursor_in_top(editor);
     }
     if (sub > 0 && line < last) {
-        // a partly shown line at the top: go on to a line boundary, the other
-        // way when the top line already changed (as much as nvim does)
+        /* a partly shown line at the top: go on to a line boundary, the other
+         * way when the top line already changed (as much as nvim does) */
         int moved_lines = line - start;
         if (moved_lines < 0) {
             moved_lines = 0 - moved_lines;
@@ -730,8 +730,8 @@ bool did_scroll_rows(MED_editor.Editor editor, bool is_forward, int count, int c
     return line != start || sub != start_sub;
 }
 
-/// CTRL-D, CTRL-U (`is_half`) and CTRL-F, CTRL-B (Vim's pagescroll). Returns
-/// false when nothing moved.
+/** CTRL-D, CTRL-U (`is_half`) and CTRL-F, CTRL-B (Vim's pagescroll). Returns
+ * false when nothing moved. */
 pub bool did_page(MED_editor.Editor editor, bool is_forward, int count0, bool is_half) {
     int height = editor.view_height;
     int last = editor.buffer.line_count() - 1;
@@ -812,8 +812,8 @@ pub bool did_page(MED_editor.Editor editor, bool is_forward, int count0, bool is
 
 // ----------------------------------------------------------------- z family
 
-// Vim's leftcol_changed: after the window scrolled sideways, move the cursor
-// into the columns that show (inside the 'sidescrolloff' margins).
+/* Vim's leftcol_changed: after the window scrolled sideways, move the cursor
+ * into the columns that show (inside the 'sidescrolloff' margins). */
 void keep_cursor_in_columns(MED_editor.Editor editor) {
     int side = editor.option_number("sidescrolloff", 0);
     int last_column = editor.view_left + editor.view_width - 1;
@@ -896,8 +896,8 @@ void scroll_sideways(MED_editor.Editor editor, int key, int count) {
     }
 }
 
-/// zt z<CR> zz z. zb z-. `target` is the line to go to first (0: stay).
-/// Returns false for a key that is not one of these.
+/** zt z<CR> zz z. zb z-. `target` is the line to go to first (0: stay).
+ * Returns false for a key that is not one of these. */
 pub bool did_z_command(MED_editor.Editor editor, int key, int target) {
     bool is_known = key == 116 || key == 13 || key == 122 || key == 46 || key == 98 || key == 45;
     if (key == 104 || key == 108 || key == 115 || key == 101 || key == 72 || key == 76) {

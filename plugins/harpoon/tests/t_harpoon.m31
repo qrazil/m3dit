@@ -1,5 +1,5 @@
-// The `harpoon` plugin through the App: pin, jump by number, next and previous, the menu, remove, and that the keys
-// and the which-key labels are the plugin's. The state directory is a scratch directory (M3_TEST_TMP).
+/* The `harpoon` plugin through the App: pin, jump by number, next and previous, the menu, remove, and that the keys
+ * and the which-key labels are the plugin's. The state directory is a scratch directory (M3_TEST_TMP). */
 
 import fs;
 import io;

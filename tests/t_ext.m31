@@ -1,5 +1,5 @@
-// Unit checks for the extension API (MED_ext): registration rules, dispatch, error isolation, edits through
-// the editor's own primitive, and the App's hooks (write events, `:Name`, statusline segment).
+/* Unit checks for the extension API (MED_ext): registration rules, dispatch, error isolation, edits through
+ * the editor's own primitive, and the App's hooks (write events, `:Name`, statusline segment). */
 
 import fs;
 import io;

@@ -1,21 +1,21 @@
-// `:autocmd`, `:augroup`, `:doautocmd` and `:command` (ROADMAP items 24 and 25): the part of Vim's event and user
-// command machinery that replaces most of what people write a script for. Commands stay ex lines; there is no
-// scripting language. The Editor keeps the records (`autocmds`, `user_defs`); this module parses, matches and
-// expands, and MED_ex stores and runs.
-//
-// API
+/* `:autocmd`, `:augroup`, `:doautocmd` and `:command` (ROADMAP items 24 and 25): the part of Vim's event and user
+ * command machinery that replaces most of what people write a script for. Commands stay ex lines; there is no
+ * scripting language. The Editor keeps the records (`autocmds`, `user_defs`); this module parses, matches and
+ * expands, and MED_ex stores and runs.
+ *
+ * API */
 // ---
-//   MED_autocmd.is_event(name)                         a known event name (case as Vim writes it)
-//   MED_autocmd.parse(arg, group)                      Parsed: events, patterns, once, command (for `:autocmd EVENT PAT CMD`)
-//   MED_autocmd.matching(editor, event, subject)       the commands to run now; `++once` records are dropped
-//   MED_autocmd.is_glob_match(pattern, name)                    does the file pattern match this path (or its tail)
-//   MED_autocmd.expand(template, arguments, bang, line1, line2, count) the replacement text of a user command
-//
-// Events: BufWritePre BufWritePost BufReadPost (BufRead) BufNewFile BufEnter BufLeave FileType InsertEnter InsertLeave
-// VimEnter VimLeavePre TextYankPost. For FileType the pattern is matched against the file type, for the others
-// against the buffer's path (a pattern without `/` against its last component, `{a,b}` alternatives, `*` and `?`).
-//
-// A record is "EVENT\x01PATTERN\x01GROUP\x01ONCE\x01COMMAND".
+/*   MED_autocmd.is_event(name)                         a known event name (case as Vim writes it)
+ *   MED_autocmd.parse(arg, group)                      Parsed: events, patterns, once, command (for `:autocmd EVENT PAT CMD`)
+ *   MED_autocmd.matching(editor, event, subject)       the commands to run now; `++once` records are dropped
+ *   MED_autocmd.is_glob_match(pattern, name)                    does the file pattern match this path (or its tail)
+ *   MED_autocmd.expand(template, arguments, bang, line1, line2, count) the replacement text of a user command
+ *
+ * Events: BufWritePre BufWritePost BufReadPost (BufRead) BufNewFile BufEnter BufLeave FileType InsertEnter InsertLeave
+ * VimEnter VimLeavePre TextYankPost. For FileType the pattern is matched against the file type, for the others
+ * against the buffer's path (a pattern without `/` against its last component, `{a,b}` alternatives, `*` and `?`).
+ *
+ * A record is "EVENT\x01PATTERN\x01GROUP\x01ONCE\x01COMMAND". */
 
 import engine.MED_editor;
 
@@ -57,8 +57,8 @@ List<str> words_of(str text) {
     return out;
 }
 
-/// `EVENT[,EVENT] PATTERN[,PATTERN] [++once] [++nested|nested] COMMAND` (the group, when it is named in the line, is
-/// the first word and must not be an event).
+/** `EVENT[,EVENT] PATTERN[,PATTERN] [++once] [++nested|nested] COMMAND` (the group, when it is named in the line, is
+ * the first word and must not be an event). */
 pub Parsed parse(str arg, str current_group) {
     Parsed out = Parsed();
     out.group = current_group;
@@ -187,8 +187,8 @@ bool is_glob_match_at(List<int> pattern, int at_pattern, List<int> name, int at_
     return at_name == name.size();
 }
 
-/// Whether `pattern` matches `name` (a path): `*` any run, `?` any character, `{a,b}` alternatives. A pattern
-/// without a `/` is matched against the last component of the path.
+/** Whether `pattern` matches `name` (a path): `*` any run, `?` any character, `{a,b}` alternatives. A pattern
+ * without a `/` is matched against the last component of the path. */
 pub bool is_glob_match(str pattern, str name) {
     str subject = name;
     if (!pattern.contains("/")) {
@@ -203,8 +203,8 @@ pub bool is_glob_match(str pattern, str name) {
     return false;
 }
 
-/// The commands of the records for `event` whose pattern matches `subject` (the path; the file type for FileType).
-/// A `++once` record is dropped when it is taken.
+/** The commands of the records for `event` whose pattern matches `subject` (the path; the file type for FileType).
+ * A `++once` record is dropped when it is taken. */
 pub List<str> matching(MED_editor.Editor editor, str event, str subject) {
     List<str> out = [];
     List<str> keep = [];

@@ -1,38 +1,38 @@
-// The fuzzy scorer behind every picker: a pure module, no I/O.
-//
-// A pattern matches a candidate when its characters appear in order (a
-// subsequence). Among the ways to place them the scorer takes the best one, by
-// a small dynamic program in the style of fzf v2:
-//
-//   match            +16 per matched character
-//   consecutive      +4 when a match directly follows the previous one
-//   boundary bonus   +8 after `/` and at the start, +7 after `_ - . space` and
-//                    at a lower-to-upper (camelCase) step; the first pattern
-//                    character counts double
-//   gaps             -3 to open, -1 per further skipped character
-//
-// Smart-case: the comparison ignores case unless the pattern has a capital.
-//
-// A query is space-separated terms, all of which must match (AND):
-//   abc    fuzzy        'abc   exact substring       ^abc   prefix
-//   abc$   suffix       !abc   the term must NOT match
-//
-// `rank` orders candidates by score (high first), then the shorter candidate,
-// then the original order. Positions are code point indices, for highlighting.
-//
-// Paths (`rank_path`, `Query.match_path`) are ranked by what the query is to the
-// file NAME first, and only then by the fzf-style score: a tier decides
-//
-//   7 the basename is the query            6 the basename without its extension is
-//   5 the basename starts with the query   4 the basename contains it as a run
-//   3 a subsequence of the basename, tight (spanning at most twice its length)
-//   2 a subsequence of the whole path, compact (at most four times its length)
-//   1 anything else that is a subsequence: scattered
-//
-// and `tier * TIER_STEP + refinement` is the score, so nothing a tier below can
-// earn (a long streak, a frecency boost) lifts a candidate over the tier above.
-// Each match also gets a percentage, 0 to 100, from the tier and how tidy the
-// placement is inside it. docs/FINDER.md has the numbers.
+/* The fuzzy scorer behind every picker: a pure module, no I/O.
+ *
+ * A pattern matches a candidate when its characters appear in order (a
+ * subsequence). Among the ways to place them the scorer takes the best one, by
+ * a small dynamic program in the style of fzf v2:
+ *
+ *   match            +16 per matched character
+ *   consecutive      +4 when a match directly follows the previous one
+ *   boundary bonus   +8 after `/` and at the start, +7 after `_ - . space` and
+ *                    at a lower-to-upper (camelCase) step; the first pattern
+ *                    character counts double
+ *   gaps             -3 to open, -1 per further skipped character
+ *
+ * Smart-case: the comparison ignores case unless the pattern has a capital.
+ *
+ * A query is space-separated terms, all of which must match (AND):
+ *   abc    fuzzy        'abc   exact substring       ^abc   prefix
+ *   abc$   suffix       !abc   the term must NOT match
+ *
+ * `rank` orders candidates by score (high first), then the shorter candidate,
+ * then the original order. Positions are code point indices, for highlighting.
+ *
+ * Paths (`rank_path`, `Query.match_path`) are ranked by what the query is to the
+ * file NAME first, and only then by the fzf-style score: a tier decides
+ *
+ *   7 the basename is the query            6 the basename without its extension is
+ *   5 the basename starts with the query   4 the basename contains it as a run
+ *   3 a subsequence of the basename, tight (spanning at most twice its length)
+ *   2 a subsequence of the whole path, compact (at most four times its length)
+ *   1 anything else that is a subsequence: scattered
+ *
+ * and `tier * TIER_STEP + refinement` is the score, so nothing a tier below can
+ * earn (a long streak, a frecency boost) lifts a candidate over the tier above.
+ * Each match also gets a percentage, 0 to 100, from the tier and how tidy the
+ * placement is inside it. docs/FINDER.md has the numbers. */
 
 import engine.MED_case;
 
@@ -45,11 +45,11 @@ const int BOUNDARY_START = 8;
 const int GAP_OPEN = 3;
 const int GAP_EXTEND = 1;
 const int NO_SCORE = -1000000;
-/// Pattern length times candidate length above which the scorer places the
-/// characters greedily instead of running the dynamic program.
+/** Pattern length times candidate length above which the scorer places the
+ * characters greedily instead of running the dynamic program. */
 const int MAX_CELLS = 40000;
-/// One tier of path ranking is worth this many points; the refinement inside a tier
-/// (the placement score, the share of the name covered) stays far below it.
+/** One tier of path ranking is worth this many points; the refinement inside a tier
+ * (the placement score, the share of the name covered) stays far below it. */
 pub const int TIER_STEP = 100000;
 pub const int TIER_BASENAME = 7;
 pub const int TIER_STEM = 6;
@@ -72,9 +72,9 @@ pub type Term {
     pub bool is_negated = false;
     pub List<int> pattern = [];
     pub bool is_sensitive = false;
-    /// The pattern as ASCII text (lower case unless it is sensitive), "" when it holds
-    /// anything else: a candidate with no such subsequence of bytes cannot match, which
-    /// is a test that costs no allocation.
+    /** The pattern as ASCII text (lower case unless it is sensitive), "" when it holds
+     * anything else: a candidate with no such subsequence of bytes cannot match, which
+     * is a test that costs no allocation. */
     pub str ascii = "";
 }
 
@@ -105,9 +105,9 @@ pub int Query.score(str candidate) {
     return total;
 }
 
-/// False when some fuzzy term cannot possibly match `candidate`: its ASCII pattern is
-/// not a subsequence of the candidate's bytes. True when unsure (a non-ASCII byte
-/// shows up before the answer is known).
+/** False when some fuzzy term cannot possibly match `candidate`: its ASCII pattern is
+ * not a subsequence of the candidate's bytes. True when unsure (a non-ASCII byte
+ * shows up before the answer is known). */
 pub bool Query.can_match(str candidate) {
     for (Term term in terms) {
         if (term.is_negated || term.kind != KIND_FUZZY || term.ascii.size() == 0) {
@@ -154,9 +154,9 @@ pub bool Query.is_empty() {
     return terms.size() == 0;
 }
 
-/// How `candidate`, a path, matches the whole query: a score to order by and a
-/// percentage to show. `score` is -1 when it does not match. `is_slow` makes it take the
-/// path every non-ASCII candidate takes (tests check the two agree).
+/** How `candidate`, a path, matches the whole query: a score to order by and a
+ * percentage to show. `score` is -1 when it does not match. `is_slow` makes it take the
+ * path every non-ASCII candidate takes (tests check the two agree). */
 pub Match Query.match_path(str candidate, bool is_slow = false) {
     if (!can_match(candidate)) {
         return Match();
@@ -233,8 +233,8 @@ pub type Match {
     pub int percent = 0;
 }
 
-/// Whether the bytes of `pattern` appear in order in `candidate`, case folded unless
-/// `is_sensitive`. A byte above 127 makes the answer "maybe": true.
+/** Whether the bytes of `pattern` appear in order in `candidate`, case folded unless
+ * `is_sensitive`. A byte above 127 makes the answer "maybe": true. */
 bool has_byte_subsequence(str pattern, bool is_sensitive, str candidate) {
     int want = pattern.size();
     int next = 0;
@@ -554,8 +554,8 @@ int anchored_score(Term term, List<int> text, int start) {
     return term.pattern.size() * (MATCH_SCORE + CONSECUTIVE_BONUS) + bonus_at(text, start);
 }
 
-/// The start of a term's placement in `text`, or -1 when it does not match
-/// (for fuzzy terms, the first matched position).
+/** The start of a term's placement in `text`, or -1 when it does not match
+ * (for fuzzy terms, the first matched position). */
 int term_start(Term term, List<int> text) {
     List<int> compare = compared(text, term.is_sensitive);
     int size = term.pattern.size();
@@ -593,9 +593,9 @@ int term_score(Term term, List<int> text) {
 
 // --- paths: the name first -------------------------------------------------------
 
-/// What `window` and `window_cp` find: the score of the placement, how far apart its
-/// first and last characters are, and whether every one sits on a boundary (an initialism
-/// such as `fb` for `foo_bar`), in one integer: `score * 8192 + span * 2 + initialism`.
+/** What `window` and `window_cp` find: the score of the placement, how far apart its
+ * first and last characters are, and whether every one sits on a boundary (an initialism
+ * such as `fb` for `foo_bar`), in one integer: `score * 8192 + span * 2 + initialism`. */
 int pack_window(int score, int span, bool is_initialism) {
     int clipped = score;
     if (clipped < 0) {
@@ -612,10 +612,10 @@ int pack_window(int score, int span, bool is_initialism) {
     return clipped * 8192 + wide * 2 + bit;
 }
 
-/// The placement fzf finds first (earliest end, then pulled back to the latest start) of
-/// the ASCII `pattern` in `candidate` from byte `from` on, packed by `pack_window`; -1 when
-/// it is not a subsequence there. Scored as the dynamic program scores a placement, but
-/// without trying the others, and without allocating.
+/** The placement fzf finds first (earliest end, then pulled back to the latest start) of
+ * the ASCII `pattern` in `candidate` from byte `from` on, packed by `pack_window`; -1 when
+ * it is not a subsequence there. Scored as the dynamic program scores a placement, but
+ * without trying the others, and without allocating. */
 int window(str pattern, bool is_folded, str candidate, int from) {
     int count = pattern.size();
     int length = candidate.size();
@@ -679,8 +679,8 @@ int window(str pattern, bool is_folded, str candidate, int from) {
     return pack_window(score, end - later + 1, is_initialism);
 }
 
-/// `window` over code points: `text` is the candidate, `compare` its folded form, the
-/// pattern is already folded, and the search starts at index `from`.
+/** `window` over code points: `text` is the candidate, `compare` its folded form, the
+ * pattern is already folded, and the search starts at index `from`. */
 int window_cp(List<int> pattern, List<int> text, List<int> compare, int from) {
     int count = pattern.size();
     int length = text.size();
@@ -729,8 +729,8 @@ int window_cp(List<int> pattern, List<int> text, List<int> compare, int from) {
     return pack_window(score, end - later + 1, is_initialism);
 }
 
-/// The tier and percentage of a placement below the basename-run tier, from a packed
-/// window: `in_name` when the whole pattern lies in the basename. Packed with `pack_tier`.
+/** The tier and percentage of a placement below the basename-run tier, from a packed
+ * window: `in_name` when the whole pattern lies in the basename. Packed with `pack_tier`. */
 int tier_of_window(int packed, int count, bool is_in_name) {
     if (packed < 0) {
         return -1;
@@ -758,8 +758,8 @@ int tier_of_window(int packed, int count, bool is_in_name) {
     return pack_tier(tier * TIER_STEP + score, percent);
 }
 
-/// The score of a perfect placement of `count` characters: all consecutive, the first
-/// on a boundary.
+/** The score of a perfect placement of `count` characters: all consecutive, the first
+ * on a boundary. */
 int perfect_score(int count) {
     return count * MATCH_SCORE + (count - 1) * BOUNDARY_SLASH + BOUNDARY_START * 2;
 }
@@ -850,8 +850,8 @@ Match fuzzy_path(Term term, List<int> text, int base) {
     return Match(score: packed / 128, percent: packed % 128);
 }
 
-/// Where in the basename `name` the term occurs as a run, taking the occurrence on the
-/// best boundary; -1 when it does not.
+/** Where in the basename `name` the term occurs as a run, taking the occurrence on the
+ * best boundary; -1 when it does not. */
 int best_run(Term term, List<int> text, List<int> name, int base) {
     int best_start = -1;
     int best_bonus = -1;
@@ -867,8 +867,8 @@ int best_run(Term term, List<int> text, List<int> name, int base) {
     return best_start;
 }
 
-/// What the byte-level path matcher answers when the tiers it knows (basename, stem,
-/// prefix, run) do not decide: ask the slow one.
+/** What the byte-level path matcher answers when the tiers it knows (basename, stem,
+ * prefix, run) do not decide: ask the slow one. */
 const int UNDECIDED = -2;
 
 /// The bonus for a match at byte `spot` of an ASCII `candidate` (`bonus_at`, without a list).
@@ -910,8 +910,8 @@ int pack_tier(int score, int percent) {
     return score * 128 + percent;
 }
 
-/// `fuzzy_path` for an ASCII pattern against an ASCII path that is known to hold it as a
-/// subsequence: no allocation. The answer is `pack_tier(score, percent)`.
+/** `fuzzy_path` for an ASCII pattern against an ASCII path that is known to hold it as a
+ * subsequence: no allocation. The answer is `pack_tier(score, percent)`. */
 int fast_tier(str pattern, bool is_folded, str candidate, int base) {
     int count = pattern.size();
     int length = candidate.size();
@@ -963,9 +963,9 @@ int fast_tier(str pattern, bool is_folded, str candidate, int base) {
     return pack_tier(TIER_RUN * TIER_STEP + best_bonus * 10 + ratio, percent);
 }
 
-/// The whole of a one-term fuzzy query against one path, without allocating: -1 for no
-/// match, `UNDECIDED` when the path is not ASCII (use `match_path`), else
-/// `pack_tier(score, percent)`.
+/** The whole of a one-term fuzzy query against one path, without allocating: -1 for no
+ * match, `UNDECIDED` when the path is not ASCII (use `match_path`), else
+ * `pack_tier(score, percent)`. */
 int single_tier(str pattern, bool is_folded, str candidate) {
     int length = candidate.size();
     int want = pattern.size();
@@ -1002,15 +1002,15 @@ int single_tier(str pattern, bool is_folded, str candidate) {
 /// The most percentage points a frecency boost adds.
 const int BOOST_PERCENT = 5;
 
-/// What `rank_path` found: the best `limit` matches in order, and every match (in input
-/// order), which is the pool a longer query is narrowed from.
+/** What `rank_path` found: the best `limit` matches in order, and every match (in input
+ * order), which is the pool a longer query is narrowed from. */
 pub type Ranking {
     pub List<Ranked> top = [];
     pub List<int> matches = [];
 }
 
-/// The ranking key of one match, one integer so that sorting the list of them is a plain
-/// integer sort: score (24 bits), shorter first (10), earlier first (21), percent (7).
+/** The ranking key of one match, one integer so that sorting the list of them is a plain
+ * integer sort: score (24 bits), shorter first (10), earlier first (21), percent (7). */
 int rank_key(int score, int length, int item_index, int percent) {
     int clipped = score;
     if (clipped > 16777215) {
@@ -1030,10 +1030,10 @@ int rank_key(int score, int length, int item_index, int percent) {
     return clipped * 274877906944 + short_bits * 268435456 + index_bits * 128 + percent;
 }
 
-/// Rank path candidates by `query`. Only `pool` is looked at when `is_pooled` (the indices
-/// of an earlier, shorter query's matches), else every candidate. `boosts[i]`, when there
-/// is one, is added to candidate `i`'s score (frecency); it is far below `TIER_STEP`.
-/// With an empty query every candidate matches and the order is the boosts, then the input.
+/** Rank path candidates by `query`. Only `pool` is looked at when `is_pooled` (the indices
+ * of an earlier, shorter query's matches), else every candidate. `boosts[i]`, when there
+ * is one, is added to candidate `i`'s score (frecency); it is far below `TIER_STEP`.
+ * With an empty query every candidate matches and the order is the boosts, then the input. */
 pub Ranking rank_path(Query query, List<str> candidates, List<int> pool, bool is_pooled, List<int> boosts, int limit) {
     Ranking out = Ranking();
     List<int> keys = [];

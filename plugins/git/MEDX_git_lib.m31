@@ -1,20 +1,20 @@
-// Git without a `git` process: the file as the index or HEAD has it, blame, history, show, diff and the
-// index write behind "stage hunk", all over the pinned `m31git` library (decision D3, docs/ROADMAP.md).
-//
-// API
+/* Git without a `git` process: the file as the index or HEAD has it, blame, history, show, diff and the
+ * index write behind "stage hunk", all over the pinned `m31git` library (decision D3, docs/ROADMAP.md).
+ *
+ * API */
 // ---
-//   MEDX_git_lib.open(directory)                  Option<Repo>: the repository around `directory`, with its work tree
-//   MEDX_git_lib.base_of(directory, name)         Base: the file as the index has it (HEAD when the index has no entry)
-//   MEDX_git_lib.head_lines_of(directory, name)   Base: the file as HEAD has it
-//   MEDX_git_lib.blame_of(directory, name)        Option<List<BlameLine>>: `git blame` of HEAD's file
-//   MEDX_git_lib.log_of(repo, rel, from, to)      Option<List<GIT_log.Entry>>: `git log [-L from,to:rel] -- rel`
-//   MEDX_git_lib.show_lines(directory, rev)       Option<List<str>>: `git show --stat --patch rev`
-//   MEDX_git_lib.diff_lines(directory, what)      Option<List<str>>: `git diff` of "working", "index" or "head"
-//   MEDX_git_lib.stage_content(...)               Result text: put new file content into the index entry of a path
-//
-// Every function answers `None` / `Failed` for a repository or object the library cannot read (a v4 index,
-// a missing object of a partial clone, a locked index), and the callers then run the `git` subprocess they ran
-// before. A `Base.Untracked` is an answer: the repository is readable and has no such file.
+/*   MEDX_git_lib.open(directory)                  Option<Repo>: the repository around `directory`, with its work tree
+ *   MEDX_git_lib.base_of(directory, name)         Base: the file as the index has it (HEAD when the index has no entry)
+ *   MEDX_git_lib.head_lines_of(directory, name)   Base: the file as HEAD has it
+ *   MEDX_git_lib.blame_of(directory, name)        Option<List<BlameLine>>: `git blame` of HEAD's file
+ *   MEDX_git_lib.log_of(repo, rel, from, to)      Option<List<GIT_log.Entry>>: `git log [-L from,to:rel] -- rel`
+ *   MEDX_git_lib.show_lines(directory, rev)       Option<List<str>>: `git show --stat --patch rev`
+ *   MEDX_git_lib.diff_lines(directory, what)      Option<List<str>>: `git diff` of "working", "index" or "head"
+ *   MEDX_git_lib.stage_content(...)               Result text: put new file content into the index entry of a path
+ *
+ * Every function answers `None` / `Failed` for a repository or object the library cannot read (a v4 index,
+ * a missing object of a partial clone, a locked index), and the callers then run the `git` subprocess they ran
+ * before. A `Base.Untracked` is an answer: the repository is readable and has no such file. */
 
 import fs;
 import io;
@@ -34,8 +34,8 @@ import m31git.diff.GIT_filelog;
 import m31git.diff.GIT_udiff;
 import m31git.diff.GIT_xdiff;
 
-/// A repository: the git directory (`.git`, or what a `.git` file names) and the work tree.
-/// How the plugin runs `git` when the library cannot answer (0.5.0: `Ctx.run_in`; a test gives its own).
+/** A repository: the git directory (`.git`, or what a `.git` file names) and the work tree.
+ * How the plugin runs `git` when the library cannot answer (0.5.0: `Ctx.run_in`; a test gives its own). */
 pub interface Shell {
     MED_ext.Ran run(List<str> argv, str cwd, str input);
 }
@@ -432,11 +432,11 @@ pub Option<bytes> index_bytes(Repo repo, str relative) {
     }
 }
 
-/// Put `content` into the index as the new blob of `rel` (the entry keeps its mode; a new entry is a regular
-/// file). The stat fields are zero, as `git update-index --cacheinfo` leaves them: git then compares the file's
-/// content with the blob instead of trusting a snapshot (a size that is not zero but wrong, like the -1 that
-/// m31git's own client writes, makes `git status` report the file as modified for good). "" on success, else
-/// why not.
+/** Put `content` into the index as the new blob of `rel` (the entry keeps its mode; a new entry is a regular
+ * file). The stat fields are zero, as `git update-index --cacheinfo` leaves them: git then compares the file's
+ * content with the blob instead of trusting a snapshot (a size that is not zero but wrong, like the -1 that
+ * m31git's own client writes, makes `git status` report the file as modified for good). "" on success, else
+ * why not. */
 pub str stage_content(Repo repo, str relative, bytes content) {
     if (fs.is_present(fs.join(repo.gitdir, "index.lock"))) {
         return "the index is locked (index.lock exists)";
@@ -660,10 +660,10 @@ pub str blame_text(BlameLine line, int number) {
 
 // ------------------------------------------------------------------ history
 
-/// The commits of `HEAD` that changed `relative`, newest first. With `first_line` > 0 only those that touched
-/// lines `first_line` to `last_line` (1-based, inclusive, in HEAD's version of the file): the range is followed
-/// down the first parents the way `git log --first-parent -L first,last:relative` does (no rename following, no
-/// side branches of merges). `limit` stops after that many commits, negative for all.
+/** The commits of `HEAD` that changed `relative`, newest first. With `first_line` > 0 only those that touched
+ * lines `first_line` to `last_line` (1-based, inclusive, in HEAD's version of the file): the range is followed
+ * down the first parents the way `git log --first-parent -L first,last:relative` does (no rename following, no
+ * side branches of merges). `limit` stops after that many commits, negative for all. */
 pub Option<List<GIT_log.Entry>> log_of(Repo repo, str relative, int first_line, int last_line, int limit) {
     List<GIT_log.Entry> history = [];
     match (GIT_filelog.history(repo.gitdir, "HEAD", relative, -1)) {
@@ -680,8 +680,8 @@ pub Option<List<GIT_log.Entry>> log_of(Repo repo, str relative, int first_line, 
         }
         return Option<List<GIT_log.Entry>>.Some(history);
     }
-    // the range as 0-based [low, high) in the version of the file under the commit being looked at, followed
-    // down the first parents first_line HEAD
+    /* the range as 0-based [low, high) in the version of the file under the commit being looked at, followed
+     * down the first parents first_line HEAD */
     int low = first_line - 1;
     int high = last_line;
     List<GIT_log.Entry> kept = [];
@@ -883,8 +883,8 @@ pub str ident_text(GIT_object.Ident who) {
     return text_of(who.name) + " <" + text_of(who.email) + ">";
 }
 
-/// `git show REV`: the commit's header and message, then its patch against the first parent. None when the
-/// library cannot resolve or read it.
+/** `git show REV`: the commit's header and message, then its patch against the first parent. None when the
+ * library cannot resolve or read it. */
 pub Option<List<str>> show_in(Repo repo, str rev) {
     str id = "";
     match (GIT_revparse.commit_id(repo.gitdir, rev)) {
@@ -972,8 +972,8 @@ pub str blob_id(str gitdir, bytes content) {
     return GIT_hash.hex(GIT_hash.raw_length(gitdir), whole);
 }
 
-/// The diff of one path from `before` (a tree or index leaf, with its bytes) to `after` (the file's bytes, None
-/// when it is gone), in the form `git diff` prints it.
+/** The diff of one path from `before` (a tree or index leaf, with its bytes) to `after` (the file's bytes, None
+ * when it is gone), in the form `git diff` prints it. */
 pub bytes pair_diff(str gitdir, str path, GIT_udiff.Leaf before, bytes old, Option<bytes> after) {
     bool is_added = before.id == "";
     bool is_removed = after.is_none();
@@ -1050,8 +1050,8 @@ Option<bytes> worktree_bytes(Repo repo, str path) {
     }
 }
 
-/// `git diff` (what is "working": index to work tree), `git diff --cached` ("index": HEAD to index) or
-/// `git diff HEAD` ("head": HEAD to work tree). None when the library cannot read the repository.
+/** `git diff` (what is "working": index to work tree), `git diff --cached` ("index": HEAD to index) or
+ * `git diff HEAD` ("head": HEAD to work tree). None when the library cannot read the repository. */
 pub Option<List<str>> diff_in(Repo repo, str what) {
     str commit = head_commit(repo.gitdir);
     if (commit == "!") {

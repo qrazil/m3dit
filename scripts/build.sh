@@ -126,7 +126,7 @@ if [ -n "$is_no_plugins" ] || [ "$wanted" != "$(cat ext/MED_ext_enabled.m31)" ] 
     echo "plugins: ${plugin_list:-none}" >&2
     [ -z "$ext_names" ] || echo "extensions: $ext_names" >&2
 fi
-(cd "$src" && "$LANGC_ABS" --emit-c m3.m31 -o "$tmp/m3.c")
+(cd "$src" && "$LANGC_ABS" -emit-c m3.m31 --out "$tmp/m3.c")
 "$CC" -O2 -pthread -I "$M31_ROOT/runtime" -o "$out" "$tmp/m3.c" \
     "$M31_ROOT/runtime/rt.c" "$M31_ROOT/runtime/scheduler.c" \
     "$M31_ROOT/$RT_REACTOR_C" "$M31_ROOT/$RT_CTX_ASM"

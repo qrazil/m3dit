@@ -1,24 +1,24 @@
-// Sessions: the open buffers of a project (or a named session) written to the state directory and read back.
-//
-// API
+/* Sessions: the open buffers of a project (or a named session) written to the state directory and read back.
+ *
+ * API */
 // ---
-//   MED_session.encode(entries, active, pages, page_index)  the session text
-//   MED_session.layout_windows(layout)      how many windows a layout string names (-1: not a layout)
-//   MED_session.decode(text)                -> Session (entries in order, `active` the path that was current)
-//   MED_session.is_valid_name(name)         a session name: letters, digits, `.`, `_`, `-`
-//   MED_session.file_for(name, cwd)         state-directory file: "sessions/NAME", or "sessions/%CWD%PATH" for ""
-//   MED_session.save / load / delete / names  the files themselves (all silent on failure)
-//
-// Format (one record per line, tab separated):
-//   m3session 2
-//   active<TAB>PATH
-//   buffer<TAB>PATH<TAB>ROW<TAB>COL            every buffer, in buffer order
-//   tabs<TAB>INDEX                             the tab page that was current (0-based), when there is a layout
-//   page<TAB>CURRENT<TAB>LAYOUT                one per tab page; CURRENT is the leaf (0-based) that was active
-//   win<TAB>PATH<TAB>ROW<TAB>COL               one per window of that page, in leaf order
-// LAYOUT is `w` for a window, or `v(A,B,...)` (side by side) / `h(A,B,...)` (stacked) of layouts: `h(w,v(w,w))` is a
-// window above two side by side. Sizes are not kept: the windows share the space equally when the session is read.
-// Version 1 files (no tab pages) still load.
+/*   MED_session.encode(entries, active, pages, page_index)  the session text
+ *   MED_session.layout_windows(layout)      how many windows a layout string names (-1: not a layout)
+ *   MED_session.decode(text)                -> Session (entries in order, `active` the path that was current)
+ *   MED_session.is_valid_name(name)         a session name: letters, digits, `.`, `_`, `-`
+ *   MED_session.file_for(name, cwd)         state-directory file: "sessions/NAME", or "sessions/%CWD%PATH" for ""
+ *   MED_session.save / load / delete / names  the files themselves (all silent on failure)
+ *
+ * Format (one record per line, tab separated):
+ *   m3session 2
+ *   active<TAB>PATH
+ *   buffer<TAB>PATH<TAB>ROW<TAB>COL            every buffer, in buffer order
+ *   tabs<TAB>INDEX                             the tab page that was current (0-based), when there is a layout
+ *   page<TAB>CURRENT<TAB>LAYOUT                one per tab page; CURRENT is the leaf (0-based) that was active
+ *   win<TAB>PATH<TAB>ROW<TAB>COL               one per window of that page, in leaf order
+ * LAYOUT is `w` for a window, or `v(A,B,...)` (side by side) / `h(A,B,...)` (stacked) of layouts: `h(w,v(w,w))` is a
+ * window above two side by side. Sizes are not kept: the windows share the space equally when the session is read.
+ * Version 1 files (no tab pages) still load. */
 
 import fs;
 import io;

@@ -1,6 +1,6 @@
-// Which-key through the App (core since 0.22.0): the leader popup and the prefix help wait 400 ms after the last key,
-// the leader popup stays while the sequence goes on, :set nowhichkey (and the old :PluginDisable whichkey) turns both
-// off, and a bare build (no plugin, so no registry) starts with it off: :set whichkey turns it on.
+/* Which-key through the App (core since 0.22.0): the leader popup and the prefix help wait 400 ms after the last key,
+ * the leader popup stays while the sequence goes on, :set nowhichkey (and the old :PluginDisable whichkey) turns both
+ * off, and a bare build (no plugin, so no registry) starts with it off: :set whichkey turns it on. */
 
 import tests.MED_check;
 import tui.core.TUI_buffer;

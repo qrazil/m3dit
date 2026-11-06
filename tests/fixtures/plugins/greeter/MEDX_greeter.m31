@@ -1,5 +1,5 @@
-// Fixture plugin for tests/test_plugins.sh: eager, requires `hello`, writes greeter.log in the current directory
-// when the editor is ready (so the test can tell that activation happened, in order, and once).
+/* Fixture plugin for tests/test_plugins.sh: eager, requires `hello`, writes greeter.log in the current directory
+ * when the editor is ready (so the test can tell that activation happened, in order, and once). */
 
 import ext.MED_ext;
 import io;

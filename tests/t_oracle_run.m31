@@ -1,19 +1,19 @@
-// The engine half of the differential oracle (tests/oracles/oracle_nvim.py).
-//
-// Usage: t_oracle_run CASES_FILE
-//
-// Each line of CASES_FILE is one case, tab separated:
-//
-//   index  hex(text)  row  col  key,key,key...
-//
-// For every case this builds an `Editor` on the text, puts the cursor at
-// (row, col), feeds the keys and prints one result line, tab separated:
-//
-//   index  hex(text)  row  col  mode  vrow  vcol  regs  top
-//
-// where `regs` is `name:kind:hex(lines joined by \n)` entries joined by `;`
-// for the registers the oracle also reports. The nvim driver prints the same
-// line, so the comparison is a text diff.
+/* The engine half of the differential oracle (tests/oracles/oracle_nvim.py).
+ *
+ * Usage: t_oracle_run CASES_FILE
+ *
+ * Each line of CASES_FILE is one case, tab separated:
+ *
+ *   index  hex(text)  row  col  key,key,key...
+ *
+ * For every case this builds an `Editor` on the text, puts the cursor at
+ * (row, col), feeds the keys and prints one result line, tab separated:
+ *
+ *   index  hex(text)  row  col  mode  vrow  vcol  regs  top
+ *
+ * where `regs` is `name:kind:hex(lines joined by \n)` entries joined by `;`
+ * for the registers the oracle also reports. The nvim driver prints the same
+ * line, so the comparison is a text diff. */
 
 import engine.MED_editor;
 import engine.MED_vim;
@@ -128,8 +128,8 @@ str run_case(str line) {
     }
     int prompts = 0;
     while (editor.sub_run.is_active && prompts < 1000) {
-        // a prompt still waiting when the keys end gets the Esc nvim's feedkeys() supplies
-        // (and so does each one a `:g` raises after it)
+        /* a prompt still waiting when the keys end gets the Esc nvim's feedkeys() supplies
+         * (and so does each one a `:g` raises after it) */
         MED_ex.feed(editor, 27);
         prompts = prompts + 1;
     }
