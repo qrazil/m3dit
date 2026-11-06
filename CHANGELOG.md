@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.23.0
+
+Hunks, and committing from the editor (the git plugin; docs/KEYMAP-REVIEW.md section 13.2).
+
+- **`gh{motion}` stages and `gH{motion}` resets the hunks a motion or text object covers** (`ghh` and `gHH` for the line, `ghih`, `gh}`, Visual `gh` / `gH`); the
+  last hunk goes first, so the others stay where the diff said. They are engine operators that hand the rows to the git plugin (`:Hunk range-stage`,
+  `:Hunk range-reset`, API `Ctx.operator_range`); in a build without the plugin they fail with E492. They shadow vim's Select-mode `gh` `gH`, which m3 never had.
+- **`]H` `[H`** (`:Hunk last`, `:Hunk first`) jump to the last and first change; `ih` / `ah` are the hunk text objects in every profile.
+- **`:Git commit MESSAGE`, `:Git pull`, `:Git push`, `:Git fetch`** run in the background and answer in the message line (`<Space>gc` types `:Git commit `, `<Space>gp` pulls,
+  `<Space>gP` pushes, in `default`). `:Hunk stage-buffer` and `:Hunk reset-buffer` stage the whole buffer and put the index text back.
+- **`nvim` profile**: his `<leader>hS hR hb hP`, and `hp` = hunk preview in a tracked buffer, else harpoon previous (K3).
+- Tests: git_pty scenario `gh{motion}, gH{motion}, ]H [H, :Git commit` (with a local remote for push and pull).
+
 ## 0.22.0
 
 **Key profiles are whole trees, and `default` has new sane IDE keys** (docs/KEYMAP-REVIEW.md B1, B2, B3, B5; the owner's decisions K1 to K12).
