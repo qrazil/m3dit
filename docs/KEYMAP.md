@@ -129,6 +129,9 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>gL` | Normal | Log of this file | git | m3 |
 | `<Space>gd` | Normal | Diff, working tree | git | m3 |
 | `<Space>uG` | Normal | Toggle git signs | git | m3 |
+| `<Space>gc` | Normal | Commit (type the message) | git | m3 |
+| `<Space>gp` | Normal | Pull | git | m3 |
+| `<Space>gP` | Normal | Push | git | m3 |
 
 ## Other keys of the default plugins, `default` profile (from their `MapSpec`s)
 
@@ -154,6 +157,8 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `]t` | Normal | next TODO comment | bracketed | m3 |
 | `[h` | Normal | previous git hunk | bracketed | m3 |
 | `]h` | Normal | next git hunk | bracketed | m3 |
+| `[H` | Normal | first git hunk | bracketed | m3 |
+| `]H` | Normal | last git hunk | bracketed | m3 |
 | `[d` | Normal | previous diagnostic | bracketed | m3 |
 | `]d` | Normal | next diagnostic | bracketed | m3 |
 
@@ -285,6 +290,8 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `]t` | Normal | next TODO comment | bracketed | m3 |
 | `[h` | Normal | previous git hunk | bracketed | m3 |
 | `]h` | Normal | next git hunk | bracketed | m3 |
+| `[H` | Normal | first git hunk | bracketed | m3 |
+| `]H` | Normal | last git hunk | bracketed | m3 |
 | `[c` | Normal | previous git change | bracketed | m3 |
 | `]c` | Normal | next git change | bracketed | m3 |
 | `[d` | Normal | previous diagnostic | bracketed | m3 |
@@ -457,6 +464,8 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `grr` | Normal | references (language server) | lsp | m3 |
 | `grn` | Normal | rename symbol (language server) | lsp | m3 |
 | `gra` | Normal | code action (language server) | lsp | m3 |
+| `gh` | Normal | +stage the hunks of a motion (gh{motion}, ghh this line, Visual gh) | git | m3 |
+| `gH` | Normal | +reset the hunks of a motion (gH{motion}, gHH this line, Visual gH) | git | m3 |
 | `ys` | Normal | +surround add (ys{motion}{char}) | surround | vim |
 | `yss` | Normal | surround the line | surround | vim |
 | `ds` | Normal | surround delete (ds{char}) | surround | vim |

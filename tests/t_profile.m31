@@ -58,6 +58,10 @@ match (MED_app.open_all([base + "-a.txt"])) {
         // the plugins' keys follow the profile: harpoon remove is hx
         check.eq_str("default: hx is harpoon remove", app.ext.desc_of_keys("n", " hx"), "Harpoon: remove this file");
         check.eq_str("default: hd is not mapped", app.ext.desc_of_keys("n", " hd"), "");
+        check.eq_str("default: gc commits", app.ext.desc_of_keys("n", " gc"), "Commit (type the message)");
+        check.eq_str("default: gp pulls", app.ext.desc_of_keys("n", " gp"), "Pull");
+        check.eq_str("default: gP pushes", app.ext.desc_of_keys("n", " gP"), "Push");
+        check.eq_str("default: ]H is the last hunk", app.ext.desc_of_keys("n", "]H"), "last git hunk");
         // legacy: the old tree
         type_text(app, ":Profile legacy\r");
         check.eq_str("legacy", app.profile, "legacy");

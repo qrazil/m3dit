@@ -229,7 +229,48 @@ Result<bool, str> ticked(State state, MED_ext.Ctx context, MED_ext.Info info) {
 
 // ------------------------------------------------------------------ :Git
 
+/// `:Git commit MESSAGE`, `:Git pull`, `:Git push`, `:Git fetch`: run in the background (they wait on the network or a hook), the
+/// answer comes back through the `git` job as a message. Commit takes what is staged.
+Result<bool, str> write_command(MED_ext.Ctx context, str word, str rest) {
+    str directory = MEDX_git_hunk.directory_of(context.file);
+    if (word == "commit") {
+        if (rest.trim().size() == 0) {
+            return done(context, "Git commit: a message is needed (:Git commit MESSAGE)");
+        }
+        context.background("git", ["sh", "-c", "git -C \"$1\" commit -m \"$2\" 2>&1; echo m3-exit:$?", "sh", directory, rest.trim()]);
+        return done(context, "Committing...");
+    }
+    context.background("git", ["sh", "-c", "git -C \"$1\" " + word + " 2>&1; echo m3-exit:$?", "sh", directory]);
+    return done(context, "Git " + word + "...");
+}
+
+/// The end of a background git job: the last line of its output, or "ok".
+Result<bool, str> job_ended(MED_ext.Ctx context, str job, List<str> lines) {
+    str verdict = "";
+    str last = "";
+    for (str line in lines) {
+        if (line.starts_with("m3-exit:")) {
+            verdict = line.substr(8, line.size());
+        } else if (line.trim().size() > 0) {
+            last = line.trim();
+        }
+    }
+    if (verdict == "0") {
+        if (last.size() == 0) {
+            last = "done";
+        }
+        return done(context, "Git: " + last);
+    }
+    return done(context, "Git failed: " + last);
+}
+
 Result<bool, str> git_command(State state, MED_ext.Ctx context, str arguments) {
+    str lead = arguments.trim();
+    int space = lead.index_of(" ").or(lead.size());
+    str first = lead.substr(0, space);
+    if (first == "commit" || first == "pull" || first == "push" || first == "fetch") {
+        return write_command(context, first, lead.substr(space, lead.size()));
+    }
     MEDX_git_cmd.Out out = MEDX_git_cmd.run(shell_of(context), arguments, context.file, buffer_lines(context), context.cursor().row);
     if (out.error.size() > 0) {
         return done(context, out.error);
@@ -319,14 +360,126 @@ Result<bool, str> go_hunk(State state, MED_ext.Ctx context, bool is_forward) {
     return Result<bool, str>.Ok(true);
 }
 
-/// `:Hunk stage|reset|undo|preview`: the `<Space>gs gr gu gp` actions; `undo` unstages the staged hunk.
+/// Stage hunk `index` of `info` (the buffer against the index): in process first (m31git), `git apply` when the library cannot.
+/// "" when staged, else why not.
+str stage_one(MED_ext.Ctx context, str file, FileInfo info, int index, List<str> lines) {
+    str said = MEDX_git_hunk.stage_hunk(file, info.hunks, index, lines);
+    if (said != "!") {
+        return said;
+    }
+    MEDX_git_lib.Shell shell = shell_of(context);
+    str directory = MEDX_git_hunk.directory_of(file);
+    str prefix = MEDX_git_lib.shell_output(shell, ["git", "-C", directory, "rev-parse", "--show-prefix"], ".", "").or("").trim();
+    str relative = prefix + MEDX_git_hunk.name_of(file);
+    str patch = MEDX_git_hunk.hunk_patch(info.hunks, index, info.base, lines, relative);
+    MED_ext.Ran ran = context.run_in(["git", "-C", directory, "apply", "--cached", "--unidiff-zero", "-"], directory, patch, 1000);
+    if (ran.code == 0) {
+        return "";
+    }
+    return first_line_of(ran.errors);
+}
+
+/// The hunks (ascending indexes) that touch rows `first` to `last`; a removed hunk sits on the row above its gap.
+List<int> hunks_in(FileInfo info, int first, int last) {
+    List<int> picked = [];
+    for (int index in 0 .. info.hunks.starts.size()) {
+        int low = info.hunks.froms[index];
+        int high = info.hunks.froms[index] + info.hunks.counts[index] - 1;
+        if (info.hunks.counts[index] == 0) {
+            low = info.hunks.starts[index];
+            high = info.hunks.starts[index];
+        }
+        if (high >= first && low <= last) {
+            picked.push(index);
+        }
+    }
+    return picked;
+}
+
+/// `gh{motion}` and `gH{motion}`: stage or reset every hunk the motion covered. The last hunk goes first, so the rows
+/// and base lines of the others stay where the diff said they were.
+Result<bool, str> range_command(State state, MED_ext.Ctx context, FileInfo info, bool is_stage) {
+    List<int> rows = context.operator_range();
+    List<int> picked = hunks_in(info, rows[0], rows[1]);
+    if (picked.size() == 0) {
+        return done(context, "No hunk in the range");
+    }
+    List<str> lines = buffer_lines(context);
+    int count = 0;
+    int walk = picked.size() - 1;
+    while (walk >= 0) {
+        int index = picked[walk];
+        walk = walk - 1;
+        if (is_stage) {
+            str said = stage_one(context, context.file, info, index, lines);
+            if (said != "") {
+                refresh(state, context, true);
+                return done(context, "Stage failed: " + said);
+            }
+        } else {
+            List<str> old = [];
+            for (int offset in 0 .. info.hunks.base_counts[index]) {
+                old.push(info.base[info.hunks.base_froms[index] + offset]);
+            }
+            replace_rows(context, info.hunks.froms[index], info.hunks.counts[index], old);
+        }
+        count = count + 1;
+    }
+    refresh(state, context, is_stage);
+    str noun = " hunk";
+    if (count != 1) {
+        noun = " hunks";
+    }
+    if (is_stage) {
+        return done(context, count.to_str() + noun + " staged");
+    }
+    return done(context, count.to_str() + noun + " reset");
+}
+
+/// `:Hunk stage-buffer`: the whole buffer into the index. `:Hunk reset-buffer`: the buffer text back to the index's.
+Result<bool, str> buffer_command(State state, MED_ext.Ctx context, FileInfo info, bool is_stage) {
+    if (!is_stage) {
+        replace_rows(context, 0, context.line_count(), info.base);
+        refresh(state, context, false);
+        return done(context, "Buffer reset");
+    }
+    str directory = MEDX_git_hunk.directory_of(context.file);
+    match (MEDX_git_lib.open(directory)) {
+        case Some(MEDX_git_lib.Repo repo): {
+            str relative = MEDX_git_lib.relative_to(repo, directory, MEDX_git_hunk.name_of(context.file));
+            str said = MEDX_git_lib.stage_content(repo, relative, (context.text() + "\n").to_bytes());
+            refresh(state, context, true);
+            if (said == "") {
+                return done(context, "Buffer staged");
+            }
+            return done(context, "Stage failed: " + said);
+        }
+        case None: {
+            return done(context, "Not a git repository");
+        }
+    }
+}
+
+/// `:Hunk stage|reset|undo|preview|first|last|next|prev` and the range and buffer forms behind `gh` `gH` `hS` `hR`.
 Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) {
     str word = arguments.trim();
     if (word == "next" || word == "prev") {
         return go_hunk(state, context, word == "next");
     }
-    if (word != "stage" && word != "reset" && word != "undo" && word != "unstage" && word != "preview") {
-        return done(context, "Hunk: stage, reset, undo, preview, next or prev");
+    if (word == "first" || word == "last") {
+        return go_end_hunk(state, context, word == "first");
+    }
+    if (word.starts_with("preview-or ")) {
+        // the nvim profile's `hp`: the hunk preview in a tracked buffer, else the command after `preview-or`
+        FileInfo known = refresh(state, context, false);
+        if (!known.has_base) {
+            context.did_run_ex(word.substr(11, word.size()));
+            return Result<bool, str>.Ok(true);
+        }
+        return hunk_command(state, context, "preview");
+    }
+    if (word != "stage" && word != "reset" && word != "undo" && word != "unstage" && word != "preview" && word != "range-stage" && word != "range-reset" && word != "stage-buffer" && word != "reset-buffer") {
+        return done(context, "Hunk: stage, reset, undo, preview, first, last, next or prev");
     }
     str file = context.file;
     if (file.size() == 0) {
@@ -335,6 +488,12 @@ Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) 
     FileInfo info = refresh(state, context, false);
     if (!info.has_base) {
         return done(context, "This file is not tracked by git");
+    }
+    if (word == "range-stage" || word == "range-reset") {
+        return range_command(state, context, info, word == "range-stage");
+    }
+    if (word == "stage-buffer" || word == "reset-buffer") {
+        return buffer_command(state, context, info, word == "stage-buffer");
     }
     int row = context.cursor().row;
     if (word == "undo" || word == "unstage") {
@@ -364,27 +523,32 @@ Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) 
         replace_rows(context, info.hunks.froms[index], info.hunks.counts[index], old);
         return done(context, "Hunk reset");
     }
-    // stage: in process first (m31git); `git apply` when the library cannot
-    List<str> lines = buffer_lines(context);
-    str said = MEDX_git_hunk.stage_hunk(file, info.hunks, index, lines);
-    if (said != "!") {
-        if (said == "") {
-            refresh(state, context, true);
-            return done(context, "Hunk staged");
-        }
-        return done(context, "Stage failed: " + said);
-    }
-    MEDX_git_lib.Shell shell = shell_of(context);
-    str directory = MEDX_git_hunk.directory_of(file);
-    str prefix = MEDX_git_lib.shell_output(shell, ["git", "-C", directory, "rev-parse", "--show-prefix"], ".", "").or("").trim();
-    str relative = prefix + MEDX_git_hunk.name_of(file);
-    str patch = MEDX_git_hunk.hunk_patch(info.hunks, index, info.base, lines, relative);
-    MED_ext.Ran ran = context.run_in(["git", "-C", directory, "apply", "--cached", "--unidiff-zero", "-"], directory, patch, 1000);
-    if (ran.code == 0) {
+    str said = stage_one(context, file, info, index, buffer_lines(context));
+    if (said == "") {
         refresh(state, context, true);
         return done(context, "Hunk staged");
     }
-    return done(context, "Stage failed: " + first_line_of(ran.errors));
+    return done(context, "Stage failed: " + said);
+}
+
+/// `:Hunk first` and `:Hunk last`: the first or last change in the file.
+Result<bool, str> go_end_hunk(State state, MED_ext.Ctx context, bool is_first) {
+    FileInfo info = refresh(state, context, false);
+    if (!info.has_base || info.hunks.starts.size() == 0) {
+        return done(context, "No hunk");
+    }
+    int target = info.hunks.starts[0];
+    if (!is_first) {
+        target = info.hunks.starts[info.hunks.starts.size() - 1];
+    }
+    context.set_jump_mark();
+    int column = 0;
+    str line = context.line(target);
+    while (column < line.size() && (line.byte_at(column) == 32 || line.byte_at(column) == 9)) {
+        column = column + 1;
+    }
+    context.set_cursor(MED_buffer.Pos(target, column));
+    return Result<bool, str>.Ok(true);
 }
 
 str first_line_of(str text) {
@@ -422,6 +586,7 @@ Result<bool, str> Git.activate(MED_ext.Registry api) {
     api.did_command("Hunk", "stage, reset, undo, preview, next or prev hunk", (MED_ext.Ctx context, str arguments, bool is_bang) => hunk_command(kept, context, arguments));
     api.did_command("SignsGit", "switch the git signs on or off", (MED_ext.Ctx context, str arguments, bool is_bang) => signs_command(kept, context));
     api.did_preview("commit", CommitPreview());
+    api.did_job("git", (MED_ext.Ctx context, str job, List<str> lines) => job_ended(context, job, lines));
     return Result<bool, str>.Ok(true);
 }
 
@@ -455,7 +620,14 @@ pub void register(MED_ext.Registry api) {
     key(spec, "<Space>gL", "Git log %", "Log of this file", "default");
     key(spec, "<Space>gd", "Git diff", "Diff, working tree", "default");
     key(spec, "<Space>uG", "SignsGit", "Toggle git signs", "default");
+    typed(spec, "<Space>gc", ":Git commit ", "Commit (type the message)", "default");
+    key(spec, "<Space>gp", "Git pull", "Pull", "default");
+    key(spec, "<Space>gP", "Git push", "Push", "default");
     api.did_plugin(spec, Git());
+}
+
+void typed(MED_ext.Spec spec, str keys, str text, str desc, str profiles) {
+    spec.maps.push(MED_ext.MapSpec(MED_ext.MapMode.Normal, keys, MED_ext.Action.Keys(text), desc: desc, profiles: profiles));
 }
 
 void key(MED_ext.Spec spec, str keys, str command, str desc, str profiles) {

@@ -478,6 +478,9 @@ pub type Editor {
     pub int ex_input_last = -1;
     pub str ex_input_indent = "";
     pub List<str> ex_input_lines = [];
+    /// The rows (first, last; -1: none) of the last `gh` / `gH` operator, which the git plugin reads (`Ctx.operator_range`).
+    pub int op_first = -1;
+    pub int op_last = -1;
     /// Macros stopped for an ex command, first to continue first.
     pub List<Resume> resume = [];
     pub List<int> park = [];

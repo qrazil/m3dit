@@ -35,7 +35,9 @@ class Session:
         env = dict(os.environ, TERM="xterm-256color", COLORTERM="truecolor", LANG="C.UTF-8", PWD=root,
                    HOME=root, XDG_CONFIG_HOME=os.path.join(root, ".config"),
                    XDG_STATE_HOME=os.path.join(root, ".state"), GIT_CONFIG_NOSYSTEM="1",
-                   GIT_CONFIG_GLOBAL=os.devnull, GIT_CEILING_DIRECTORIES=os.path.dirname(root))
+                   GIT_CONFIG_GLOBAL=os.devnull, GIT_CEILING_DIRECTORIES=os.path.dirname(root),
+                   GIT_AUTHOR_NAME="A", GIT_AUTHOR_EMAIL="a@example.com", GIT_COMMITTER_NAME="C",
+                   GIT_COMMITTER_EMAIL="c@example.com")
         env.pop("M3_KEYMAP", None)
         self.proc = subprocess.Popen([binary, "--keymap", "NONE"] + args, stdin=slave, stdout=slave,
                                      stderr=slave, cwd=root, env=env, start_new_session=True, close_fds=True)
@@ -218,6 +220,56 @@ def gutter_and_plugin_switch(binary, root):
         s.close()
 
 
+def hunk_operators_and_ends(binary, root):
+    with open(os.path.join(root, "f.txt"), "w") as handle:
+        handle.write("".join(("line %d\n" % n) if n not in (5, 20) else "changed %d\n" % n for n in range(1, 31)))
+    s = Session(binary, root, ["f.txt"])
+    try:
+        s.pump(1.0)
+        # ]H and [H: the last and the first change
+        s.send("]H", 0.4)
+        assert " 20:" in s.text().split("\n")[-2], s.text()
+        s.send("[H", 0.4)
+        assert " 5:" in s.text().split("\n")[-2], s.text()
+        # ghh stages the hunk on this line only
+        s.send("5Gghh", 0.8)         # ghh: the hunks on this line
+        staged = git(root, "diff", "--cached", "-U0")
+        assert "+changed 5" in staged and "changed 20" not in staged, staged
+        assert "1 hunk staged" in s.text(), s.text()
+        # gHH resets the hunk of the line: line 20 goes back
+        s.send("20GgHH", 0.8)
+        s.send(":w\r", 0.6)
+        body = open(os.path.join(root, "f.txt")).read()
+        assert "changed 20" not in body and "changed 5" in body, body
+        # the range forms with a count and Visual mode
+        s.send("1GVGgh", 0.8)
+        staged = git(root, "diff", "--cached", "-U0")
+        assert "+changed 5" in staged, staged
+        # commit what is staged, from the command line (the job answers in the message line)
+        s.send(":Git commit second commit\r", 1.5)
+        s.pump(1.0)
+        assert git(root, "log", "-1", "--format=%s").strip() == "second commit", git(root, "log", "-1", "--format=%s")
+        s.send(":Git commit\r", 0.5)
+        assert "message is needed" in s.text(), s.text()
+        # push and pull against a local remote
+        bare = tempfile.mkdtemp(prefix="m3-git-remote-")
+        try:
+            git(bare, "init", "-q", "--bare", "-b", "main")
+            git(root, "remote", "add", "origin", bare)
+            git(root, "push", "-q", "-u", "origin", "main")
+            git(root, "commit", "-q", "--allow-empty", "-m", "local only")
+            s.send(":Git push\r", 2.0)
+            s.pump(1.0)
+            assert git(bare, "log", "-1", "--format=%s").strip() == "local only", git(bare, "log", "-1", "--format=%s")
+            s.send(":Git pull\r", 2.0)
+            s.pump(0.8)
+            assert "Git:" in s.text() or "up to date" in s.text().lower(), s.text()
+        finally:
+            shutil.rmtree(bare, ignore_errors=True)
+    finally:
+        s.close()
+
+
 def main():
     binary = sys.argv[1]
     scenario(binary, ":Git log lists the history with a git show preview", log_list_and_preview)
@@ -225,6 +277,7 @@ def main():
     scenario(binary, ":Git show and :Git diff open scratch buffers", show_and_diff_scratch)
     scenario(binary, ":Hunk stage, undo, preview, reset and dih", hunk_stage_and_undo)
     scenario(binary, "the gutter, the branch and the plugin switch", gutter_and_plugin_switch)
+    scenario(binary, "gh{motion}, gH{motion}, ]H [H, :Git commit", hunk_operators_and_ends)
 
 
 main()

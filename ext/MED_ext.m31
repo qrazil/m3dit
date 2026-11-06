@@ -2480,6 +2480,11 @@ pub void Ctx.pick_list(str title, List<PickEntry> entries, int selected_line) {
     pick_list_line = selected_line;
 }
 
+/// The first and last row the last plugin operator (`gh{motion}`, `gH{motion}`) covered; [-1, -1] before any (0.5.0).
+pub List<int> Ctx.operator_range() {
+    return [editor.op_first, editor.op_last];
+}
+
 /// How many times the text of this buffer has changed (0.5.0): equal numbers mean equal text.
 pub int Ctx.change_count() {
     return editor.buffer.tick;

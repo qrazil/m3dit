@@ -3002,6 +3002,21 @@ bool did_run_op(MED_editor.Editor editor, Oap oap) {
         return true;
     } else if (operator == "gc") {
         return did_op_comment(editor, oap);
+    } else if (operator == "gh" || operator == "gH") {
+        // gh{motion} stages and gH{motion} resets the hunks the motion covers: the git plugin does it (`Hunk range-stage`)
+        editor.op_first = oap.start.row;
+        editor.op_last = oap.end.row;
+        set_op_marks(editor, MED_buffer.Pos(oap.start.row, 0), MED_buffer.Pos(oap.end.row, 0));
+        editor.row = oap.start.row;
+        editor.col = oap.start.col;
+        editor.clamp();
+        editor.want_from_cursor();
+        if (operator == "gh") {
+            editor.ex_queue.push(str.from_chars([2]) + "Hunk range-stage");
+        } else {
+            editor.ex_queue.push(str.from_chars([2]) + "Hunk range-reset");
+        }
+        return true;
     } else if (operator == "ys" || operator == "yS") {
         return did_op_surround(editor, oap);
     } else {
@@ -7888,7 +7903,7 @@ void visual_cmd(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> typ
         int second = parsed.keys[1];
         if (second == 74) {
             visual_operator(editor, "gJ", reg, parsed.count, parsed.keys, kind, kind);
-        } else if (second == 126 || second == 117 || second == 85 || second == 63 || second == 99 || second == 113 || second == 119) {
+        } else if (second == 126 || second == 117 || second == 85 || second == 63 || second == 99 || second == 113 || second == 119 || second == 104 || second == 72) {
             visual_operator(editor, "g" + str.from_chars([second]), reg, parsed.count, parsed.keys, kind, kind);
         } else if (second == 1 || second == 24) {
             visual_operator(editor, nr_op(second, true), reg, parsed.count, parsed.keys, kind, kind);

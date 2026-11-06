@@ -294,6 +294,9 @@ pub List<Binding> prefixes() {
     for (Binding row in prefix_data("lsp", "m3", ["K :: hover documentation (language server)", "gd :: go to definition (language server)", "grr :: references (language server)", "grn :: rename symbol (language server)", "gra :: code action (language server)"])) {
         rows.push(row);
     }
+    for (Binding row in prefix_data("git", "m3", ["gh :: +stage the hunks of a motion (gh{motion}, ghh this line, Visual gh)", "gH :: +reset the hunks of a motion (gH{motion}, gHH this line, Visual gH)"])) {
+        rows.push(row);
+    }
     for (Binding row in prefix_data("surround", "vim", ["ys :: +surround add (ys{motion}{char})", "yss :: surround the line", "ds :: surround delete (ds{char})", "cs :: surround change (cs{old}{new})", "yS :: surround add, on own lines"])) {
         rows.push(row);
     }

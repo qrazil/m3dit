@@ -54,7 +54,7 @@ and since 0.22.0 the profile REPLACES the leader tree (it is the `legacy` tree p
 | diffview | `:DiffviewOpen` | `:Git diff` list; no two-pane diff, no file panel | partial |
 | fzf-lua (disabled), mini.pick (active) | `<leader>ff fg fr fb fe fq gf gh`, git branch pickers `gb gc gC gp`, LSP pickers | finder: `<Space>ff fg fr fb fe fq`, `gf`, `gb`, `gc`, `gC` same keys; resume and the hunk list are not there | partial |
 | git-conflict | `o t 0 b n p` in a conflict | not built (a plugin over `did_decorate` plus buffer keys) | missing |
-| gitsigns | `-` `_` stage / reset, `>` `<` hunks, `<leader>hS hu hR hp hd hD hb`, toggles `tg tw tl tb td ta hq`, `ih` | signs, `:Hunk stage reset preview undo next prev`; the profile reproduces `- _ > < hu hS` (`hp` stays harpoon's); missing: word diff, line highlight, deleted lines, line blame text, `ih`, stage a Visual range | partial |
+| gitsigns | `-` `_` stage / reset, `>` `<` hunks, `<leader>hS hu hR hp hd hD hb`, toggles `tg tw tl tb td ta hq`, `ih` | signs, `:Hunk stage reset preview undo next prev`; the profile reproduces `- _ > < hu hS hR hb` and `hp` (hunk preview in a tracked buffer, else harpoon previous; `hP` is harpoon previous everywhere); missing: word diff, line highlight, deleted lines, line blame text, `ih`, stage a Visual range | partial |
 | harpoon | `<leader>ha he hp hn`, `<leader>1..9` | `harpoon` plugin, same keys | done |
 | indent-blankline (disabled) | | `guides` | done |
 | lualine | auto theme, no separators, transparent section backgrounds | `statusline` plugin: mode, file, branch, hunks, diagnostics, filetype, position; transparent through `transparent_style` | partial |
