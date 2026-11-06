@@ -244,7 +244,7 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 | plugin | default keys | what it does |
 |---|---|---|
 | finder | `<Space>ff fg fr fb fd fq fh fc fk fo fm fx fs ft fw` | files, live grep, recent, buffers, lines of the buffer, quickfix, keys, commands, options, marks, diagnostics, symbols, TODOs, word under cursor; `<C-t>` marks, `<C-q>` sends to quickfix |
-| whichkey | after 400 ms of any pending prefix | `<Space>`, `g`, `z`, `[`, `]`, `<C-w>`, `"`, `'`, operators |
+| whichkey (core; `:set nowhichkey` or the plugin name `whichkey` turn it off) | after 400 ms of any pending prefix | `<Space>`, `g`, `z`, `[`, `]`, `<C-w>`, `"`, `'`, operators |
 | explorer | `<Space>e` | file tree sidebar (see below) |
 | git | `<Space>gg gf gb gc gC gs gr gp gu gB gl gd gm gt`, `]c [c ]h [h`, `ih ah`, `:Git`, `:Hunk` | changed files, branch checkout, remote branches, commit log with preview, hunk stage / unstage / reset / preview, blame line and list, file log, diff, signs; the reads and the staging run in process (see below) |
 | surround | `ys ds cs`, Visual `S`, `<Space>sa sd sr` | vim-surround |
@@ -266,7 +266,7 @@ In a picker, `<C-s>` / `<C-v>` open the hit in a split below / beside.
 These are the features of the core that have a switch; as each one moves into a compiled-in plugin
 (`plugins/NAME/`, docs/CORE-AND-PLUGINS.md) it keeps its name and the same two commands, and `:Plugins` shows the
 compiled plugins under "Compiled plugins" with their state (`active`, `lazy`, `off`, `refused: requires x`)
-and the extension API they were written for. Compiled plugins since 0.18.0, each in `plugins/NAME/` with its own README and tests: `move`, `bracketed`, `harpoon`, `todo`, `whichkey`, `notify` (new: toast notifications, `:Notify`, `:Notifications`), `statusline` and (0.19.0) `session` and (0.21.0) `git`; each keeps its row in the table above, and `--without NAME` builds without it. Everything else in the table is still in the core ([docs/DAILY-DRIVER.md](docs/DAILY-DRIVER.md) says what is missing for daily use, [docs/CORE-AND-PLUGINS.md](docs/CORE-AND-PLUGINS.md) what moves next).
+and the extension API they were written for. Compiled plugins since 0.18.0, each in `plugins/NAME/` with its own README and tests: `move`, `bracketed`, `harpoon`, `todo`, `notify` (new: toast notifications, `:Notify`, `:Notifications`), `statusline` and (0.19.0) `session` and (0.21.0) `git`; each keeps its row in the table above, and `--without NAME` builds without it. Everything else in the table is still in the core ([docs/DAILY-DRIVER.md](docs/DAILY-DRIVER.md) says what is missing for daily use, [docs/CORE-AND-PLUGINS.md](docs/CORE-AND-PLUGINS.md) what moves next).
 Project-wide replace: put hits in the quickfix list (`<C-q>` in a finder list), then `:cdo s/old/new/ | update` runs the line at
 each entry, `:cfdo %s/old/new/ | update` once for each file in the list, `:bufdo` in each listed buffer; the first line that fails
 ends the run.

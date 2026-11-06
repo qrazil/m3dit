@@ -343,7 +343,7 @@ through the extension API (`MapSpec`, docs/EXTENSIONS.md) and its keys run their
 |---|---|
 | core | keymap tree, which-key engine, :Plugins and :Keys |
 | finder | fuzzy pickers: files, grep, buffers, recent, git, symbols |
-| whichkey | popup of the keys that can follow a pending prefix |
+| whichkey | popup of the keys that can follow a pending prefix (core; old name) |
 | explorer | file tree sidebar and directory pickers |
 | git | gutter signs, hunk keys, :Git log show diff blame |
 | surround | ys ds cs and visual S |

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased (0.22.0 in progress)
+
+- **Which-key is core** (owner decision): `plugins/whichkey` is gone, the popup is part of the editor, `:set whichkey` / `:set nowhichkey` switch both the leader
+  menu and the prefix help (before: the option switched only the prefix help), it is on in the `default` and `nvim` profiles and off in a bare
+  `--no-plugins` build. `:PluginDisable whichkey` / `:PluginEnable whichkey` still work (they are `:set nowhichkey` / `:set whichkey`), so an old keymap file
+  does not break. `t_whichkey` moved to `tests/`.
+
 ## 0.21.0
 
 The `git` plugin, and extension API 0.5.0. The git gutter, the hunk commands and `:Git` left the core for `plugins/git/` (default

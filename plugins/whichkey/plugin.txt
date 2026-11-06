@@ -1,2 +1,0 @@
-name: whichkey
-summary: popup of the keys that can follow a pending prefix

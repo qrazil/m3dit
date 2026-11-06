@@ -9,7 +9,6 @@ import ext.MED_ext;
 import plugins.move.MEDX_move;
 import plugins.harpoon.MEDX_harpoon;
 import plugins.todo.MEDX_todo;
-import plugins.whichkey.MEDX_whichkey;
 import plugins.notify.MEDX_notify;
 import plugins.statusline.MEDX_statusline;
 import plugins.session.MEDX_session;
@@ -20,7 +19,6 @@ pub void install(MED_ext.Registry api) {
     MEDX_move.register(api);
     MEDX_harpoon.register(api);
     MEDX_todo.register(api);
-    MEDX_whichkey.register(api);
     MEDX_notify.register(api);
     MEDX_statusline.register(api);
     MEDX_session.register(api);

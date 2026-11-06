@@ -89,6 +89,9 @@ const int RECOVER_MS = 1500;
 const int PREVIEW_LINES = 3000;
 /// A preview line is kept this many columns long (the pane is never wider).
 const int PREVIEW_COLUMNS = 400;
+/// Milliseconds a pending key waits before the which-key popup shows.
+const int WHICH_KEY_MS = 400;
+
 /// The smallest a window may get, status line included.
 const int VKIND_CHAR = 118;
 const int VKIND_LINE = 86;
@@ -3989,9 +3992,10 @@ str App.pending_keys() {
     return prefix_typed();
 }
 
-/// While keys are pending, tell the plugins (`PendingKeys`, with the time since the last key); the which-key plugin
-/// answers with `show_key_help` once they have waited long enough. Nothing is pending: the help goes away. True when
-/// the screen changed.
+/// While keys are pending: after WHICH_KEY_MS the popup of the keys that can follow shows (the leader menu, or the
+/// prefix help of `g` `z` `[` `]` `<C-w>` and the operators), and the plugins that take `PendingKeys` are told. Nothing
+/// is pending: the help goes away. `:set nowhichkey` turns both popups off; a bare build (`--no-plugins`) starts with
+/// it off. True when the screen changed.
 bool App.did_tick_pending(int elapsed_ms) {
     str typed = pending_keys();
     if (typed.size() == 0 && !is_leader) {
@@ -4004,9 +4008,6 @@ bool App.did_tick_pending(int elapsed_ms) {
             }
         }
         return was_shown;
-    }
-    if (!ext.has_handler(MED_ext.Event.PendingKeys)) {
-        return false;
     }
     bool was_leader_help = is_which_key;
     bool was_prefix_help = is_prefix_help;
@@ -4025,7 +4026,17 @@ bool App.did_tick_pending(int elapsed_ms) {
         waited = prefix_ms;
         is_shown = is_prefix_help;
     }
-    ext_fire_pending(typed, is_leader, waited, is_shown);
+    if (!is_shown && waited >= WHICH_KEY_MS && editor.is_option_on("whichkey", !ext.is_empty())) {
+        if (is_leader) {
+            is_which_key = true;
+        } else if (MED_keymap.next_items(prefix_table(prefix_typed()), prefix_typed()).size() > 0) {
+            is_prefix_help = true;
+        }
+        is_shown = is_which_key || is_prefix_help;
+    }
+    if (ext.has_handler(MED_ext.Event.PendingKeys)) {
+        ext_fire_pending(typed, is_leader, waited, is_shown);
+    }
     return is_which_key != was_leader_help || is_prefix_help != was_prefix_help;
 }
 

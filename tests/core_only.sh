@@ -4,7 +4,7 @@
 #
 #   bash tests/core_only.sh [WORKDIR]      builds WORKDIR/m3-core (a temporary directory when none is given)
 #
-# Gates so far (0.18.0: the absence checks cover move, harpoon, bracketed, whichkey, notify, todo, statusline): 1 build (no plugins/ reachable), 2 --version and --list-plugins name no plugin, 3 behaviour (a
+# Gates so far (0.18.0: the absence checks cover move, harpoon, bracketed, notify, todo, statusline; whichkey is core since 0.22.0): 1 build (no plugins/ reachable), 2 --version and --list-plugins name no plugin, 3 behaviour (a
 # pty session: the golden screens of the scenarios that need no plugin), 5 absence (Alt-j does not move a line, :Plugins
 # has no move row).
 # Gates 2 (units) and 3 (oracle) of 7.4 are the ordinary suites, which do not depend on the plugin selection
@@ -32,7 +32,7 @@ if python3 -c 'import pyte' 2>/dev/null; then
     if ! out=$(python3 tests/screen_pty.py "$bin" --only "$scenarios" --scratch "$work/core-screens" 2>&1); then
         bad "golden screens on the core build"; say "$out" | tail -15
     fi
-    # absence gate: what lives in a default plugin is not there (the golden screens are those of the default build)
+    # absence gate: what lives in a default plugin is not there (the golden screens are those of the default build); a bare build starts with :set nowhichkey, so the which_key_* popups are absent too
     for absent in move_line harpoon_pin bufferline which_key_leader which_key_g which_key_bracket notify_toast; do
         if python3 tests/screen_pty.py "$bin" --only "$absent" --scratch "$work/core-absent" >/dev/null 2>&1; then
             bad "scenario $absent is the same in the --no-plugins build: its plugin is still in the core"

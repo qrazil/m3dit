@@ -1300,7 +1300,7 @@
     100,
     true
    ],
-   "raw": "a1528762d778c55d94f417061c274b75745fc216",
+   "raw": "b19887974be474c4ccebccc667510ce7985354d4",
    "style": "a22ee6f042b61d94086b085ba3018ea69210b004",
    "text": [
     "  1",
@@ -1312,7 +1312,7 @@
     "Built-in plugins (:PluginDisable NAME / :PluginEnable NAME):",
     "  on   core  keymap tree, which-key engine, :Plugins and :Keys",
     "  on   finder  fuzzy pickers: files, grep, buffers, recent, git, symbols",
-    "  on   whichkey  popup of the keys that can follow a pending prefix",
+    "  on   whichkey  popup of the keys that can follow a pending prefix (core; old name)",
     "  on   explorer  file tree sidebar and directory pickers",
     "  on   git  gutter signs, hunk keys, :Git log show diff blame",
     "  on   surround  ys ds cs and visual S",

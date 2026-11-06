@@ -8,7 +8,6 @@ move
 bracketed
 harpoon
 todo
-whichkey
 notify
 statusline
 session

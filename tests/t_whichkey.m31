@@ -1,6 +1,6 @@
-// The `whichkey` plugin through the App: the leader popup and the prefix help wait 400 ms after the last key, the
-// leader popup stays while the sequence goes on, :set nowhichkey turns the prefix help off (not the leader popup), and
-// :PluginDisable whichkey turns both off.
+// Which-key through the App (core since 0.22.0): the leader popup and the prefix help wait 400 ms after the last key,
+// the leader popup stays while the sequence goes on, :set nowhichkey (and the old :PluginDisable whichkey) turns both
+// off, and a bare build (no plugin, so no registry) starts with it off: :set whichkey turns it on.
 
 import tests.MED_check;
 import tui.core.TUI_buffer;
@@ -53,14 +53,31 @@ match (MED_app.open("")) {
         check.ok(":set nowhichkey: no prefix help", !app.is_prefix_help);
         type_text(app, "\x1b ");
         app.tick(900);
-        check.ok("but the leader popup shows", app.is_which_key);
-        type_text(app, "\x1b:set whichkey\r:PluginDisable whichkey\r");
+        check.ok("and no leader popup", !app.is_which_key);
+        type_text(app, "\x1b:set whichkey\r ");
+        app.tick(900);
+        check.ok(":set whichkey brings it back", app.is_which_key);
+        type_text(app, "\x1b:PluginDisable whichkey\r");
         type_text(app, " ");
         app.tick(900);
-        check.ok("plugin off: no leader popup", !app.is_which_key);
-        type_text(app, "\x1bg");
+        check.ok("the old plugin name still switches it (off)", !app.is_which_key);
+        type_text(app, "\x1b:PluginEnable whichkey\r ");
         app.tick(900);
-        check.ok("and no prefix help", !app.is_prefix_help);
+        check.ok("and on", app.is_which_key);
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+// a bare build: no extension registry, the popup is off until :set whichkey
+match (MED_app.open("")) {
+    case Ok(MED_app.App bare): {
+        type_text(bare, " ");
+        bare.tick(900);
+        check.ok("bare: no popup by default", !bare.is_which_key);
+        type_text(bare, "\x1b:set whichkey\r ");
+        bare.tick(900);
+        check.ok("bare: :set whichkey turns it on", bare.is_which_key);
     }
     case Err(str message): {
         print("cannot open: " + message);

@@ -21,7 +21,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 | Git gutter, hunk stage/reset/undo/preview, blame line and list, diff, log, branches, commits, checkout | core | `ui/MED_git*.m31` over m31git (in process) | `<Space>g...`, `:Git`, `:Hunk`; `]h [h ]c [c` are `bracketed`; planned plugin `git` (step 10) |
 | Terminal pane | core | `:terminal`, `<Space>t` | `<C-\><C-n>` leaves; planned plugin `terminal` (step 13) |
 | Surround, auto pairs, comment toggle | core | engine options `surround`, `autopairs`, `comment` | `ys ds cs S`, `gc gcc`; entangled with the engine, see CORE-AND-PLUGINS section 10 |
-| which-key (leader and prefix popup) | plugin | `whichkey` | 400 ms; key tree and popup widget are core |
+| which-key (leader and prefix popup) | core (0.22.0; it was a plugin) | `:set whichkey` | 400 ms; on by default, off in a bare build |
 | Pinned files (harpoon) | plugin | `harpoon` | `<Space>ha he hn hp hd 1..9` |
 | Notifications | plugin | `notify` | toasts for LSP `window/showMessage` and plugins; `:Notifications` history; `:messages` is the core ring |
 | Statusline extras, buffer line | plugin | `statusline` | branch, hunk counts, E/W, server activity |
@@ -60,7 +60,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 ## What changed in 0.18.0 to get here
 
 Six features left the core and became plugins on API 0.3.0 (and `session` on 0.4.0 in 0.19.0), each with `plugin.txt`, a module, a README and tests, in the
-default profile and switched off by `--without NAME`: `bracketed`, `harpoon`, `todo`, `whichkey`, `notify` (new) and
+default profile and switched off by `--without NAME`: `bracketed`, `harpoon`, `todo`, `notify` (new) and
 `statusline`. The core keeps a minimal status line (mode, file, filetype, position) and the tab-page line, so
 `--no-plugins` is a working editor. No daily feature was removed. Comment toggle was not missing (it is `gc` in the engine,
 checked against nvim 0.11), so there is no `comment` plugin.
