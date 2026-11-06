@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.26.0
+
+The divergence audit: tooling and a proposal. **No behaviour changed** in this release.
+
+- **docs/DIVERGENCE-AUDIT.md** lists what m3 carries from vim and nvim (326 options, 241 ex command names, the vim keys, the behaviours), each with a verdict
+  KEEP, DROP, CHANGE or IMPROVE, a one-line reason and, for the last three, the migration for someone coming from vim. It also proposes performance work
+  (start-up, large files, undo memory, regex, redraw, input storms) with how to measure each. It is a proposal for the owner to veto; the DROP / CHANGE /
+  IMPROVE items are implemented only after that, one small commit each, each with a migration line here.
+- **`tests/oracles/divergences.tsv`** is the single source of the deliberate divergences from vim/nvim (id, vim behaviour, m3 behaviour, reason, how the oracle
+  treats it, a selector). `tests/oracles/oracle_nvim.py` reads it: `skip` rows take the matching corpus cases out of the comparison (counted, listed with `-v`),
+  `flip` rows expect them to differ. The eight `:l` / `:list` / `:g/pat/l` cases that sat in `known_divergences.txt` are now two `skip` rows.
+- `scripts/divergences.py --write|--check docs/CORE-STATUS.md` generates the table "Deliberate divergences from vim/nvim"; `tests/test_core.sh` fails when it is stale.
+- The oracle summary line now also says how many cases the tsv skipped.
+- Found by the audit, not fixed yet: `scripts/options_doc.py` searches `engine/` and `ui/` only, so the plugin-read options (`treewidth`, `treehidden`,
+  `treeglyphs`, `todohl`, `bufferline`, `gitsigns`) are listed as "stored only" in docs/OPTIONS.md.
+
 ## 0.25.0
 
 The generic list, and extension API 0.7.0 (docs/LIST.md). The quickfix list is not a store of its own any more: it is the list named `quickfix` in a core
