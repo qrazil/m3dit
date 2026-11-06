@@ -179,17 +179,11 @@ FileInfo refresh(State state, MED_ext.Ctx context, bool is_forced) {
 
 /// The branch of this buffer's file, read from `.git/HEAD`.
 void read_branch(State state, MED_ext.Ctx context) {
-    if (context.file.size() == 0) {
-        state.branch = "";
-        return;
-    }
+    // a buffer with no file is in the working directory
     state.branch = MEDX_git_hunk.branch_of(MEDX_git_hunk.directory_of(context.file));
 }
 
 Result<bool, str> opened(State state, MED_ext.Ctx context, MED_ext.Info info) {
-    if (state.branch.size() == 0) {
-        read_branch(state, context);
-    }
     refresh(state, context, false);
     return Result<bool, str>.Ok(true);
 }
@@ -197,9 +191,6 @@ Result<bool, str> opened(State state, MED_ext.Ctx context, MED_ext.Info info) {
 /// Every TICK_MS: the diff again when the text changed (in Normal mode, so typing is not interrupted), HEAD and the
 /// branch every REFRESH_MS.
 Result<bool, str> ticked(State state, MED_ext.Ctx context, MED_ext.Info info) {
-    if (context.file.size() == 0) {
-        return Result<bool, str>.Ok(true);
-    }
     state.branch_ms = state.branch_ms + info.elapsed_ms;
     state.refresh_ms = state.refresh_ms + info.elapsed_ms;
     bool is_forced = false;

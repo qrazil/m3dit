@@ -1300,7 +1300,7 @@
     100,
     true
    ],
-   "raw": "f6ccc67f253bd774bc4eb22f8f852fcd14836243",
+   "raw": "a1528762d778c55d94f417061c274b75745fc216",
    "style": "a22ee6f042b61d94086b085ba3018ea69210b004",
    "text": [
     "  1",
@@ -1314,7 +1314,7 @@
     "  on   finder  fuzzy pickers: files, grep, buffers, recent, git, symbols",
     "  on   whichkey  popup of the keys that can follow a pending prefix",
     "  on   explorer  file tree sidebar and directory pickers",
-    "  on   git  gutter signs, hunk keys, branches, commits, blame",
+    "  on   git  gutter signs, hunk keys, :Git log show diff blame",
     "  on   surround  ys ds cs and visual S",
     "  on   comment  gc and gcc, language aware",
     "  on   autopairs  insert-mode bracket and quote pairing",
@@ -1328,7 +1328,7 @@
     "  on   terminal  :terminal, <Space>t, :! :r! filters",
     "  on   session  remember the cursor position of each file",
     "  on   lsp  language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13)",
-    "Compiled plugins (api 0.4.0):",
+    "Compiled plugins (api 0.5.0):",
     "  lazy  notify  toast notifications in the top right corner, and :Notifications history",
     "Press ENTER or type command to continue",
     " NORMAL  [No Name]                                                                        1:1  100%",
