@@ -20,8 +20,7 @@
 
 import fs;
 import io;
-import ui.MED_files;
-import ui.MED_gitstatus;
+import ext.MED_ext;
 
 /// The most rows a tree (or a filtered tree) builds.
 const int MAX_ROWS = 20000;
@@ -102,7 +101,7 @@ bool Tree.is_expanded(str path) {
  * only when something inside it matches. True when anything was added. */
 bool Tree.did_collect(str directory, str relative, int depth, List<Entry> out) {
     bool did_add = false;
-    for (str listed in MED_files.list_directory(directory, is_hidden_shown)) {
+    for (str listed in list_directory(directory, is_hidden_shown)) {
         if (out.size() >= MAX_ROWS) {
             break;
         }
@@ -192,8 +191,8 @@ pub void Tree.refresh() {
 }
 
 /// Read git status again and refresh the rows.
-pub void Tree.refresh_status() {
-    status = MED_gitstatus.status_map(root);
+pub void Tree.refresh_status(Runner runner) {
+    status = status_map(runner, root);
     refresh();
 }
 
@@ -548,4 +547,138 @@ pub str free_name(str directory, str name) {
         attempt = attempt + 1;
     }
     return name;
+}
+
+/// How the model runs `git status` (the plugin gives `Ctx.run_in`; a test gives its own).
+pub interface Runner {
+    MED_ext.Ran run(List<str> argv, str cwd, str input);
+}
+
+Option<str> shell_output(Runner runner, List<str> argv, str cwd) {
+    MED_ext.Ran done = runner.run(argv, cwd, "");
+    if (done.code != 0) {
+        return Option<str>.None;
+    }
+    return Option<str>.Some(done.text);
+}
+
+/** The entries of one directory for the explorer: directories first (with a
+ * trailing `/`), then files, each group in name order. */
+pub List<str> list_directory(str directory, bool is_hidden_shown) {
+    List<str> dirs = [];
+    List<str> files = [];
+    match (fs.listdir(directory)) {
+        case Ok(List<str> names): {
+            for (str name in names) {
+                if (name == ".git" || (!is_hidden_shown && name.starts_with("."))) {
+                    continue;
+                }
+                str full = fs.join(directory, name);
+                if (fs.is_directory(full)) {
+                    dirs.push(name + "/");
+                } else {
+                    files.push(name);
+                }
+            }
+        }
+        case Err(io.Error error): {
+        }
+    }
+    for (str name in files) {
+        dirs.push(name);
+    }
+    return dirs;
+}
+
+/// How much a status letter matters when a folder shows the worst of its files.
+pub int status_rank(str letter) {
+    if (letter == "!") {
+        return 5;
+    }
+    if (letter == "D") {
+        return 4;
+    }
+    if (letter == "M" || letter == "R") {
+        return 3;
+    }
+    if (letter == "A") {
+        return 2;
+    }
+    if (letter == "?") {
+        return 1;
+    }
+    return 0;
+}
+
+/** The status of every changed path below `directory`, keyed by the path
+ * relative to it (`git status --porcelain`): M modified, A added, D deleted,
+ * R renamed, ? untracked, ! conflicted. Folders carry the worst status of
+ * what is inside them. Empty outside a repository. */
+pub Map<str, str> status_map(Runner runner, str directory) {
+    Map<str, str> found = {};
+    str text = "";
+    match (shell_output(runner, ["sh", "-c", "git rev-parse --show-prefix && git status --porcelain=v1 --untracked-files=all"], directory)) {
+        case Some(str content): {
+            text = content;
+        }
+        case None: {
+            return found;
+        }
+    }
+    List<str> lines = text.split("\n");
+    if (lines.size() < 1) {
+        return found;
+    }
+    str prefix = lines[0];
+    for (int index in 1 .. lines.size()) {
+        str line = lines[index];
+        if (line.size() < 4) {
+            continue;
+        }
+        str index_letter = line.substr(0, 1);
+        str tree_letter = line.substr(1, 2);
+        str name = line.substr(3, line.size());
+        int arrow = name.index_of(" -> ").or(-1);
+        if (arrow >= 0) {
+            name = name.substr(arrow + 4, name.size());
+        }
+        if (name.starts_with("\"") && name.ends_with("\"") && name.size() >= 2) {
+            name = name.substr(1, name.size() - 1);
+        }
+        str letter = tree_letter;
+        if (letter == " ") {
+            letter = index_letter;
+        }
+        if (index_letter == "U" || tree_letter == "U" || (index_letter == "A" && tree_letter == "A") || (index_letter == "D" && tree_letter == "D")) {
+            letter = "!";
+        }
+        if (letter == "C" || letter == "T") {
+            letter = "M";
+        }
+        if (prefix.size() > 0) {
+            if (!name.starts_with(prefix)) {
+                continue;
+            }
+            name = name.substr(prefix.size(), name.size());
+        }
+        // the file and every folder above it
+        str walked = name;
+        while (true) {
+            str old = found.get(walked).or("");
+            if (status_rank(letter) > status_rank(old)) {
+                found.set(walked, letter);
+            }
+            int slash = -1;
+            for (int offset in 0 .. walked.size()) {
+                if (walked.byte_at(offset) == 47) {
+                    slash = offset;
+                }
+            }
+            if (slash < 0) {
+                break;
+            }
+            walked = walked.substr(0, slash);
+        }
+    }
+    return found;
 }

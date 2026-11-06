@@ -1,0 +1,597 @@
+/* The `explorer` plugin: the file tree sidebar (`<Space>e`, `:Neotree`), neo-tree's filesystem source in a terminal. It was
+ * `ui/MED_tree.m31` and about 600 lines of `ui/MED_app.m31` (the layout, the keys, the mouse, the drawing, the timer); now the
+ * host gives it a docked panel (API 0.6.0, `Registry.did_panel`, docs/PANEL-API.md) and it keeps what the sidebar shows: the
+ * folders, the git status letters, the file operations and their prompts (ex lines: `:Neotree add NAME`).
+ *
+ *   MEDX_explorer_tree   the model: the rows of the open folders, the status map, the file operations */
+
+import engine.MED_key;
+import ext.MED_ext;
+import fs;
+import io;
+import plugins.explorer.MEDX_explorer_tree;
+
+/// A screen narrower than this shares nothing with the sidebar.
+const int MIN_SCREEN = 40;
+/// How often (ms) git status is read again.
+const int STATUS_MS = 5000;
+const int WHEEL_LINES = 3;
+const int PREVIEW_LINES = 20;
+
+/// `Ctx.run_in` as the model's runner of `git status`.
+type ContextRunner {
+    MED_ext.Ctx context;
+}
+
+MED_ext.Ran ContextRunner.run(List<str> argv, str cwd, str input) {
+    return context.run_in(argv, cwd, input, 1000);
+}
+
+MEDX_explorer_tree.Runner runner_of(MED_ext.Ctx context) {
+    return ContextRunner(context);
+}
+
+/// What the sidebar remembers.
+type State {
+    MEDX_explorer_tree.Tree tree = MEDX_explorer_tree.Tree();
+    bool is_pending_g = false;
+    /// Rows of the list (below the header, above the label) as of the last draw.
+    int list_rows = 20;
+    /// The editor's working directory, for the header of a tree rooted at ".".
+    str working_directory = ".";
+}
+
+str plain_directory(str directory) {
+    str plain = directory;
+    while (plain.size() > 1 && plain.ends_with("/")) {
+        plain = plain.substr(0, plain.size() - 1);
+    }
+    return plain;
+}
+
+str up_directory(str directory) {
+    if (directory == ".") {
+        return "..";
+    }
+    if (directory == ".." || directory.ends_with("/..") || directory == "/") {
+        if (directory == "/") {
+            return "/";
+        }
+        return directory + "/..";
+    }
+    return MEDX_explorer_tree.parent_of(directory);
+}
+
+List<str> read_preview(str file) {
+    if (!fs.is_file(file)) {
+        return ["(not a file)"];
+    }
+    match (io.read(file)) {
+        case Ok(str text): {
+            if (text.size() > 1000000) {
+                return ["(file too large to preview)"];
+            }
+            for (int spot in 0 .. 512) {
+                if (spot < text.size() && text.byte_at(spot) == 0) {
+                    return ["(binary file)"];
+                }
+            }
+            List<str> lines = text.split("\n");
+            if (lines.size() > PREVIEW_LINES) {
+                lines = lines.slice(0, PREVIEW_LINES);
+            }
+            for (int spot in 0 .. lines.size()) {
+                if (lines[spot].ends_with("\r")) {
+                    lines[spot] = lines[spot].substr(0, lines[spot].size() - 1);
+                }
+                lines[spot] = lines[spot].split("\t").join("    ");
+            }
+            return lines;
+        }
+        case Err(io.Error error): {
+            return ["(cannot read: " + error.to_str() + ")"];
+        }
+    }
+}
+
+/// The folder an operation on the cursor row works in: the row itself when it is a folder, else the folder of the file.
+str target_directory(State state) {
+    match (state.tree.current()) {
+        case Some(MEDX_explorer_tree.Entry here): {
+            if (here.is_directory) {
+                return here.path;
+            }
+            return MEDX_explorer_tree.parent_of(here.path);
+        }
+        case None: {
+            return state.tree.root;
+        }
+    }
+}
+
+/// The root's name for the header.
+str title_of(State state) {
+    str root_text = state.tree.root;
+    if (root_text == ".") {
+        root_text = state.working_directory;
+    }
+    str name = MEDX_explorer_tree.name_of(root_text);
+    if (name.size() == 0 || name == ".") {
+        return root_text;
+    }
+    return name;
+}
+
+void open_tree(State state, MED_ext.Ctx context, bool is_focus) {
+    MEDX_explorer_tree.Tree tree = state.tree;
+    state.working_directory = context.working_directory();
+    if (!tree.is_open) {
+        tree.is_open = true;
+        tree.width = context.option("treewidth").parse_int().or(32);
+        tree.has_glyphs = context.is_flag_on("treeglyphs", false);
+        tree.is_hidden_shown = context.is_flag_on("treehidden", false);
+        tree.refresh_status(runner_of(context));
+    }
+    if (context.file.size() > 0) {
+        if (tree.did_reveal(context.file)) {
+            tree.followed = context.file;
+        }
+    }
+    if (is_focus) {
+        context.focus_panel();
+    }
+}
+
+void close_tree(State state, MED_ext.Ctx context) {
+    state.tree.is_open = false;
+    state.tree.is_focused = false;
+    context.blur_panel();
+}
+
+void open_from_tree(State state, MED_ext.Ctx context, str file, int how) {
+    context.blur_panel();
+    context.open_path(file, how);
+    state.tree.followed = file;
+}
+
+void tree_help(MED_ext.Ctx context) {
+    context.show_text(["File tree keys", "  j k gg G C-d C-u   move        l <CR> o   open / expand    h   collapse / parent", "  s v t              open in split / vsplit / vsplit    z   collapse all", "  a   add (trailing / makes a folder)    d   delete    r   rename    c   copy to    m   move to", "  y   yank path    x   cut    p   paste    H   toggle hidden    /   filter    <Esc>   clear filter", "  R   refresh    P   preview    i   info    .   set root    u <BS>   up    q   close    ?   this help", "  <C-w>l <C-w>w   back to the editor window    :Neotree reveal|toggle|focus|close|refresh"]);
+}
+
+// ------------------------------------------------------------------ the keys
+
+void tree_key(State state, MED_ext.Ctx context, int key) {
+    MEDX_explorer_tree.Tree tree = state.tree;
+    int count = tree.entries.size();
+    int rows = state.list_rows;
+    if (state.is_pending_g) {
+        state.is_pending_g = false;
+        if (key == 103) {
+            tree.row = 0;
+        }
+        return;
+    }
+    MEDX_explorer_tree.Entry here = MEDX_explorer_tree.Entry("", "", "", 0, false, false);
+    bool has_here = false;
+    match (tree.current()) {
+        case Some(MEDX_explorer_tree.Entry found): {
+            here = found;
+            has_here = true;
+        }
+        case None: {
+        }
+    }
+    if (key == 106 || key == MED_key.DOWN || key == 14) {
+        tree.row = tree.row + 1;
+    } else if (key == 107 || key == MED_key.UP_KEY || key == 16) {
+        tree.row = tree.row - 1;
+    } else if (key == 103) {
+        state.is_pending_g = true;
+        return;
+    } else if (key == 71 || key == MED_key.END) {
+        tree.row = count - 1;
+    } else if (key == MED_key.HOME) {
+        tree.row = 0;
+    } else if (key == 4) {
+        tree.row = tree.row + rows / 2;
+    } else if (key == 21) {
+        tree.row = tree.row - rows / 2;
+    } else if (key == 6 || key == MED_key.PAGE_DOWN) {
+        tree.row = tree.row + rows;
+    } else if (key == 2 || key == MED_key.PAGE_UP) {
+        tree.row = tree.row - rows;
+    } else if (key == MED_key.ESC) {
+        if (tree.filter.size() > 0) {
+            tree.filter = "";
+            tree.refresh();
+        } else {
+            context.blur_panel();
+        }
+    } else if (key == 113) {
+        close_tree(state, context);
+    } else if (key == 63) {
+        tree_help(context);
+    } else if (key == 82) {
+        tree.refresh_status(runner_of(context));
+        context.say("Tree refreshed");
+    } else if (key == 72) {
+        tree.is_hidden_shown = !tree.is_hidden_shown;
+        tree.refresh();
+    } else if (key == 122) {
+        tree.collapse_all();
+    } else if (key == 47) {
+        context.begin_command("Neotree filter " + tree.filter);
+    } else if (key == 46) {
+        if (has_here && here.is_directory) {
+            tree.root = here.path;
+        } else if (has_here) {
+            tree.root = MEDX_explorer_tree.parent_of(here.path);
+        }
+        tree.row = 0;
+        tree.top = 0;
+        tree.refresh_status(runner_of(context));
+    } else if (key == 117 || key == MED_key.BACKSPACE || key == 45) {
+        tree.root = up_directory(tree.root);
+        tree.row = 0;
+        tree.top = 0;
+        tree.refresh_status(runner_of(context));
+    } else if (key == 97) {
+        str directory = target_directory(state);
+        str prefill = "";
+        if (directory != ".") {
+            prefill = directory + "/";
+        }
+        context.begin_command("Neotree add " + prefill);
+    } else if (!has_here) {
+        // nothing under the cursor for the keys below
+    } else if (key == 108 || key == MED_key.RIGHT) {
+        if (here.is_directory && !here.is_open) {
+            tree.toggle(here.path);
+        } else if (here.is_directory) {
+            tree.row = tree.row + 1;
+        } else {
+            open_from_tree(state, context, here.path, 0);
+        }
+    } else if (key == 104 || key == MED_key.LEFT) {
+        if (here.is_directory && here.is_open && tree.filter.size() == 0) {
+            tree.toggle(here.path);
+        } else {
+            int above = tree.row - 1;
+            while (above >= 0 && !(tree.entries[above].is_directory && tree.entries[above].depth < here.depth)) {
+                above = above - 1;
+            }
+            if (above >= 0) {
+                tree.row = above;
+            }
+        }
+    } else if (key == MED_key.CARRIAGE_RETURN || key == 111 || key == 10) {
+        if (here.is_directory) {
+            tree.toggle(here.path);
+        } else {
+            open_from_tree(state, context, here.path, 0);
+        }
+    } else if (key == 115) {
+        if (!here.is_directory) {
+            open_from_tree(state, context, here.path, 1);
+        }
+    } else if (key == 118 || key == 116) {
+        if (!here.is_directory) {
+            open_from_tree(state, context, here.path, 2);
+        }
+    } else if (key == 100) {
+        context.begin_command("Neotree delete " + here.path);
+    } else if (key == 114) {
+        tree.rename_from = here.path;
+        context.begin_command("Neotree rename " + here.path);
+    } else if (key == 109) {
+        tree.rename_from = here.path;
+        context.begin_command("Neotree move " + here.path);
+    } else if (key == 99) {
+        tree.rename_from = here.path;
+        context.begin_command("Neotree copy " + here.path);
+    } else if (key == 121) {
+        tree.clipboard = here.path;
+        tree.is_cut = false;
+        context.say("Copied " + here.name);
+    } else if (key == 120) {
+        tree.clipboard = here.path;
+        tree.is_cut = true;
+        context.say("Cut " + here.name);
+    } else if (key == 112) {
+        paste(state, context);
+    } else if (key == 80) {
+        if (here.is_directory) {
+            context.show_text(["(folder)"]);
+        } else {
+            context.show_text(read_preview(here.path));
+        }
+    } else if (key == 105) {
+        str note = here.path;
+        if (here.status.size() > 0) {
+            note = note + "  [" + here.status + "]";
+        }
+        context.say(note);
+    }
+    if (tree.row >= tree.entries.size()) {
+        tree.row = tree.entries.size() - 1;
+    }
+    if (tree.row < 0) {
+        tree.row = 0;
+    }
+}
+
+// ------------------------------------------------------------------ :Neotree
+
+/// `p`: paste the yanked or cut path into the folder under the cursor.
+void paste(State state, MED_ext.Ctx context) {
+    List<str> made = [];
+    str failure = state.tree.paste_into(target_directory(state), made);
+    if (failure.size() == 0) {
+        state.tree.refresh_status(runner_of(context));
+        if (made.size() > 0) {
+            state.tree.did_reveal(made[0]);
+            context.say("Pasted " + made[0]);
+        }
+    } else {
+        context.say(failure);
+    }
+}
+
+/** `:Neotree [toggle|show|focus|close|reveal|refresh|hidden|DIR]` and the prompts the tree keys open (`filter`, `add`, `delete`, `rename`,
+ * `move`, `copy`, `paste`). */
+Result<bool, str> run_command(State state, MED_ext.Ctx context, str arguments) {
+    MEDX_explorer_tree.Tree tree = state.tree;
+    str arg = arguments.trim();
+    int space = arg.index_of(" ").or(-1);
+    str word = arg;
+    str rest = "";
+    if (space >= 0) {
+        word = arg.substr(0, space);
+        rest = arg.substr(space + 1, arg.size()).trim();
+    }
+    List<str> made = [];
+    str failure = "";
+    if (word == "" || word == "focus") {
+        open_tree(state, context, true);
+    } else if (word == "toggle") {
+        if (tree.is_open) {
+            close_tree(state, context);
+        } else {
+            open_tree(state, context, true);
+        }
+    } else if (word == "show") {
+        open_tree(state, context, false);
+    } else if (word == "close") {
+        close_tree(state, context);
+    } else if (word == "reveal") {
+        open_tree(state, context, true);
+        if (context.file.size() > 0 && !tree.did_reveal(context.file)) {
+            context.say("Not in the tree: " + context.file);
+        }
+    } else if (word == "refresh") {
+        if (tree.is_open) {
+            tree.refresh_status(runner_of(context));
+        }
+    } else if (word == "hidden") {
+        tree.is_hidden_shown = !tree.is_hidden_shown;
+        tree.refresh();
+    } else if (word == "filter") {
+        tree.filter = rest;
+        tree.row = 0;
+        tree.top = 0;
+        tree.refresh();
+    } else if (word == "add") {
+        failure = MEDX_explorer_tree.add(".", rest, made);
+        if (failure.size() == 0) {
+            tree.refresh_status(runner_of(context));
+            if (made.size() > 0) {
+                tree.did_reveal(made[0]);
+                context.say("Created " + made[0]);
+            }
+        }
+    } else if (word == "delete") {
+        failure = MEDX_explorer_tree.remove_path(rest);
+        if (failure.size() == 0) {
+            tree.refresh_status(runner_of(context));
+            context.say("Deleted " + rest);
+        }
+    } else if (word == "rename" || word == "move") {
+        failure = MEDX_explorer_tree.rename_path(tree.rename_from, rest);
+        if (failure.size() == 0) {
+            context.say("Moved to " + rest);
+            if (context.file == tree.rename_from) {
+                context.rename_buffer(tree.rename_from, rest);
+            }
+            tree.refresh_status(runner_of(context));
+            tree.did_reveal(rest);
+        }
+    } else if (word == "copy") {
+        failure = MEDX_explorer_tree.copy_path(tree.rename_from, rest);
+        if (failure.size() == 0) {
+            context.say("Copied to " + rest);
+            tree.refresh_status(runner_of(context));
+            tree.did_reveal(rest);
+        }
+    } else if (word == "paste") {
+        paste(state, context);
+    } else if (fs.is_directory(arg)) {
+        tree.root = plain_directory(arg);
+        tree.row = 0;
+        open_tree(state, context, true);
+        tree.refresh_status(runner_of(context));
+    } else {
+        context.say("E474: Invalid argument: Neotree " + arg);
+    }
+    if (failure.size() > 0) {
+        context.say(failure);
+    }
+    return Result<bool, str>.Ok(true);
+}
+
+// ------------------------------------------------------------------ the panel
+
+type ExplorerPanel {
+    State state;
+}
+
+int ExplorerPanel.columns(int screen_width) {
+    MEDX_explorer_tree.Tree tree = state.tree;
+    if (!tree.is_open || screen_width < MIN_SCREEN) {
+        return 0;
+    }
+    int side = tree.width;
+    if (side > screen_width / 2) {
+        side = screen_width / 2;
+    }
+    if (side < 12) {
+        side = 12;
+    }
+    return side;
+}
+
+void ExplorerPanel.draw(MED_ext.Canvas canvas, bool is_focused) {
+    MEDX_explorer_tree.Tree tree = state.tree;
+    tree.is_focused = is_focused;
+    int side = canvas.width;
+    int height = canvas.height;
+    int rows = height - 2;
+    state.list_rows = rows;
+    tree.scroll_to(rows);
+    for (int y in 0 .. height) {
+        canvas.fill(0, y, side, "ui.text", false);
+    }
+    str title = title_of(state);
+    if (tree.filter.size() > 0) {
+        title = title + " /" + tree.filter;
+    }
+    canvas.text(1, 0, title, "ui.picker.title", false, side - 2);
+    for (int line in 0 .. rows) {
+        int index = tree.top + line;
+        if (index >= tree.entries.size()) {
+            break;
+        }
+        MEDX_explorer_tree.Entry entry = tree.entries[index];
+        str scope = "ui.text";
+        if (entry.is_directory) {
+            scope = "ui.tree.directory";
+        } else if (entry.name.starts_with(".")) {
+            scope = "ui.tree.hidden";
+        }
+        bool is_bold = false;
+        bool is_selected = index == tree.row;
+        if (is_selected) {
+            scope = "ui.text";
+            is_bold = true;
+            if (is_focused) {
+                scope = "ui.menu.selected";
+                is_bold = false;
+            }
+            canvas.fill(0, 1 + line, side, scope, is_bold);
+        }
+        canvas.text(0, 1 + line, entry.label(tree.has_glyphs), scope, is_bold, side - 3);
+        if (entry.status.size() > 0) {
+            str mark = "diff.delta";
+            if (entry.status == "A" || entry.status == "?") {
+                mark = "diff.plus";
+            } else if (entry.status == "D" || entry.status == "!") {
+                mark = "diff.minus";
+            }
+            if (is_selected && is_focused) {
+                canvas.text(side - 2, 1 + line, entry.status, scope, is_bold, 1);
+            } else {
+                canvas.text(side - 2, 1 + line, entry.status, mark, true, 1);
+            }
+        }
+    }
+    str label = "TREE";
+    if (is_focused) {
+        label = "TREE *";
+    }
+    canvas.fill(0, height - 1, side, "ui.statusline", false);
+    canvas.text(1, height - 1, label, "ui.statusline", false, side - 1);
+}
+
+bool ExplorerPanel.did_key(MED_ext.Ctx context, int key) {
+    tree_key(state, context, key);
+    return true;
+}
+
+bool ExplorerPanel.did_mouse(MED_ext.Ctx context, int x, int y, int button, bool is_press) {
+    MEDX_explorer_tree.Tree tree = state.tree;
+    if (button == 4) {
+        tree.row = tree.row - WHEEL_LINES;
+        if (tree.row < 0) {
+            tree.row = 0;
+        }
+        return true;
+    }
+    if (button == 5) {
+        tree.row = tree.row + WHEEL_LINES;
+        if (tree.row >= tree.entries.size()) {
+            tree.row = tree.entries.size() - 1;
+        }
+        if (tree.row < 0) {
+            tree.row = 0;
+        }
+        return true;
+    }
+    if (is_press) {
+        int index = tree.top + y - 1;
+        if (y >= 1 && y <= state.list_rows && index >= 0 && index < tree.entries.size()) {
+            tree.row = index;
+            MEDX_explorer_tree.Entry here = tree.entries[index];
+            if (here.is_directory) {
+                tree.toggle(here.path);
+            } else {
+                open_from_tree(state, context, here.path, 0);
+            }
+        }
+    }
+    return true;
+}
+
+bool ExplorerPanel.did_tick(MED_ext.Ctx context, int elapsed_ms) {
+    MEDX_explorer_tree.Tree tree = state.tree;
+    bool did_change = false;
+    if (!context.is_panel_focused() && context.file.size() > 0 && context.file != tree.followed) {
+        tree.followed = context.file;
+        did_change = tree.did_reveal(context.file);
+    }
+    tree.status_ms = tree.status_ms + elapsed_ms;
+    if (tree.status_ms >= STATUS_MS && context.mode() == MED_ext.MODE_NORMAL) {
+        tree.status_ms = 0;
+        Map<str, str> before = tree.status;
+        tree.refresh_status(runner_of(context));
+        if (before.size() != tree.status.size()) {
+            did_change = true;
+        } else {
+            for (str name in before.keys()) {
+                if (before.get(name).or("") != tree.status.get(name).or("")) {
+                    did_change = true;
+                }
+            }
+        }
+    }
+    return did_change;
+}
+
+// ------------------------------------------------------------------ registration
+
+type Explorer {
+    State state = State();
+}
+
+Result<bool, str> Explorer.activate(MED_ext.Registry api) {
+    State kept = state;
+    api.did_panel(ExplorerPanel(kept));
+    api.did_command("Neotree", "the file tree: toggle, show, focus, close, reveal, refresh, hidden, DIR", (MED_ext.Ctx context, str arguments, bool is_bang) => run_command(kept, context, arguments));
+    api.did_command("NeoTree", "the file tree (neo-tree's spelling)", (MED_ext.Ctx context, str arguments, bool is_bang) => run_command(kept, context, arguments));
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("explorer", summary: "file tree sidebar (<Space>e, :Neotree)");
+    spec.commands.push(MED_ext.command("Neotree", "the file tree: toggle, show, focus, close, reveal, refresh, hidden, DIR"));
+    spec.commands.push(MED_ext.command("NeoTree", "the file tree (neo-tree's spelling)"));
+    api.did_plugin(spec, Explorer());
+}

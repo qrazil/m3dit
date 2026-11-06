@@ -1,6 +1,6 @@
 # Extending m3
 
-Status: API 0.5.0, experimental (the plugin layer is section 0, what 0.3.0, 0.4.0 and 0.5.0 added is sections 0.1, 0.2 and 0.3; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.6.0, experimental (the plugin layer is section 0, what 0.3.0 to 0.6.0 added is sections 0.1 to 0.4; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
@@ -119,6 +119,20 @@ keep its own data per buffer.
 
 `MapSpec.profiles` (0.5.0, additive) names the key profiles a map belongs to (space separated; "" means every profile but `minimal`); `:Profile NAME` unmaps the maps of the old profile and maps those of the new one, `MapSpec` duplicates for different profiles are allowed (`map_in` builds one). The git plugin imports only `ext.*` and m31git (`scripts/check_plugins.sh`); where the library cannot read a repository it runs `git`
 through `Ctx.run_in`.
+
+### 0.4 API 0.6.0 (m3 0.24.0): what `explorer` needed
+
+Additive; `0.5` plugins are refused until rebuilt (`Spec` defaults to `0.6`). The docked panel (design: docs/PANEL-API.md).
+
+| addition | what it is | used by |
+|---|---|---|
+| `Panel`, `Registry.did_panel(panel)` | a column at the left that the windows share the rest with: the plugin says its `columns(screen_width)`, draws, takes keys while focused, mouse presses and wheel turns, and a timer; the host keeps the layout, the separator, the focus and the keys that stay the editor's (`<Space>`, `:`, `<C-w>`) | explorer |
+| `Canvas` (`text`, `fill`) | the panel's rectangle, drawn in theme scope names (the host resolves them, so transparency and the 16-colour twin apply) | explorer |
+| `Ctx.focus_panel()`, `blur_panel()`, `is_panel_focused()` | give the keys to the panel or take them back | explorer |
+| `Ctx.begin_command(text)` | open the command line with `text` typed (the prompts of the tree: `:Neotree add NAME`) | explorer |
+| `Ctx.open_path(path, how)` | open a path here (0), in a window below (1) or beside (2) | explorer |
+| `Ctx.rename_buffer(from, to)` | the buffer of `from` is now the file `to` (a rename in the tree) | explorer |
+| `Ctx.working_directory()` | the editor's working directory | explorer |
 
 ## 1. What an extension is
 

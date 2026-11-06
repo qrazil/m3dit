@@ -86,7 +86,7 @@ def main():
         term = Session(lazy_bin, root)
         term.type(":Plugins\r")
         text = term.text()
-        check("lazy: the plugin section is there", "Compiled plugins (api 0.5.0):" in text, text)
+        check("lazy: the plugin section is there", "Compiled plugins (api 0.6.0):" in text, text)
         check("lazy: the plugin waits", "lazy  hello  fixture: a lazy command, a key and a write hook" in text, text)
         check("lazy: the core features are still listed", "on   core  keymap tree" in text)
         term.type("\x1b:Hello world\r")

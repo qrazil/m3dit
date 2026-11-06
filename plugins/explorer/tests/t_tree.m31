@@ -1,11 +1,21 @@
-// Unit checks for MED_tree (the file tree model) against a temporary folder.
+// Unit checks for MEDX_explorer_tree (the file tree model) against a temporary folder.
 
 import fs;
 import io;
 import os;
-import ui.MED_tree;
-import ui.MED_gitstatus;
+import engine.MED_shell;
+import ext.MED_ext;
+import plugins.explorer.MEDX_explorer_tree;
 import tests.MED_check;
+
+/// The model's runner of `git status`, over the process module the host's `Ctx.run_in` uses.
+type TestRunner {
+}
+
+MED_ext.Ran TestRunner.run(List<str> argv, str cwd, str input) {
+    MED_shell.Ran done = MED_shell.run(argv, cwd, input);
+    return MED_ext.Ran(code: done.code, text: done.text, errors: done.errors);
+}
 
 MED_check.Check check = MED_check.Check();
 
@@ -40,7 +50,7 @@ put(base + "/src/main.m31", "x\n");
 put(base + "/src/deep/inner.txt", "y\n");
 put(base + "/.hidden", "h\n");
 put(base + "/zeta.txt", "z\n");
-MED_tree.Tree tree = MED_tree.Tree(root: base);
+MEDX_explorer_tree.Tree tree = MEDX_explorer_tree.Tree(root: base);
 tree.refresh();
 check.eq_int("top level: folder then files, no dotfiles", tree.entries.size(), 3);
 check.eq_str("folder first", tree.entries[0].name, "src");
@@ -69,14 +79,14 @@ check.eq_str("the match", tree.entries[1].name, "main.m31");
 tree.filter = "";
 tree.refresh();
 List<str> made = [];
-check.eq_str("add a file with new folders", MED_tree.add(base, "a/b/new.txt", made), "");
+check.eq_str("add a file with new folders", MEDX_explorer_tree.add(base, "a/b/new.txt", made), "");
 check.ok("it exists", fs.is_file(base + "/a/b/new.txt"));
-check.eq_str("add a folder", MED_tree.add(base, "docs/", made), "");
+check.eq_str("add a folder", MEDX_explorer_tree.add(base, "docs/", made), "");
 check.ok("folder exists", fs.is_directory(base + "/docs"));
-check.ok("adding twice is refused", MED_tree.add(base, "docs/", made).starts_with("E13"));
-check.eq_str("rename", MED_tree.rename_path(base + "/zeta.txt", base + "/omega.txt"), "");
+check.ok("adding twice is refused", MEDX_explorer_tree.add(base, "docs/", made).starts_with("E13"));
+check.eq_str("rename", MEDX_explorer_tree.rename_path(base + "/zeta.txt", base + "/omega.txt"), "");
 check.ok("renamed", fs.is_file(base + "/omega.txt") && !fs.is_present(base + "/zeta.txt"));
-check.ok("rename onto an existing file is refused", MED_tree.rename_path(base + "/omega.txt", base + "/readme.md").starts_with("E13"));
+check.ok("rename onto an existing file is refused", MEDX_explorer_tree.rename_path(base + "/omega.txt", base + "/readme.md").starts_with("E13"));
 tree.clipboard = base + "/src";
 tree.is_cut = false;
 List<str> pasted = [];
@@ -89,11 +99,11 @@ tree.clipboard = base + "/omega.txt";
 tree.is_cut = true;
 check.eq_str("move", tree.paste_into(base + "/docs", pasted), "");
 check.ok("moved", fs.is_file(base + "/docs/omega.txt") && !fs.is_present(base + "/omega.txt"));
-check.eq_str("delete a folder with content", MED_tree.remove_path(base + "/docs"), "");
+check.eq_str("delete a folder with content", MEDX_explorer_tree.remove_path(base + "/docs"), "");
 check.ok("gone", !fs.is_present(base + "/docs"));
-check.eq_str("delete a file", MED_tree.remove_path(base + "/readme.md"), "");
-check.ok("refuses the root", MED_tree.remove_path(".").starts_with("E474"));
-check.ok("fuzzy", MED_tree.is_fuzzy("mmx", "main.m31") == false && MED_tree.is_fuzzy("mnm", "main.m31"));
+check.eq_str("delete a file", MEDX_explorer_tree.remove_path(base + "/readme.md"), "");
+check.ok("refuses the root", MEDX_explorer_tree.remove_path(".").starts_with("E474"));
+check.ok("fuzzy", MEDX_explorer_tree.is_fuzzy("mmx", "main.m31") == false && MEDX_explorer_tree.is_fuzzy("mnm", "main.m31"));
 // git status
 match (os.run(["sh", "-c", "cd " + base + " && git init -q && git add -A && git -c user.email=a@b -c user.name=n commit -q -m i"])) {
     case Ok(os.ExitStatus done): {
@@ -103,12 +113,12 @@ match (os.run(["sh", "-c", "cd " + base + " && git init -q && git add -A && git 
 }
 put(base + "/src/main.m31", "changed\n");
 put(base + "/src/deep/fresh.txt", "new\n");
-Map<str, str> status = MED_gitstatus.status_map(base);
+Map<str, str> status = MEDX_explorer_tree.status_map(TestRunner(), base);
 check.eq_str("modified file", status.get("src/main.m31").or(""), "M");
 check.eq_str("untracked file", status.get("src/deep/fresh.txt").or(""), "?");
 check.eq_str("folder takes the worst", status.get("src").or(""), "M");
 check.eq_str("clean file has none", status.get("a/b/new.txt").or(""), "");
-check.eq_int("outside a repo is empty", MED_gitstatus.status_map("/tmp/m3_no_repo_here").size(), 0);
+check.eq_int("outside a repo is empty", MEDX_explorer_tree.status_map(TestRunner(), "/tmp/m3_no_repo_here").size(), 0);
 tree.status = status;
 tree.expanded = [];
 tree.refresh();

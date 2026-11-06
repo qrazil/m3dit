@@ -500,7 +500,7 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | core | keymap tree, which-key engine, :Plugins and :Keys |
 | finder | fuzzy pickers: files, grep, buffers, recent, git, symbols |
 | whichkey | popup of the keys that can follow a pending prefix (core; old name) |
-| explorer | file tree sidebar and directory pickers |
+| explorer | file tree sidebar (<Space>e, :Neotree) |
 | git | gutter signs, hunk keys, :Git log show diff blame |
 | surround | ys ds cs and visual S |
 | comment | gc and gcc, language aware |

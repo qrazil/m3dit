@@ -413,6 +413,28 @@ def key_profiles(binary, root):
         s.close()
 
 
+@scenario
+def explorer_panel_and_switch(binary, root):
+    s = Session(binary, root, ["a.txt"])
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send(" e", settle=0.9)
+        text = s.text()
+        assert "TREE" in text and "a.txt" in text, "the sidebar opens beside the text:\n" + text
+        s.send("j", settle=0.3)
+        s.send("\x1b", settle=0.3)
+        s.send(":PluginDisable explorer\r", settle=0.6)
+        assert "TREE" not in s.text(), "the panel goes with the plugin:\n" + s.text()
+        s.send(":Neotree\r", settle=0.5)
+        assert "switched off" in s.text(), s.text()
+        s.send(":PluginEnable explorer\r", settle=0.8)
+        assert "TREE" in s.text(), "the tree was open and is again:\n" + s.text()
+        s.send(":Neotree close\r", settle=0.6)
+        assert "TREE" not in s.text(), s.text()
+    finally:
+        s.close()
+
+
 def main():
     binary = os.path.abspath(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None

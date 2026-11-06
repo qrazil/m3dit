@@ -12,3 +12,4 @@ notify
 statusline
 session
 git
+explorer

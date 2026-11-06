@@ -56,16 +56,20 @@ import engine.MED_register;
 import engine.MED_shell;
 import fs;
 import io;
+import os;
 import ui.MED_files;
+import tui.core.TUI_buffer;
+import tui.core.TUI_style;
 import ui.MED_picker;
 import ui.MED_state;
+import ui.MED_theme;
 
 /** The API version: major.minor.patch. While the major is 0 a plugin built for 0.M.p runs on a host 0.M.q with
  * p <= q (a patch only adds) and another minor is refused; from 1.0 only the major breaks and a minor adds. */
 pub const int API_MAJOR = 0;
-pub const int API_MINOR = 5;
+pub const int API_MINOR = 6;
 pub const int API_PATCH = 0;
-pub const str API_VERSION = "0.5.0";
+pub const str API_VERSION = "0.6.0";
 /// `Ctx.mode()` of Normal mode (0.5.0).
 pub const int MODE_NORMAL = 0;
 /// The longest `context.run` may block the editor.
@@ -422,6 +426,95 @@ type SignSet {
     List<str> scopes = [];
 }
 
+/** A drawing surface for a docked panel (0.6.0): the panel's rectangle. A scope is a theme scope name ("ui.text",
+ * "ui.tree.directory"): the host resolves it, so the theme, transparency and the 16-colour twin apply. Drawing outside the
+ * canvas is clipped; a plugin never sees a buffer, a style or a colour. */
+pub type Canvas {
+    pub int width;
+    pub int height;
+    TUI_buffer.Buffer buffer;
+    int origin_x;
+    int origin_y;
+    MED_theme.Theme theme;
+}
+
+/// The style of a scope, bold when asked.
+TUI_style.Style Canvas.style_of(str scope, bool is_bold) {
+    TUI_style.Style look = theme.look(scope);
+    if (is_bold) {
+        return look.with_attrs(TUI_style.BOLD);
+    }
+    return look;
+}
+
+/// Write `text` at column `x`, row `y` of the canvas in the style of `scope`, at most `max_cells` cells wide (clipped).
+pub void Canvas.text(int x, int y, str text, str scope, bool is_bold, int max_cells) {
+    if (y < 0 || y >= height || x < 0 || x >= width) {
+        return;
+    }
+    int room = width - x;
+    if (max_cells < room) {
+        room = max_cells;
+    }
+    buffer.set_str(origin_x + x, origin_y + y, text, style_of(scope, is_bold), max: room);
+}
+
+/// Fill `columns` cells from column `x` of row `y` with spaces in the style of `scope`.
+pub void Canvas.fill(int x, int y, int columns, str scope, bool is_bold) {
+    TUI_style.Style look = style_of(scope, is_bold);
+    for (int offset in 0 .. columns) {
+        if (y >= 0 && y < height && x + offset >= 0 && x + offset < width) {
+            buffer.set_str(origin_x + x + offset, origin_y + y, " ", look);
+        }
+    }
+}
+
+/// A canvas over `buffer` at column `x`, row `y` of the screen (the host makes it).
+pub Canvas canvas_over(TUI_buffer.Buffer buffer, MED_theme.Theme theme, int x, int y, int width, int height) {
+    return Canvas(width, height, buffer, x, y, theme);
+}
+
+/** A docked panel (0.6.0, docs/PANEL-API.md): a column at the left of the screen that the windows share the rest with. The host
+ * keeps the layout, the focus and the drawing surface; the panel keeps what it shows. */
+pub interface Panel {
+    /// Columns wanted on a screen `screen_width` wide (not counting the separator); 0 when closed or when the screen is too narrow.
+    int columns(int screen_width);
+    /// Draw into the canvas (the panel's rectangle); `is_focused` says whether the panel has the keys.
+    void draw(Canvas canvas, bool is_focused);
+    /// A key typed while the panel is focused; true when it took the key.
+    bool did_key(Ctx context, int key);
+    /// A press (`is_press`) or a wheel turn (button 4 up, 5 down) at column `x`, row `y` of the panel (row 0 is its first row); true: redraw.
+    bool did_mouse(Ctx context, int x, int y, int button, bool is_press);
+    /// About every TICK_MS while the panel is open; true: redraw.
+    bool did_tick(Ctx context, int elapsed_ms);
+}
+
+type NoPanel {
+}
+
+int NoPanel.columns(int screen_width) {
+    return 0;
+}
+
+void NoPanel.draw(Canvas canvas, bool is_focused) {
+}
+
+bool NoPanel.did_key(Ctx context, int key) {
+    return false;
+}
+
+bool NoPanel.did_mouse(Ctx context, int x, int y, int button, bool is_press) {
+    return false;
+}
+
+bool NoPanel.did_tick(Ctx context, int elapsed_ms) {
+    return false;
+}
+
+Panel no_panel() {
+    return NoPanel();
+}
+
 // ------------------------------------------------------------------ the plugin description
 
 /// What wakes a lazy plugin.
@@ -493,7 +586,7 @@ pub type Spec {
     pub str name;
     pub str summary = "";
     pub int api_major = 0;
-    pub int api_minor = 5;
+    pub int api_minor = 6;
     pub int api_patch = 0;
     /// Not registered unless every one of these is built in and on.
     pub List<str> requires = [];
@@ -728,6 +821,11 @@ pub type Registry {
     pub Map<str, GitSummary> git_summaries = {};
     /// The key profile (`minimal`, `default`, `nvim`, `legacy`); the maps of other profiles are not installed.
     pub str profile = "default";
+    /// The docked panel (`did_panel`, 0.6.0), the extension that gave it and whether it has the keys.
+    pub Panel panel = no_panel();
+    pub bool has_panel = false;
+    int panel_owner = -1;
+    pub bool is_panel_focused = false;
     List<PreviewEntry> previewers = [];
 }
 
@@ -1399,6 +1497,46 @@ pub List<Span> Registry.decorate(str line, MED_editor.Editor editor) {
     return marks;
 }
 
+/** Dock a panel at the left of the screen (0.6.0): the windows share the rest. One panel; the first plugin to ask owns the
+ * side. `:PluginDisable` closes it. */
+pub bool Registry.did_panel(Panel run) {
+    if (current < 0) {
+        problem("api.did_panel called before a successful api.did_declare or outside activate");
+        return false;
+    }
+    if (has_panel) {
+        problem(extensions[current].name + ": the left side is already docked by " + owner_name(panel_owner));
+        return false;
+    }
+    panel = run;
+    has_panel = true;
+    panel_owner = current;
+    return true;
+}
+
+/// Whether a live plugin has a panel.
+pub bool Registry.is_panel_live() {
+    return has_panel && !extensions[panel_owner].is_off;
+}
+
+/// The registry index of the extension that owns the panel (for its handlers' contexts).
+pub int Registry.panel_owner_index() {
+    return panel_owner;
+}
+
+/// The columns the live panel takes on a screen `screen_width` wide (0 for none).
+pub int Registry.panel_columns(int screen_width) {
+    if (!is_panel_live()) {
+        return 0;
+    }
+    int columns = panel.columns(screen_width);
+    if (columns <= 0) {
+        is_panel_focused = false;
+        return 0;
+    }
+    return columns;
+}
+
 /** Give the finder the preview of entries whose `detail` is of kind `kind` (0.5.0): the core asks for `kind` "commit"
  * for the entries of its commit list. `:PluginDisable` stops it. */
 pub bool Registry.did_preview(str kind, PreviewFn run) {
@@ -2051,6 +2189,12 @@ pub type Ctx {
     pub str pick_list_title = "";
     pub List<PickEntry> pick_list_entries = [];
     pub int pick_list_line = -1;
+    /// `focus_panel` / `blur_panel` were called (0.6.0).
+    pub bool has_panel_focus = false;
+    pub bool has_panel_blur = false;
+    /// `rename_buffer` was called (0.6.0): the file the buffer had and the one it has now.
+    pub str rename_from = "";
+    pub str rename_to = "";
 }
 
 pub int Ctx.line_count() {
@@ -2483,6 +2627,51 @@ pub void Ctx.pick_list(str title, List<PickEntry> entries, int selected_line) {
 /// The first and last row the last plugin operator (`gh{motion}`, `gH{motion}`) covered; [-1, -1] before any (0.5.0).
 pub List<int> Ctx.operator_range() {
     return [editor.op_first, editor.op_last];
+}
+
+/// The editor's working directory (0.6.0).
+pub str Ctx.working_directory() {
+    return os.env("PWD").or(".");
+}
+
+/// Give the keys to the docked panel (0.6.0).
+pub void Ctx.focus_panel() {
+    has_panel_focus = true;
+}
+
+/// Hand the keys back to the editor windows (0.6.0).
+pub void Ctx.blur_panel() {
+    has_panel_blur = true;
+}
+
+/// Whether the docked panel has the keys (0.6.0).
+pub bool Ctx.is_panel_focused() {
+    return registry.is_panel_focused;
+}
+
+/// Open the command line with `text` typed after the colon, for the user to finish (0.6.0).
+pub void Ctx.begin_command(str text) {
+    MED_ex.feed(editor, 58);
+    for (int code_point in text.chars()) {
+        MED_ex.feed(editor, code_point);
+    }
+}
+
+/// Open `path` (spelled as the editor spells it) here (`how` 0), in a window below (1) or beside (2) (0.6.0).
+pub void Ctx.open_path(str path, int how) {
+    if (how == 1) {
+        editor.requests.push("split " + path);
+    } else if (how == 2) {
+        editor.requests.push("vsplit " + path);
+    } else {
+        editor.requests.push("edit " + path);
+    }
+}
+
+/// The buffer of `from` is now the file `to` (the file was renamed on disk) (0.6.0).
+pub void Ctx.rename_buffer(str from, str target) {
+    rename_from = from;
+    rename_to = target;
 }
 
 /// How many times the text of this buffer has changed (0.5.0): equal numbers mean equal text.

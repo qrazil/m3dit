@@ -111,7 +111,7 @@ is a compiled plugin, "in core code" while its extraction is still open), **OPT-
 | Notifications (toasts) | DEFAULT PLUGIN `notify` | done |
 | Session: cursor positions, recent files, frecency | DEFAULT PLUGIN `session` | done (`:Session` layout stays core) |
 | Move a line or selection (Alt keys) | DEFAULT PLUGIN `move` | done |
-| File tree sidebar (`<Space>e`) | DEFAULT PLUGIN `explorer`, in core code (extraction open) | done as code, plugin form missing |
+| File tree sidebar (`<Space>e`, `:Neotree`) | DEFAULT PLUGIN `explorer` (0.24.0, API 0.6.0) | done; miller columns (`<Space>E`) planned |
 | Terminal (`:terminal`, `<Space>t`, `:!` filters) | DEFAULT PLUGIN `terminal`, in core code (extraction open) | done as code, plugin form missing |
 | Surround (`ys ds cs S`) | DEFAULT PLUGIN `surround`, in core code (extraction open) | partial (find / highlight keys missing) |
 | Autopairs | DEFAULT PLUGIN `autopairs`, in core code (extraction open) | done as code, plugin form missing |
@@ -246,6 +246,8 @@ piece is an additive API (0.5.0 and later) and each is the first thing the plugi
 | 11 finder | the picker primitive and its core sources are **core by decision**; what a plugin could own is the key set (`<Space>ff fg fr fb ...`, 15 rows of `picker:NAME` in `MED_keymap`) and the frecency heat | nothing new: the keys are `Action.Call` maps over `Ctx.open_picker(name, arg)` (0.3.0). Deferred as low value until `:PluginDisable finder` has a meaning: today it also switches off the async sources (`is_plugin_on("finder")` in `load_files`) | S, no seam |
 | 12 explorer | `ui/MED_tree.m31` (551 lines, the model) and 148 `tree.` references in `MED_app`: the sidebar takes columns from the window layout, is drawn, focused, clicked, and shows git letters | a **docked panel** API: `Registry.did_panel(PanelSpec)` (side, width, `draw(Canvas)`, `key(Key)`, `mouse(Mouse)`), focus events, a way to give columns back to the layout, a `Canvas` that draws with theme scopes (so transparency still applies), directory reads (`fs` is allowed) and git status (`Ctx.status`-like) | M to L |
 | 13 terminal | `Term` and 70 references in `MED_app`; the pty needs `proc` (plugins may not import it), the screen is `MED_vt` | a **pty service** (`Ctx.spawn_pty(argv, rows, columns)` returning a handle with `write`, `resize`, `poll`), a **panel buffer** kind the host draws from a VT screen (`Ctx.new_panel_buffer(title)`), an input-capture hook so keys go to the program until `<C-\><C-n>`, and resize and exit events | L |
+
+**Item 12 explorer is done (0.24.0, API 0.6.0)**: `plugins/explorer/` holds the model (`ui/MED_tree.m31`) and everything the sidebar did in `ui/MED_app.m31`; the host keeps the layout, the focus, the separator and the drawing surface (`Registry.did_panel`, `Canvas`, docs/PANEL-API.md). The golden screens `file_tree` and `git_tree_letters` pass byte for byte, so nothing visible changed. `ui/MED_gitstatus.m31` went with it (the tree runs `git status` through `Ctx.run_in`). `:Neotree` is the plugin's command; a `--no-plugins` build has no sidebar, no `:Neotree` and no `<Space>e`.
 
 **Item 10 git is done (0.21.0, API 0.5.0)**, in one piece, no copy left in the core: `plugins/git/` holds the three modules that were
 `ui/MED_git*.m31`, the sign column, the hunk and `:Git` commands, the branch and hunk counts, and the commit preview. Deviations from the

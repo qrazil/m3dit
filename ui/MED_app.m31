@@ -66,7 +66,6 @@ import engine.MED_text;
 import engine.MED_regex;
 import engine.MED_search;
 import ui.MED_theme;
-import ui.MED_tree;
 import ui.MED_window;
 import engine.MED_view;
 import engine.MED_wrapmap;
@@ -310,9 +309,6 @@ pub type App {
     pub bool is_window_key = false;
     /// The count typed with CTRL-W (`CTRL-W 5 _`, `5 CTRL-W w`).
     int window_count = 0;
-    /// The file tree sidebar (`:Neotree`, <Space>e).
-    pub MED_tree.Tree tree = MED_tree.Tree();
-    bool is_tree_pending_g = false;
     /// The syntax language of the window being drawn ("": none).
     str syntax_lang = "";
     /// The directory the working path of a snippet's $TM_FILEPATH is built on (read once).
@@ -1453,8 +1449,6 @@ void App.run_request(str request) {
         run_theme_command(arg.trim());
     } else if (name == "Plugins" || name == "PluginEnable" || name == "PluginDisable") {
         run_plugin_command(name, arg.trim());
-    } else if (name == "Neotree" || name == "NeoTree") {
-        run_tree(arg.trim());
     } else if (name == "Explore") {
         open_listing(explore_directory(arg), current_file_name());
     } else if (name == "Sexplore" || name == "Vexplore") {
@@ -1875,7 +1869,7 @@ MED_window.Layout App.layout_in(TUI_geometry.Rect area) {
     if (height < 1) {
         height = 1;
     }
-    int side = tree_columns(area.width);
+    int side = panel_columns(area.width);
     if (side > 0) {
         return MED_window.place(layout, area.x + side + 1, area.y, area.width - side - 1, height);
     }
@@ -2029,8 +2023,8 @@ void App.move_window(int direction) {
     int target = MED_window.neighbor(current, current_win, direction, ref_x, ref_y);
     if (target > 0) {
         focus_window(target);
-    } else if (direction == MED_window.GO_LEFT && tree.is_open) {
-        tree.is_focused = true;
+    } else if (direction == MED_window.GO_LEFT && panel_columns(screen_rect().width) > 0) {
+        ext.is_panel_focused = true;
     }
 }
 
@@ -2079,9 +2073,9 @@ void App.window_command(int key, int count) {
     if (steps < 1) {
         steps = 1;
     }
-    if (tree.is_focused) {
-        // from the tree every window command goes back to the editor windows
-        tree.is_focused = false;
+    if (has_panel_focus()) {
+        // from the panel every window command goes back to the editor windows
+        ext.is_panel_focused = false;
         if (key == 108 || key == 12 || key == 119 || key == 23 || key == 112 || key == 16 || key == 87) {
             return;
         }
@@ -2718,428 +2712,62 @@ void App.keep_listing_read_only() {
     notice = "E21: Cannot make changes, 'modifiable' is off";
 }
 
-/** The columns the tree takes on a screen `screen_width` wide (0 when closed
- * or when the screen is too narrow to share), not counting its separator. */
-int App.tree_columns(int screen_width) {
-    if (!tree.is_open || screen_width < TREE_MIN_SCREEN) {
-        return 0;
-    }
-    int side = tree.width;
-    if (side > screen_width / 2) {
-        side = screen_width / 2;
-    }
-    if (side < 12) {
-        side = 12;
-    }
-    return side;
+/// The columns the docked panel (the explorer) takes on a screen `screen_width` wide, not counting its separator.
+int App.panel_columns(int screen_width) {
+    return ext.panel_columns(screen_width);
 }
 
-/// How many rows of the sidebar list entries (below its header, above its status).
-int App.tree_list_rows() {
-    int rows = screen_rect().height - 1 - 2;
-    if (rows < 1) {
-        return 1;
-    }
-    return rows;
+/// Whether the docked panel has the keys.
+bool App.has_panel_focus() {
+    return ext.is_panel_live() && ext.is_panel_focused;
 }
 
-/// The root's name for the sidebar header.
-str App.tree_title() {
-    str root_text = tree.root;
-    if (root_text == ".") {
-        root_text = os.env("PWD").or(".");
+/// A context for the panel's handlers: the file is the active buffer's unless that is a directory listing.
+MED_ext.Ctx App.panel_context() {
+    str file = path;
+    if (is_in_listing()) {
+        file = "";
     }
-    str name = MED_tree.name_of(root_text);
-    if (name.size() == 0 || name == ".") {
-        return root_text;
-    }
-    return name;
+    MED_ext.Ctx context = MED_ext.context(ext, editor, file);
+    context.buffer_id = current_id;
+    context.owner = ext.panel_owner_index();
+    return context;
 }
 
-/// Open the sidebar (and put the cursor on the current file).
-void App.open_tree(bool is_focus) {
-    if (!tree.is_open) {
-        tree.is_open = true;
-        tree.width = editor.option_number("treewidth", 32);
-        tree.has_glyphs = editor.is_option_on("treeglyphs", false);
-        tree.is_hidden_shown = editor.is_option_on("treehidden", false);
-        tree.refresh_status();
-    }
-    if (path.size() > 0 && !is_in_listing()) {
-        if (tree.did_reveal(path)) {
-            tree.followed = path;
-        }
-    }
-    if (is_focus) {
-        tree.is_focused = true;
-    }
+/// One key typed while the panel is focused. Never quits.
+void App.did_panel_key(int key) {
+    MED_ext.Ctx context = panel_context();
+    ext.panel.did_key(context, key);
+    ext_finish(context);
 }
 
-void App.close_tree() {
-    tree.is_open = false;
-    tree.is_focused = false;
-}
-
-/** The folder an operation on the cursor row works in: the row itself when it
- * is a folder, else the folder of the file; the root when the tree is empty. */
-str App.tree_target_directory() {
-    match (tree.current()) {
-        case Some(MED_tree.Entry here): {
-            if (here.is_directory) {
-                return here.path;
-            }
-            return MED_tree.parent_of(here.path);
-        }
-        case None: {
-            return tree.root;
-        }
-    }
-}
-
-/// Open `file` from the tree: here (0), in a window below (1) or beside (2).
-void App.tree_open(str file, int how) {
-    tree.is_focused = false;
-    if (how == 1) {
-        if (!did_split(false)) {
-            return;
-        }
-    } else if (how == 2) {
-        if (!did_split(true)) {
-            return;
-        }
-    }
-    edit(file, false);
-    if (path == file) {
-        tree.followed = file;
-    }
-}
-
-void App.tree_help() {
-    overlay = ["File tree keys", "  j k gg G C-d C-u   move        l <CR> o   open / expand    h   collapse / parent", "  s v t              open in split / vsplit / vsplit    z   collapse all", "  a   add (trailing / makes a folder)    d   delete    r   rename    c   copy to    m   move to", "  y   yank path    x   cut    p   paste    H   toggle hidden    /   filter    <Esc>   clear filter", "  R   refresh    P   preview    i   info    .   set root    u <BS>   up    q   close    ?   this help", "  <C-w>l <C-w>w   back to the editor window    :Neotree reveal|toggle|focus|close|refresh"];
-}
-
-/// One key typed in the focused tree. Never quits.
-void App.did_tree_key(int key) {
-    int count = tree.entries.size();
-    int rows = tree_list_rows();
-    if (is_tree_pending_g) {
-        is_tree_pending_g = false;
-        if (key == 103) {
-            tree.row = 0;
-        }
-        return;
-    }
-    MED_tree.Entry here = MED_tree.Entry("", "", "", 0, false, false);
-    bool has_here = false;
-    match (tree.current()) {
-        case Some(MED_tree.Entry found): {
-            here = found;
-            has_here = true;
-        }
-        case None: {
-        }
-    }
-    if (key == 106 || key == MED_key.DOWN || key == 14) {
-        tree.row = tree.row + 1;
-    } else if (key == 107 || key == MED_key.UP_KEY || key == 16) {
-        tree.row = tree.row - 1;
-    } else if (key == 103) {
-        is_tree_pending_g = true;
-        return;
-    } else if (key == 71 || key == MED_key.END) {
-        tree.row = count - 1;
-    } else if (key == MED_key.HOME) {
-        tree.row = 0;
-    } else if (key == 4) {
-        tree.row = tree.row + rows / 2;
-    } else if (key == 21) {
-        tree.row = tree.row - rows / 2;
-    } else if (key == 6 || key == MED_key.PAGE_DOWN) {
-        tree.row = tree.row + rows;
-    } else if (key == 2 || key == MED_key.PAGE_UP) {
-        tree.row = tree.row - rows;
-    } else if (key == MED_key.ESC) {
-        if (tree.filter.size() > 0) {
-            tree.filter = "";
-            tree.refresh();
-        } else {
-            tree.is_focused = false;
-        }
-    } else if (key == 113) {
-        close_tree();
-    } else if (key == 63) {
-        tree_help();
-    } else if (key == 82) {
-        tree.refresh_status();
-        notice = "Tree refreshed";
-    } else if (key == 72) {
-        tree.is_hidden_shown = !tree.is_hidden_shown;
-        tree.refresh();
-    } else if (key == 122) {
-        tree.collapse_all();
-    } else if (key == 47) {
-        begin_command("Neotree filter " + tree.filter);
-    } else if (key == 46) {
-        if (has_here && here.is_directory) {
-            tree.root = here.path;
-        } else if (has_here) {
-            tree.root = MED_tree.parent_of(here.path);
-        }
-        tree.row = 0;
-        tree.top = 0;
-        tree.refresh_status();
-    } else if (key == 117 || key == MED_key.BACKSPACE || key == 45) {
-        tree.root = up_directory(tree.root);
-        tree.row = 0;
-        tree.top = 0;
-        tree.refresh_status();
-    } else if (key == 97) {
-        str directory = tree_target_directory();
-        str prefill = "";
-        if (directory != ".") {
-            prefill = directory + "/";
-        }
-        begin_command("Neotree add " + prefill);
-    } else if (!has_here) {
-        // nothing under the cursor for the keys below
-    } else if (key == 108 || key == MED_key.RIGHT) {
-        if (here.is_directory && !here.is_open) {
-            tree.toggle(here.path);
-        } else if (here.is_directory) {
-            tree.row = tree.row + 1;
-        } else {
-            tree_open(here.path, 0);
-        }
-    } else if (key == 104 || key == MED_key.LEFT) {
-        if (here.is_directory && here.is_open && tree.filter.size() == 0) {
-            tree.toggle(here.path);
-        } else {
-            int above = tree.row - 1;
-            while (above >= 0 && !(tree.entries[above].is_directory && tree.entries[above].depth < here.depth)) {
-                above = above - 1;
-            }
-            if (above >= 0) {
-                tree.row = above;
-            }
-        }
-    } else if (key == MED_key.CARRIAGE_RETURN || key == 111 || key == 10) {
-        if (here.is_directory) {
-            tree.toggle(here.path);
-        } else {
-            tree_open(here.path, 0);
-        }
-    } else if (key == 115) {
-        if (!here.is_directory) {
-            tree_open(here.path, 1);
-        }
-    } else if (key == 118 || key == 116) {
-        if (!here.is_directory) {
-            tree_open(here.path, 2);
-        }
-    } else if (key == 100) {
-        begin_command("Neotree delete " + here.path);
-    } else if (key == 114) {
-        tree.rename_from = here.path;
-        begin_command("Neotree rename " + here.path);
-    } else if (key == 109) {
-        tree.rename_from = here.path;
-        begin_command("Neotree move " + here.path);
-    } else if (key == 99) {
-        tree.rename_from = here.path;
-        begin_command("Neotree copy " + here.path);
-    } else if (key == 121) {
-        tree.clipboard = here.path;
-        tree.is_cut = false;
-        notice = "Copied " + here.name;
-    } else if (key == 120) {
-        tree.clipboard = here.path;
-        tree.is_cut = true;
-        notice = "Cut " + here.name;
-    } else if (key == 112) {
-        run_tree("paste");
-    } else if (key == 80) {
-        if (here.is_directory) {
-            overlay = ["(folder)"];
-        } else {
-            overlay = read_preview(here.path);
-            if (overlay.size() > 20) {
-                overlay = overlay.slice(0, 20);
-            }
-        }
-    } else if (key == 105) {
-        notice = here.path;
-        if (here.status.size() > 0) {
-            notice = notice + "  [" + here.status + "]";
-        }
-    }
-    if (tree.row >= tree.entries.size()) {
-        tree.row = tree.entries.size() - 1;
-    }
-    if (tree.row < 0) {
-        tree.row = 0;
-    }
-}
-
-/** `:Neotree [toggle|show|focus|close|reveal|refresh|DIR]` and the prompts the
- * tree keys open (`filter`, `add`, `delete`, `rename`, `move`, `copy`, `paste`). */
-void App.run_tree(str arg) {
-    int space = arg.index_of(" ").or(-1);
-    str word = arg;
-    str rest = "";
-    if (space >= 0) {
-        word = arg.substr(0, space);
-        rest = arg.substr(space + 1, arg.size()).trim();
-    }
-    List<str> made = [];
-    str failure = "";
-    if (word == "" || word == "focus") {
-        open_tree(true);
-    } else if (word == "toggle") {
-        if (tree.is_open) {
-            close_tree();
-        } else {
-            open_tree(true);
-        }
-    } else if (word == "show") {
-        open_tree(false);
-    } else if (word == "close") {
-        close_tree();
-    } else if (word == "reveal") {
-        open_tree(true);
-        if (path.size() > 0 && !tree.did_reveal(path)) {
-            notice = "Not in the tree: " + path;
-        }
-    } else if (word == "refresh") {
-        if (tree.is_open) {
-            tree.refresh_status();
-        }
-    } else if (word == "hidden") {
-        tree.is_hidden_shown = !tree.is_hidden_shown;
-        tree.refresh();
-    } else if (word == "filter") {
-        tree.filter = rest;
-        tree.row = 0;
-        tree.top = 0;
-        tree.refresh();
-    } else if (word == "add") {
-        failure = MED_tree.add(".", rest, made);
-        if (failure.size() == 0) {
-            tree.refresh_status();
-            if (made.size() > 0) {
-                tree.did_reveal(made[0]);
-                notice = "Created " + made[0];
-            }
-        }
-    } else if (word == "delete") {
-        failure = MED_tree.remove_path(rest);
-        if (failure.size() == 0) {
-            tree.refresh_status();
-            notice = "Deleted " + rest;
-        }
-    } else if (word == "rename" || word == "move") {
-        failure = MED_tree.rename_path(tree.rename_from, rest);
-        if (failure.size() == 0) {
-            notice = "Moved to " + rest;
-            if (path == tree.rename_from) {
-                path = rest;
-                editor.buffer.path = rest;
-                save_active();
-            }
-            tree.refresh_status();
-            tree.did_reveal(rest);
-        }
-    } else if (word == "copy") {
-        failure = MED_tree.copy_path(tree.rename_from, rest);
-        if (failure.size() == 0) {
-            notice = "Copied to " + rest;
-            tree.refresh_status();
-            tree.did_reveal(rest);
-        }
-    } else if (word == "paste") {
-        failure = tree.paste_into(tree_target_directory(), made);
-        if (failure.size() == 0) {
-            tree.refresh_status();
-            if (made.size() > 0) {
-                tree.did_reveal(made[0]);
-                notice = "Pasted " + made[0];
-            }
-        }
-    } else if (fs.is_directory(arg)) {
-        tree.root = plain_directory(arg);
-        tree.row = 0;
-        open_tree(true);
-        tree.refresh_status();
-    } else {
-        notice = "E474: Invalid argument: Neotree " + arg;
-    }
-    if (failure.size() > 0) {
-        notice = failure;
-    }
-}
-
-/// The timer: git status again every few seconds; the tree follows the buffer.
-bool App.did_tree_tick(int elapsed_ms) {
-    bool did_change = false;
-    if (!tree.is_focused && path.size() > 0 && path != tree.followed && !is_in_listing()) {
-        tree.followed = path;
-        did_change = tree.did_reveal(path);
-    }
-    tree.status_ms = tree.status_ms + elapsed_ms;
-    if (tree.status_ms >= TREE_STATUS_MS && editor.mode == MED_editor.NORMAL) {
-        tree.status_ms = 0;
-        Map<str, str> before = tree.status;
-        tree.refresh_status();
-        if (before.size() != tree.status.size()) {
-            did_change = true;
-        } else {
-            for (str name in before.keys()) {
-                if (before.get(name).or("") != tree.status.get(name).or("")) {
-                    did_change = true;
-                }
-            }
-        }
-    }
+/// The panel's timer; true when it wants a redraw.
+bool App.did_panel_tick(int elapsed_ms) {
+    MED_ext.Ctx context = panel_context();
+    bool did_change = ext.panel.did_tick(context, elapsed_ms);
+    ext_finish(context);
     return did_change;
 }
 
-/// A click or wheel turn in the sidebar's columns.
-TUI_app.Action App.handle_tree_mouse(TUI_mouse.Gesture gesture) {
-    int rows = tree_list_rows();
+/// A click or wheel turn in the panel's columns.
+TUI_app.Action App.handle_panel_mouse(TUI_mouse.Gesture gesture) {
+    MED_ext.Ctx context = panel_context();
+    int offset = tabline_rows();
+    bool is_redraw = false;
     match (gesture.kind) {
         case Press: {
             if (gesture.button != 0) {
                 return TUI_app.Action.Continue;
             }
-            tree.is_focused = true;
-            int offset = tabline_rows();
-            int index = tree.top + gesture.y - 1 - offset;
-            if (gesture.y >= 1 + offset && gesture.y <= rows + offset && index >= 0 && index < tree.entries.size()) {
-                tree.row = index;
-                MED_tree.Entry here = tree.entries[index];
-                if (here.is_directory) {
-                    tree.toggle(here.path);
-                } else {
-                    tree_open(here.path, 0);
-                }
-            }
-            return TUI_app.Action.Redraw;
+            ext.is_panel_focused = true;
+            ext.panel.did_mouse(context, gesture.x, gesture.y - offset, 0, true);
+            is_redraw = true;
         }
         case ScrollUp: {
-            tree.row = tree.row - WHEEL_LINES;
-            if (tree.row < 0) {
-                tree.row = 0;
-            }
-            return TUI_app.Action.Redraw;
+            is_redraw = ext.panel.did_mouse(context, gesture.x, gesture.y - offset, 4, false);
         }
         case ScrollDown: {
-            tree.row = tree.row + WHEEL_LINES;
-            if (tree.row >= tree.entries.size()) {
-                tree.row = tree.entries.size() - 1;
-            }
-            if (tree.row < 0) {
-                tree.row = 0;
-            }
-            return TUI_app.Action.Redraw;
+            is_redraw = ext.panel.did_mouse(context, gesture.x, gesture.y - offset, 5, false);
         }
         case Drag: {
         }
@@ -3156,81 +2784,26 @@ TUI_app.Action App.handle_tree_mouse(TUI_mouse.Gesture gesture) {
         case ScrollRight: {
         }
     }
+    ext_finish(context);
+    if (is_redraw) {
+        return TUI_app.Action.Redraw;
+    }
     return TUI_app.Action.Continue;
 }
 
-/// Draw the sidebar in the columns `tree_columns` reserved.
-void App.draw_tree(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
-    int side = tree_columns(area.width);
+/// Draw the docked panel in the columns `panel_columns` reserved, and its separator.
+void App.draw_panel(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
+    int side = panel_columns(area.width);
     int height = area.height - 1;
-    if (height < 3) {
+    if (height < 3 || side <= 0) {
         return;
     }
-    int rows = height - 2;
-    tree.scroll_to(rows);
-    TUI_style.Style plain = theme.look("ui.text");
+    MED_ext.Canvas canvas = MED_ext.canvas_over(buffer, theme, area.x, area.y, side, height);
+    ext.panel.draw(canvas, ext.is_panel_focused);
     TUI_style.Style dim = theme.look("ui.window");
-    TUI_style.Style folder = theme.look("ui.tree.directory");
-    TUI_style.Style hidden = theme.look("ui.tree.hidden");
-    TUI_style.Style header = theme.look("ui.picker.title");
     for (int y in 0 .. height) {
-        for (int x in 0 .. side) {
-            buffer.set_str(area.x + x, area.y + y, " ", plain);
-        }
         buffer.set_str(area.x + side, area.y + y, "|", dim);
     }
-    str title = clip_cells(tree_title(), side - 2);
-    if (tree.filter.size() > 0) {
-        title = clip_cells(tree_title() + " /" + tree.filter, side - 2);
-    }
-    buffer.set_str(area.x + 1, area.y, title, header);
-    for (int line in 0 .. rows) {
-        int index = tree.top + line;
-        if (index >= tree.entries.size()) {
-            break;
-        }
-        MED_tree.Entry entry = tree.entries[index];
-        TUI_style.Style look = plain;
-        if (entry.is_directory) {
-            look = folder;
-        } else if (entry.name.starts_with(".")) {
-            look = hidden;
-        }
-        bool is_selected = index == tree.row;
-        if (is_selected) {
-            look = plain.with_attrs(TUI_style.BOLD);
-            if (tree.is_focused) {
-                look = theme.look("ui.menu.selected");
-            }
-            for (int x in 0 .. side) {
-                buffer.set_str(area.x + x, area.y + 1 + line, " ", look);
-            }
-        }
-        str text = clip_cells(entry.label(tree.has_glyphs), side - 3);
-        buffer.set_str(area.x, area.y + 1 + line, text, look);
-        if (entry.status.size() > 0) {
-            str scope = "diff.delta";
-            if (entry.status == "A" || entry.status == "?") {
-                scope = "diff.plus";
-            } else if (entry.status == "D" || entry.status == "!") {
-                scope = "diff.minus";
-            }
-            TUI_style.Style mark = theme.look(scope).with_attrs(TUI_style.BOLD);
-            if (is_selected && tree.is_focused) {
-                mark = look;
-            }
-            buffer.set_str(area.x + side - 2, area.y + 1 + line, entry.status, mark);
-        }
-    }
-    str label = "TREE";
-    if (tree.is_focused) {
-        label = "TREE *";
-    }
-    TUI_style.Style bar = theme.look("ui.statusline");
-    for (int x in 0 .. side) {
-        buffer.set_str(area.x + x, area.y + height - 1, " ", bar);
-    }
-    buffer.set_str(area.x + 1, area.y + height - 1, label, bar);
 }
 
 /** Open the picker `name` (files, buffers, grep, commands, help, explore);
@@ -3928,7 +3501,7 @@ List<MED_keymap.Binding> App.prefix_table(str typed) {
 
 /// The timer: animation frames, then the app's own work (`tick_work`).
 pub TUI_app.Action App.tick(int elapsed_ms) {
-    motion.is_app_busy = has_picker || is_leader || is_prefix_help || prefix_ms > 0 || editor.ta_keys.size() > 0 || terms.size() > 0 || servers.size() > 0 || is_lsp_wanted() || tree.is_open || is_grep_due || !source.is_done || is_dragging || editor.mode == MED_editor.CMDLINE || editor.pending.size() > 0;
+    motion.is_app_busy = has_picker || is_leader || is_prefix_help || prefix_ms > 0 || editor.ta_keys.size() > 0 || terms.size() > 0 || servers.size() > 0 || is_lsp_wanted() || panel_columns(screen_rect().width) > 0 || is_grep_due || !source.is_done || is_dragging || editor.mode == MED_editor.CMDLINE || editor.pending.size() > 0;
     bool is_frame_due = motion.did_tick(elapsed_ms);
     if (did_autoscroll(elapsed_ms)) {
         is_frame_due = true;
@@ -4117,8 +3690,8 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
             return TUI_app.Action.Redraw;
         }
     }
-    if (tree.is_open) {
-        if (did_tree_tick(elapsed_ms)) {
+    if (ext.is_panel_live() && panel_columns(screen_rect().width) > 0) {
+        if (did_panel_tick(elapsed_ms)) {
             return TUI_app.Action.Redraw;
         }
     }
@@ -4153,8 +3726,8 @@ bool App.should_quit_after(int key) {
         terms[found].is_input = true;
         return false;
     }
-    if (tree.is_open && tree.is_focused && !is_window_key && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && key != MED_key.SPACE && key != 58 && key != 23) {
-        did_tree_key(key);
+    if (has_panel_focus() && !is_window_key && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && key != MED_key.SPACE && key != 58 && key != 23) {
+        did_panel_key(key);
         return did_finish();
     }
     if (is_window_key) {
@@ -4485,7 +4058,7 @@ pub TUI_app.Action App.handle(term.Event event) {
         if (editor.mode == MED_editor.CMDLINE && (editor.cmdline.starts_with("theme ") || editor.cmdline.starts_with("colo"))) {
             editor.theme_names = MED_theme.available(theme_directory);
         }
-        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Neotree", "NeoTree", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Registers", "Symbols", "Branches", "Commits", "Changed", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
+        editor.extra_commands = ["theme", "Files", "Buffers", "Grep", "Commands", "Explore", "Sexplore", "Vexplore", "Keys", "Plugins", "PluginEnable", "PluginDisable", "terminal", "Lsp", "Recent", "Registers", "Symbols", "Branches", "Commits", "Changed", "Rename", "Delete", "Create", "Mkdir", "Session", "checktime", "recover"];
         for (str one in ext_commands) {
             editor.extra_commands.push(one);
         }
@@ -4619,14 +4192,14 @@ pub TUI_app.Action App.handle_mouse(TUI_mouse.Routed routed) {
     notice = "";
     overlay = [];
     editor.view_height = current_text_rows();
-    int side = tree_columns(screen_rect().width);
+    int side = panel_columns(screen_rect().width);
     if (side > 0) {
         if (gesture.x <= side) {
-            return handle_tree_mouse(gesture);
+            return handle_panel_mouse(gesture);
         }
         match (gesture.kind) {
             case Press: {
-                tree.is_focused = false;
+                ext.is_panel_focused = false;
             }
             case Drag: {
             }
@@ -5727,8 +5300,8 @@ pub void App.render(TUI_buffer.Buffer buffer, TUI_geometry.Rect full) {
     }
     motion.use_theme(theme, editor.opts.get("background").or("dark") != "light");
     motion.finish(buffer, editor);
-    if (tree.is_open && tree_columns(area.width) > 0) {
-        draw_tree(buffer, area);
+    if (panel_columns(area.width) > 0) {
+        draw_panel(buffer, area);
     }
     TUI_style.Style dim = theme.look("ui.window");
     for (MED_window.Placed bar in placed.separators) {
@@ -5808,7 +5381,7 @@ pub void App.render(TUI_buffer.Buffer buffer, TUI_geometry.Rect full) {
                 buffer.set_style(command_x, message_y, cursor_style);
             }
         }
-    } else if (!(tree.is_open && tree.is_focused)) {
+    } else if (!has_panel_focus()) {
         int shape = motion.shape_for(editor);
         if (shape > 0) {
             motion.show_cursor(cursor_x, cursor_y, shape);
@@ -6689,7 +6262,7 @@ void App.find_tags(str name) {
     tag_match_index = 0;
     str here = "";
     if (path.size() > 0) {
-        here = MED_tree.parent_of(path);
+        here = parent_directory(path);
     }
     bool is_ignore = editor.is_option_on("ignorecase", false);
     for (str file in MED_tags.files_of(editor.opts.get("tags").or("./tags;,tags"), here)) {
@@ -6697,7 +6270,7 @@ void App.find_tags(str name) {
             case Ok(str text): {
                 for (MED_tags.Tag one in MED_tags.entries_of(text, name, is_ignore)) {
                     tag_matches.push(one);
-                    tag_match_dirs.push(MED_tree.parent_of(file));
+                    tag_match_dirs.push(parent_directory(file));
                 }
             }
             case Err(io.Error error): {
@@ -9032,6 +8605,25 @@ void App.ext_finish(MED_ext.Ctx context) {
             notify_user(levels[index], texts[index], true);
         }
     }
+    if (context.has_panel_focus) {
+        context.has_panel_focus = false;
+        ext.is_panel_focused = ext.is_panel_live();
+    }
+    if (context.has_panel_blur) {
+        context.has_panel_blur = false;
+        ext.is_panel_focused = false;
+    }
+    if (context.rename_to.size() > 0) {
+        str renamed_from = context.rename_from;
+        str renamed_to = context.rename_to;
+        context.rename_from = "";
+        context.rename_to = "";
+        if (path == renamed_from) {
+            path = renamed_to;
+            editor.buffer.path = renamed_to;
+            save_active();
+        }
+    }
     if (context.has_overlay) {
         context.has_overlay = false;
         overlay = context.overlay_lines;
@@ -9462,9 +9054,6 @@ bool is_color_column(MED_editor.Editor subject, str columns, int spot) {
 }
 
 // ------------------------------------------------------------------ file tree
-
-const int TREE_MIN_SCREEN = 40;
-const int TREE_STATUS_MS = 5000;
 
 /// The text of `line` cut to `width` cells.
 str clip_cells(str line, int width) {
