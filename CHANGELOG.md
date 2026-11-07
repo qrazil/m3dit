@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.27.0
+
+The divergence audit, implemented (docs/DIVERGENCE-AUDIT.md section 8). m3 drops what it carried from vim for no clear reason and says so when you reach for it:
+a removed command, key or option is **refused with a message that names what to write instead** (`E492: Not an editor command: lgrep is gone from m3; write ':grep'`,
+`E518: Unknown option: swapfile (m3 has no swap file ...)`), never silently ignored. The reasons are in `engine/MED_removed.m31`.
+
+Migration, one line each:
+- **The `:c*` commands are gone** (`:cc :clist :cwindow :copen :cclose :cnext :cprevious :cNext :cfirst :clast`): use `:l`, `:lnext` (`:lnext 3` goes to row 3), `:lprev`, `:lfirst`, `:llast`. `:cdo` and `:cfdo` are now `:ldo` and `:lfdo`.
+- **`:lgrep :lvimgrep :lmake`** are gone: write `:grep`, `:vimgrep`, `:make` (the same result).
+- **Tag matches**: `:tselect :tjump :tnext :tprevious :tNext :trewind :tfirst :tlast` are gone. `:tag NAME` with several matches fills the generic list: `:lnext`, `:lprev`, `]l`, `:l`.
+- **`:z`**, **`:first :rewind :last :wnext`**, and **`:append :insert :change`** are gone: scroll with `<C-f>` / `<C-b>` / `z<CR>`, use `:args` with `:next` / `:previous`, type `o` `O` `cc`.
+- **Ex mode is gone** (`gQ`, `:visual`, `m3 -e`, `m3 -E`).
+- **`g?` (rot13) and `gR` (Virtual Replace)** are gone: use a filter such as `!{motion}tr A-Za-z N-ZA-Mn-za-m`, and `R`.
+- **`:s` and `:d`/`:y` print flags** `p # l` and the `:s` flag `r` are gone (`E488: Trailing characters`).
+- **`'wrapmargin'`** is gone: use `'textwidth'`.
+- **171 options that nothing read are refused** (326 before, 155 now): a `:set` line in a keymap or init file that names one reports `E518` with the reason and goes on with the next line. docs/OPTIONS.md lists the 155 that exist; `smoothscroll` alone is accepted and does nothing (m3 animates scrolling).
+- **Options that now act**: `splitright` and `splitbelow` (both **default on** now: new windows open right and below, as before, instead of being ignored), `gdefault`, `timeoutlen` (the wait for a longer mapping), `pumheight`, `keywordprg` (`K` with no language server), `signcolumn` (`no`/`yes`/`auto`), `showtabline` (0/1/2).
+- **Refused rather than made to act**: `ruler showmode showcmd cmdheight tildeop modifiable formatprg equalprg infercase copyindent preserveindent fixendofline scrolljump foldcolumn timeout ttimeout ttimeoutlen showmatch matchtime confirm shell` (each needs a feature m3 does not have; say which you want).
+- `scripts/options_doc.py` also reads `ext/` and the plugins and ignores two-letter short names (it counted the key `sb` as the option `splitbelow`).
+- Oracle: `tests/oracles/divergences.tsv` has the skip rows for the 5 removed behaviours with corpus cases (`g?`, `gR`, `:a :i :c`, `:z`, `wrapmargin`: about 450 cases, almost all of them `50_ex_z.txt`) and `doc` rows for the rest; `python3 scripts/divergences.py --check docs/CORE-STATUS.md` passes.
+- Not changed, for you to decide: command-line completion still offers vim's own option and command names (`tests/oracles/gen_complete.lua` makes the list from nvim and the corpus compares it).
+
 ## 0.26.0
 
 The divergence audit: tooling and a proposal. **No behaviour changed** in this release.
