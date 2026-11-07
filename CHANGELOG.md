@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.28.0
+
+Two owner decisions.
+
+- **The system clipboard is the default.** `'clipboard'` is now `unnamedplus`, set as the option's default value, not by a key map: `yy`, `dd`, `x` and the other yanks and
+  deletes into the unnamed register also go to the system clipboard, and `p` pastes from it. The tool is pbcopy / pbpaste, wl-clipboard, xclip or xsel
+  (`M3_CLIP_COPY` / `M3_CLIP_PASTE` name others). With no tool, or when the tool fails (ssh, a container), the text goes to the terminal as OSC 52
+  (`M3_NO_OSC52=1` turns that off; nothing over 100000 bytes is sent), and the unnamed register holds it: no error is ever shown.
+  Migration: `:set noclipboard` (in the keymap file too) restores the editor-only unnamed register; `"+` and `"*` work as before. The oracle runs with no
+  provider, so its cases are unaffected (a `doc` row in `tests/oracles/divergences.tsv`). `tests/test.sh` points the clipboard at a file so no run touches the real one.
+  `:set noclipboard` is now accepted (it used to be E474 for this string option).
+- **Surround and autopairs stay in the core** (no plugin extraction). Both are on by default; `:set nosurround` and `:set noautopairs` turn them off
+  (the options already existed). Surround is `ys` `ds` `cs` and Visual `S`; autopairs closes brackets, closes quotes except after a word character, splits a pair on
+  Enter and removes an empty pair on Backspace, in one undo step and one dot repeat. The 2,900 surround and autopairs oracle cases cover them.
+  docs/CORE-AND-PLUGINS.md no longer plans their extraction.
+- Tests: a `clipboard_is_the_default_register` pty scenario (a file as the clipboard), a plain yank sends OSC 52 when there is no tool, register-level checks in `t_register`,
+  and a surround/autopairs switch test in `t_vi`.
+- The terminal extraction is next (0.29.0).
+
 ## 0.27.0
 
 The divergence audit, implemented (docs/DIVERGENCE-AUDIT.md section 8). m3 drops what it carried from vim for no clear reason and says so when you reach for it:
