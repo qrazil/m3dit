@@ -3644,6 +3644,8 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
     if (terms.size() > 0 && did_poll_terminals()) {
         return TUI_app.Action.Redraw;
     }
+    // a yank or delete reaches the system clipboard here, not in the key that made it (no process is started per keystroke)
+    flush_clipboard(true);
     if ((servers.size() > 0 || is_lsp_wanted()) && did_tick_lsp(elapsed_ms)) {
         return TUI_app.Action.Redraw;
     }
@@ -3906,15 +3908,29 @@ void App.refresh_clipboard(List<int> keys) {
     if (!clipboard.is_present) {
         return;
     }
+    /* Only keys that can read a register matter: in Normal and Visual mode `p` `P` `"` `+` `*` (up to a `:` `/` `?`, after which
+     * the letters are command-line text); in Insert, Replace and the command line only CTRL-R. A process is started per read. */
     bool is_wanted = false;
+    bool is_typing = editor.mode == MED_editor.INSERT || editor.mode == MED_editor.REPLACE || editor.mode == MED_editor.CMDLINE;
     for (int key in keys) {
-        if (key == 112 || key == 80 || key == 43 || key == 42 || key == 18 || key == 34 || key == 58) {
+        if (key == 18) {
+            is_wanted = true;
+        }
+        if (is_typing) {
+            continue;
+        }
+        if (key == 58 || key == 47 || key == 63) {
+            break;
+        }
+        if (key == 112 || key == 80 || key == 43 || key == 42 || key == 34) {
             is_wanted = true;
         }
     }
     if (!is_wanted) {
         return;
     }
+    // our own unsent write goes first, or the old clipboard would replace it
+    flush_clipboard(true);
     match (MED_clip.paste(clipboard)) {
         case Some(str text): {
             editor.regs.set_clipboard(text);
@@ -3927,8 +3943,8 @@ void App.refresh_clipboard(List<int> keys) {
 /** Hand a changed `+` register to the system clipboard; when there is no tool, or it fails (an ssh session, a bare container),
  * ask the terminal with OSC 52 (`M3_NO_OSC52=1` turns that off, and a text over 100000 bytes is not sent); the register
  * then only holds the text. Nothing here reports an error. */
-void App.flush_clipboard() {
-    if (!editor.regs.is_clip_dirty) {
+void App.flush_clipboard(bool is_now) {
+    if (!editor.regs.is_clip_dirty || !is_now) {
         return;
     }
     bool did_hand = clipboard.is_present && MED_clip.did_copy(clipboard, editor.regs.clip_text());
@@ -4057,7 +4073,7 @@ pub TUI_app.Action App.handle(term.Event event) {
     if (is_paste_in_insert(event)) {
         // typed literally: no autoindent, auto-pairs, mappings or jk, and one undo step
         bool is_quitting = did_quit_after_paste(keys);
-        flush_clipboard();
+        flush_clipboard(true);
         if (is_quitting) {
             return TUI_app.Action.Quit;
         }
@@ -4071,11 +4087,11 @@ pub TUI_app.Action App.handle(term.Event event) {
             continue;
         }
         if (should_quit_after(key)) {
-            flush_clipboard();
+            flush_clipboard(true);
             return TUI_app.Action.Quit;
         }
     }
-    flush_clipboard();
+    flush_clipboard(false);
     ext_watch();
     if (has_picker) {
         update_preview();
