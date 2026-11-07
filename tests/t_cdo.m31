@@ -1,4 +1,4 @@
-/* :cdo, :cfdo and :bufdo through the App: an ex line at each quickfix entry, once for each file, in each buffer, and the
+/* :ldo, :lfdo and :bufdo through the App: an ex line at each quickfix entry, once for each file, in each buffer, and the
  * first failing line ends the run. */
 
 import io;
@@ -39,12 +39,12 @@ match (MED_app.open(base + "-a.txt")) {
     case Ok(MED_app.App app): {
         type_text(app, ":e " + base + "-b.txt\r");
         app.lists.replace("", [MED_picker.Entry("a1", path: base + "-a.txt", line: 0, column: 0), MED_picker.Entry("a3", path: base + "-a.txt", line: 2, column: 0), MED_picker.Entry("b1", path: base + "-b.txt", line: 0, column: 0)]);
-        type_text(app, ":cdo s/foo/bar/\r");
+        type_text(app, ":ldo s/foo/bar/\r");
         check.eq_str("the last file was changed on its entry's line only", app.editor.buffer.dump(), "bar three\nfoo foo\n");
         type_text(app, ":buffer 1\r");
         check.eq_str("the first file at both entries", app.editor.buffer.dump(), "bar one\nbar\nbar two\n");
-        type_text(app, ":cfdo %s/bar/BAR/\r");
-        check.eq_str(":cfdo ends in the last file", app.editor.buffer.dump(), "BAR three\nfoo foo\n");
+        type_text(app, ":lfdo %s/bar/BAR/\r");
+        check.eq_str(":lfdo ends in the last file", app.editor.buffer.dump(), "BAR three\nfoo foo\n");
         type_text(app, ":buffer 1\r");
         check.eq_str("and changed the first file once", app.editor.buffer.dump(), "BAR one\nBAR\nBAR two\n");
         type_text(app, ":buffer 2\r");
@@ -54,10 +54,10 @@ match (MED_app.open(base + "-a.txt")) {
         check.eq_str("and the first", app.editor.buffer.dump(), "BAR one\nBAR\nBAR two\n");
         type_text(app, ":bufdo %s/zzz/y/\r");
         check.ok("the first failing line ends it (E486)", app.editor.message.starts_with("E486") || app.notice.starts_with("E486"));
-        type_text(app, ":cdo\r");
+        type_text(app, ":ldo\r");
         check.ok("no command is an error", app.notice.starts_with("E471") || app.editor.message.starts_with("E471"));
         app.lists.wipe("");
-        type_text(app, ":cdo s/a/b/\r");
+        type_text(app, ":ldo s/a/b/\r");
         check.ok("an empty list is E42", app.notice.starts_with("E42") || app.editor.message.starts_with("E42"));
     }
     case Err(str message): {

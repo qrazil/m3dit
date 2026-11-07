@@ -1,0 +1,59 @@
+/* What m3 used to carry from vim and no longer does (docs/DIVERGENCE-AUDIT.md).
+ *
+ * A removed command or option is refused with a message that names the way to do the same thing, in the manner of the
+ * command line's refusals ("help has one spelling"): the word the user typed, then `write ':x'`. Nothing here runs: the
+ * lists only turn "E492: Not an editor command" and "E518: Unknown option" into a sentence that helps.
+ *
+ *   MED_removed.command_hint(word)   the advice for a removed ex command (or an abbreviation of one), "" when it is not one
+ *   MED_removed.option_hint(word)    the reason a removed option is gone, "" when it is not one
+ *   MED_removed.key_hint(keys)       the advice for a removed Normal-mode chord, "" when it is not one */
+
+/// Full name, shortest abbreviation and the advice.
+type Gone {
+    pub str name;
+    pub int least;
+    pub str advice;
+}
+
+List<Gone> gone_commands() {
+    return [Gone("lgrep", 3, "write ':grep'"), Gone("lvimgrep", 5, "write ':vimgrep'"), Gone("lmake", 3, "write ':make'"), Gone("z", 1, "scroll with <C-f>, <C-b> or z<CR>"), Gone("first", 3, "write ':args' and ':next'"), Gone("rewind", 3, "write ':args' and ':next'"), Gone("last", 2, "write ':args' and ':previous'"), Gone("wnext", 2, "write ':write' and ':next'"), Gone("append", 1, "type o, O or cc in Normal mode"), Gone("insert", 1, "type o, O or cc in Normal mode"), Gone("change", 1, "type o, O or cc in Normal mode"), Gone("visual", 2, "m3 has no Ex mode"), Gone("tselect", 2, "write ':tag' (several matches fill the list, ':lnext' walks it)"), Gone("tjump", 3, "write ':tag' (several matches fill the list, ':lnext' walks it)"), Gone("tnext", 3, "write ':lnext'"), Gone("tprevious", 2, "write ':lprev'"), Gone("tNext", 2, "write ':lprev'"), Gone("trewind", 2, "write ':lfirst'"), Gone("tfirst", 3, "write ':lfirst'"), Gone("tlast", 2, "write ':llast'"), Gone("cc", 2, "write ':lnext' or ':lfirst'"), Gone("clist", 3, "write ':l'"), Gone("cwindow", 4, "write ':l'"), Gone("copen", 3, "write ':l'"), Gone("cclose", 3, "press Escape in the list"), Gone("cnext", 2, "write ':lnext'"), Gone("cprevious", 2, "write ':lprev'"), Gone("cNext", 3, "write ':lprev'"), Gone("cfirst", 4, "write ':lfirst'"), Gone("clast", 3, "write ':llast'"), Gone("cdo", 3, "write ':ldo'"), Gone("cfdo", 3, "write ':lfdo'")];
+}
+
+pub str command_hint(str word) {
+    for (Gone one in gone_commands()) {
+        if (word.size() >= one.least && word.size() <= one.name.size() && one.name.starts_with(word)) {
+            return word + " is gone from m3; " + one.advice;
+        }
+    }
+    return "";
+}
+
+/// The options that were stored and read by nothing; each name followed by the reason it is refused.
+List<str> gone_options() {
+    return ["swapfile:m3 has no swap file (it keeps a recovery copy)", "backup:m3 writes no backup file", "writebackup:m3 writes no backup file", "backupext:m3 writes no backup file", "patchmode:m3 writes no backup file", "makeef:m3 reads the output of 'makeprg' itself", "updatecount:m3 has no swap file", "undoreload:m3 does not reload undo history", "shadafile:m3 has no shada file", "writeany:m3 has no read-only write guard to lift", "lazyredraw:m3 redraws only what changed", "redrawtime:m3 has no slow-redraw limit", "termguicolors:m3 always draws true colour", "encoding:m3 is UTF-8", "fileencodings:m3 reads UTF-8, else Latin-1", "fileformats:m3 reads unix, dos and mac line ends itself", "endoffile:m3 has no end-of-file mark", "synmaxcol:m3 highlights by itself", "maxmempattern:m3 has no pattern memory limit", "regexpengine:m3 has one regex engine", "columns:the terminal sets the size", "conceallevel:m3 has no conceal", "revins:m3 has no right-to-left editing", "rightleft:m3 has no right-to-left editing", "allowrevins:m3 has no right-to-left editing", "iminsert:m3 has no input-method switching", "imsearch:m3 has no input-method switching", "digraph:CTRL-K makes digraphs; the option is not built", "lisp:m3 has no Lisp mode", "lispoptions:m3 has no Lisp mode", "langmap:m3 has no key remapping layer; use :map", "langremap:m3 has no key remapping layer; use :map", "casemap:m3 has one case mapping", "emoji:m3 measures width itself", "ambiwidth:m3 measures width itself", "delcombine:m3 deletes a character with its combining marks", "equalalways:m3 lays windows out itself", "winheight:m3 lays windows out itself", "winminheight:m3 lays windows out itself", "winwidth:m3 lays windows out itself", "winminwidth:m3 lays windows out itself", "winfixheight:m3 lays windows out itself", "winfixwidth:m3 lays windows out itself", "winfixbuf:m3 lays windows out itself", "winhighlight:themes style windows", "winblend:m3 has no window blending", "winborder:m3 draws its own borders", "winaltkeys:m3 has no menu", "splitkeep:m3 keeps the text where it is", "tabpagemax:m3 shows every tab page", "eadirection:m3 lays windows out itself", "scrollbind:m3 has no bound scrolling", "cursorbind:m3 has no bound cursors", "previewwindow:m3 has no preview window; the finder previews", "previewheight:m3 has no preview window; the finder previews", "helpheight:help is the finder", "cmdwinheight:m3 has no command-line window", "winbar:use the statusline plugin", "operatorfunc:m3 has no Vimscript functions", "completefunc:m3 has no Vimscript functions", "omnifunc:m3 has no Vimscript functions", "tagfunc:m3 has no Vimscript functions", "findfunc:m3 has no Vimscript functions", "formatexpr:m3 has no Vimscript expressions here", "indentexpr:m3 has no Vimscript expressions here", "includeexpr:m3 has no Vimscript expressions here", "foldexpr:m3 has no Vimscript expressions here", "foldtext:m3 has no Vimscript expressions here", "thesaurusfunc:m3 has no Vimscript functions", "quickfixtextfunc:m3 has no Vimscript functions", "statuscolumn:m3 has no Vimscript expressions here", "rulerformat:use the statusline plugin", "tabline:use the statusline plugin", "tagstack:the tag stack is always on", "tagcase:tag names follow 'ignorecase'", "taglength:tag names are never cut", "tagbsearch:tags files are read linearly", "tagrelative:tags files are found as './tags'", "showfulltag:m3 has no tag selection prompt", "terse:m3 has no terse messages", "warn:m3 does not warn before a shell command", "more:m3 has no more-prompt", "exrc:m3 reads project settings with its project config", "secure:m3 has no exrc", "modeline:modelines are not read (use the project config)", "modelines:modelines are not read (use the project config)", "modelineexpr:modelines are not read (use the project config)", "debug:m3 has no debug mode", "verbose:m3 has no verbose levels", "verbosefile:m3 has no verbose log", "eventignore:use :PluginDisable", "maxfuncdepth:m3 has no Vimscript functions", "maxmapdepth:mappings stop by themselves", "selectmode:m3 has no Select mode", "pastetoggle:bracketed paste is on", "visualbell:m3 does not ring or flash", "errorbells:m3 does not ring or flash", "titlelen:m3 does not set the title", "titleold:m3 does not set the title", "titlestring:m3 does not set the title", "menuitems:m3 has no menu", "messagesopt:m3 has one message history", "showcmdloc:the pending keys show in the status line", "cedit:m3 has no command-line window", "wildmenu:the command line completes with a popup", "wildchar:the command line completes with <Tab>", "wildcharm:the command line completes with <Tab>", "mousefocus:m3 has no focus-follows-mouse", "mousehide:m3 does not hide the pointer", "mousemoveevent:m3 has no mouse-move events", "mousescroll:the wheel scrolls three lines", "mousetime:the terminal decides what a double click is", "dictionary:the finder completes words", "thesaurus:m3 has no thesaurus completion", "include:m3 has no include search", "define:m3 has no define search", "suffixes:the finder orders files", "wildignorecase:the finder ignores case with smart-case", "fileignorecase:file names are compared as the file system does", "grepformat:m3 reads file:line: text", "helplang:help is the finder", "loadplugins:use :PluginDisable", "shellcmdflag:m3 runs commands as 'sh -c'", "shellquote:m3 runs commands as 'sh -c'", "shellredir:m3 runs commands as 'sh -c'", "shellxescape:m3 runs commands as 'sh -c'", "shellxquote:m3 runs commands as 'sh -c'", "shelltemp:m3 uses pipes", "autochdir:m3 keeps the working directory", "bufhidden:m3 has no per-buffer hide policy", "buftype:m3 has no buffer types", "diff:m3 has no diff mode yet", "binary:m3 edits bytes as text", "modified:use :w and :e!", "quoteescape:m3 has no 'quoteescape'", "spell:m3 has no spell checker", "inccommand:use the live substitute preview that comes with :s", "updatetime:m3 has no CursorHold event", "varsofttabstop:m3 has no variable tab stops", "vartabstop:m3 has no variable tab stops", "pumblend:the completion popup uses the theme", "pumwidth:the completion popup sizes itself", "wrapmargin:use 'textwidth'", "matchtime:m3 does not jump back to a bracket for a moment", "infercase:completion keeps the case of the candidate", "copyindent:'autoindent' keeps the indent", "preserveindent:'autoindent' keeps the indent", "fixendofline:m3 always ends the file with a newline", "scrolljump:use 'scrolloff'", "foldcolumn:folds show in the text", "timeout:mappings wait for 'timeoutlen'", "ttimeout:keys are never split", "ttimeoutlen:keys are never split", "ruler:the status line always shows the position", "showmode:the status line always shows the mode", "showcmd:pending keys always show", "cmdheight:the command line is one row", "confirm:m3 asks before discarding with E37, as ':q!' is the way to force", "tildeop:use g~ with a motion", "showmatch:m3 does not jump back to a bracket for a moment", "modifiable:use :set readonly", "shell:m3 runs commands as 'sh -c'", "formatprg:use :Formatter LANG CMD", "equalprg:use :Formatter LANG CMD", "fixendofline:m3 always ends the file with a newline", "fsync:m3 writes files itself", "buflisted:every file buffer is listed", "cdpath:m3 keeps the working directory", "shada:m3 has no shada file", "shellpipe:m3 reads the output of 'makeprg' itself", "writedelay:m3 has no slow drawing"];
+}
+
+pub str option_hint(str word) {
+    for (str entry in gone_options()) {
+        int cut = entry.index_of(":").or(0);
+        if (entry.substr(0, cut) == word) {
+            return entry.substr(cut + 1, entry.size());
+        }
+    }
+    return "";
+}
+
+/// The Normal-mode chords that were removed, and what to use instead.
+List<str> gone_keys() {
+    return ["g?:rot13 is gone; filter with !{motion}tr A-Za-z N-ZA-Mn-za-m", "gR:Virtual Replace is gone; use R", "g8:use ga for the code point", "gQ:m3 has no Ex mode; use :", "gs:gs is not a command here", "gK:use K", "z=:m3 has no spell checker", "zg:m3 has no spell checker", "zG:m3 has no spell checker", "zw:m3 has no spell checker", "zW:m3 has no spell checker", "zu:m3 has no spell checker", "z^:use <C-b>", "z+:use <C-f>", "zp:use p", "zP:use P", "zy:use y", "[m:use ]d, <Space>fs or %", "]m:use ]d, <Space>fs or %", "[M:use ]d, <Space>fs or %", "]M:use ]d, <Space>fs or %", "[*:use %", "]*:use %", "[/:use %", "]/:use %", "[#:use %", "]#:use %", "[s:m3 has no spell checker", "]s:m3 has no spell checker", "[i:the finder searches", "]i:the finder searches", "[I:the finder searches", "]I:the finder searches", "[f:use gf", "]f:use gf", "[D:use ]d", "]D:use ]d"];
+}
+
+pub str key_hint(str keys) {
+    for (str entry in gone_keys()) {
+        int cut = entry.index_of(":").or(0);
+        if (entry.substr(0, cut) == keys) {
+            return entry.substr(cut + 1, entry.size());
+        }
+    }
+    return "";
+}

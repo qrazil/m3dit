@@ -10,6 +10,7 @@
  * follows the corresponding Vim source routine named in its comment. */
 
 import engine.MED_buffer;
+import engine.MED_removed;
 import engine.MED_complete;
 import engine.MED_autofold;
 import engine.MED_fold;
@@ -1700,13 +1701,10 @@ void op_reindent(MED_editor.Editor editor, Oap oap) {
 
 // ------------------------------------------------------------------- gq, gw
 
-/// 'textwidth', else the window width less 'wrapmargin' when that is set, else 0 (Vim's comp_textwidth).
+/// 'textwidth', else 0 (Vim's comp_textwidth, without 'wrapmargin', which m3 does not have).
 int wrap_width(MED_editor.Editor editor) {
     if (editor.textwidth > 0) {
         return editor.textwidth;
-    }
-    if (editor.wrapmargin > 0) {
-        return MED_num.larger(editor.view_width - editor.wrapmargin, 1);
     }
     return 0;
 }
@@ -2113,23 +2111,11 @@ void op_format(MED_editor.Editor editor, Oap oap, bool is_keep_cursor) {
     editor.clamp();
 }
 
-int rot13(int code_point) {
-    if (code_point >= 97 && code_point <= 122) {
-        return 97 + (code_point - 97 + 13) % 26;
-    }
-    if (code_point >= 65 && code_point <= 90) {
-        return 65 + (code_point - 65 + 13) % 26;
-    }
-    return code_point;
-}
-
 str map_case(str text, str operator) {
     List<int> out = [];
     for (int code_point in text.chars()) {
         int mapped = code_point;
-        if (operator == "g?") {
-            mapped = rot13(code_point);
-        } else if (code_point < 128) {
+        if (code_point < 128) {
             bool is_lower = code_point >= 97 && code_point <= 122;
             bool is_upper = code_point >= 65 && code_point <= 90;
             if (operator == "gU" || (operator == "g~" && is_lower)) {
@@ -3425,7 +3411,6 @@ void start_insert(MED_editor.Editor editor, int cmd, int count, bool is_replace)
     editor.ins_cmd = cmd;
     editor.is_completing = false;
     editor.is_ins_moved = false;
-    editor.is_virtual = false;
     editor.ins_count = count1(count);
     editor.ins_keys = [];
     editor.ins_text = "";
@@ -3614,41 +3599,12 @@ void ins_char(MED_editor.Editor editor, int code_point) {
         editor.can_si_back = false;
         editor.has_si_extra = false;
     }
-    if ((editor.mode == MED_editor.INSERT || (editor.mode == MED_editor.REPLACE && editor.col >= editor.buffer.line_size(editor.row))) && (editor.textwidth > 0 || editor.wrapmargin > 0) && code_point != 32 && code_point != 9 && (has_format_flag(editor, "t") || has_format_flag(editor, "c"))) {
+    if ((editor.mode == MED_editor.INSERT || (editor.mode == MED_editor.REPLACE && editor.col >= editor.buffer.line_size(editor.row))) && editor.textwidth > 0 && code_point != 32 && code_point != 9 && (has_format_flag(editor, "t") || has_format_flag(editor, "c"))) {
         ins_auto_wrap(editor, code_point);
     }
     str text = str.from_chars([code_point]);
     str line = editor.buffer.line(editor.row);
     MED_buffer.Pos position = MED_buffer.Pos(editor.row, editor.col);
-    if (editor.mode == MED_editor.REPLACE && editor.is_virtual) {
-        /* Virtual Replace: the new character covers screen cells; whole
-         * characters under them go (a TAB that reaches further stays) */
-        int vcol = MED_text.display_col(line, editor.col, editor.tab);
-        int width = MED_text.cell_width(text, 0, vcol, editor.tab);
-        if (code_point == 9) {
-            width = editor.tab - (vcol % editor.tab);
-        }
-        int new_vcol = vcol + width;
-        int spot = vcol;
-        int stop = editor.col;
-        int extra = 0;
-        while (stop < line.size() && spot < new_vcol) {
-            spot = spot + MED_text.cell_width(line, stop, spot, editor.tab);
-            if (spot > new_vcol && line.byte_at(stop) == 9) {
-                break;
-            }
-            stop = MED_text.next_col(line, stop);
-            if (spot > new_vcol) {
-                extra = spot - new_vcol;
-            }
-        }
-        editor.replaced.push(line.substr(editor.col, stop));
-        editor.change(position, MED_buffer.Pos(editor.row, stop), text + " ".repeat(extra));
-        editor.col = editor.col + text.size();
-        editor.did_ai = false;
-        editor.ins_text = editor.ins_text + text;
-        return;
-    }
     if (editor.mode == MED_editor.REPLACE && editor.col < line.size()) {
         int next = MED_text.next_col(line, editor.col);
         editor.replaced.push(line.substr(editor.col, next));
@@ -3695,25 +3651,6 @@ void ins_cr(MED_editor.Editor editor) {
             }
         }
     }
-    if (editor.mode == MED_editor.REPLACE && editor.is_virtual) {
-        /* Virtual Replace: the rest of the line goes and replacing goes on
-         * at the start of the next line */
-        int size = line.size();
-        editor.replaced.push("\x01" + line.substr(cut, size));
-        editor.change(MED_buffer.Pos(editor.row, cut), MED_buffer.Pos(editor.row, size), "");
-        if (editor.row + 1 >= editor.buffer.line_count()) {
-            editor.change(MED_buffer.Pos(editor.row, cut), MED_buffer.Pos(editor.row, cut), "\n");
-        }
-        editor.row = editor.row + 1;
-        editor.col = 0;
-        str typed = editor.ins_text;
-        for (int code_point in indent.chars()) {
-            ins_char(editor, code_point);
-        }
-        editor.did_ai = editor.is_autoindent;
-        editor.ins_text = typed + "\n";
-        return;
-    }
     editor.change(MED_buffer.Pos(editor.row, cut), MED_buffer.Pos(editor.row, skip), "\n" + indent);
     editor.row = editor.row + 1;
     editor.col = indent.size();
@@ -3758,20 +3695,6 @@ bool did_ins_bs(MED_editor.Editor editor, int mode) {
         editor.col = back;
         return true;
     }
-    if (editor.col == 0 && editor.mode == MED_editor.REPLACE && editor.is_virtual && editor.replaced.size() > 0) {
-        str marker = editor.replaced.pop();
-        int back = editor.buffer.line_size(editor.row - 1);
-        if (editor.row >= editor.virtual_lines) {
-            editor.change(MED_buffer.Pos(editor.row - 1, back), MED_buffer.Pos(editor.row, editor.buffer.line_size(editor.row)), "");
-        }
-        editor.row = editor.row - 1;
-        editor.col = back;
-        if (marker.starts_with("\x01")) {
-            MED_buffer.Pos here = MED_buffer.Pos(editor.row, back);
-            editor.change(here, here, marker.substr(1, marker.size()));
-        }
-        return true;
-    }
     if (editor.col == 0) {
         int size = editor.buffer.line_size(editor.row - 1);
         editor.change(MED_buffer.Pos(editor.row - 1, size), MED_buffer.Pos(editor.row, 0), "");
@@ -3788,7 +3711,7 @@ bool did_ins_bs(MED_editor.Editor editor, int mode) {
     int mincol = 0;
     str line = editor.buffer.line(editor.row);
     int step = 0;
-    bool is_replace = editor.mode == MED_editor.REPLACE && !editor.is_virtual;
+    bool is_replace = editor.mode == MED_editor.REPLACE;
     if (mode == 0 && (editor.mode == MED_editor.INSERT || is_replace)) {
         if (editor.is_smarttab && is_in_indent_before(line, editor.col)) {
             step = editor.shift_size();
@@ -5931,6 +5854,13 @@ void run_cmd(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> typed)
     }
     if (!is_ok) {
         editor.is_failed = true;
+        if (parsed.keys.size() == 2 && (key == 103 || key == 122 || key == 91 || key == 93)) {
+            str chord = str.from_chars([key, parsed.keys[1]]);
+            str hint = MED_removed.key_hint(chord);
+            if (hint.size() > 0) {
+                editor.message = "E492: Not an editor command: " + chord + " (" + hint + ")";
+            }
+        }
     }
 }
 
@@ -5954,14 +5884,6 @@ bool did_run_g(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> type
         editor.clamp();
         editor.want_from_cursor();
         return is_ok;
-    }
-    if (second == 82) {
-        // gR: Virtual Replace mode, handled like Replace mode
-        record_dot(editor, parsed);
-        start_insert(editor, 82, count, true);
-        editor.is_virtual = true;
-        editor.virtual_lines = editor.buffer.line_count();
-        return true;
     }
     if (second == 73) {
         record_dot(editor, parsed);
@@ -6001,6 +5923,11 @@ bool did_run_g(MED_editor.Editor editor, MED_parse.Parsed parsed, List<int> type
         }
         editor.requests.push(word);
         return true;
+    }
+    str chord = "g" + str.from_chars([second]);
+    if (MED_removed.key_hint(chord).size() > 0) {
+        // a chord m3 dropped (docs/DIVERGENCE-AUDIT.md): refuse it with the way to do it now
+        return false;
     }
     return true;
 }
@@ -8353,11 +8280,6 @@ void cmdline_key(MED_editor.Editor editor, int key) {
         return;
     }
     if (key == 27 || key == 3) {
-        if (editor.cmd_type == 62) {
-            // :append, :insert, :change given up: nothing is changed
-            editor.ex_input_kind = "";
-            editor.ex_input_lines = [];
-        }
         cmdline_leave(editor);
         return;
     }
@@ -8376,20 +8298,6 @@ void cmdline_key(MED_editor.Editor editor, int key) {
         str line = editor.cmdline;
         int kind = editor.cmd_type;
         List<int> saved = editor.cmd_saved;
-        if (kind == 62) {
-            // text for :append, :insert, :change: a line with only a dot ends it, MED_ex puts the lines in
-            cmdline_leave(editor);
-            if (line.trim() == ".") {
-                editor.ex_queue.push(str.from_chars([2]) + "exinput");
-            } else {
-                editor.ex_input_lines.push(line);
-                if (editor.is_autoindent && editor.ex_input_indent.size() == 0) {
-                    editor.ex_input_indent = MED_text.leading_white(line);
-                }
-                enter_cmdline(editor, 62, []);
-            }
-            return;
-        }
         hist_add(editor, line);
         cmdline_leave(editor);
         if (kind == 58) {

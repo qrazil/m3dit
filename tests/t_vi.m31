@@ -41,19 +41,21 @@ match (MED_app.open_all([base + "-a.txt", base + "-b.txt", base + "-c.txt"])) {
         check.eq_str("the command line files are the argument list", app.arguments_text(), "[" + base + "-a.txt] " + base + "-b.txt " + base + "-c.txt");
         type_text(app, ":next\r");
         check.eq_str(":next goes to the second", app.editor.buffer.dump(), "foo two\n");
+        type_text(app, ":next\r");
+        check.eq_str(":next again", app.editor.buffer.dump(), "foo three\n");
         type_text(app, ":last\r");
-        check.eq_str(":last", app.editor.buffer.dump(), "foo three\n");
+        check.ok(":last is refused and says what to write", app.editor.message.contains(":args"));
         type_text(app, ":next\r");
         check.ok("past the last file is E165", app.notice.starts_with("E165") || app.editor.message.starts_with("E165"));
         type_text(app, ":prev\r");
         check.eq_str(":prev", app.editor.buffer.dump(), "foo two\n");
-        type_text(app, ":first\r");
-        check.eq_str(":first", app.editor.buffer.dump(), "foo one\n");
+        type_text(app, ":prev\r");
+        check.eq_str(":prev again", app.editor.buffer.dump(), "foo one\n");
         type_text(app, ":Next\r");
         check.ok("before the first file is E164", app.notice.starts_with("E164") || app.editor.message.starts_with("E164"));
         type_text(app, ":argdo s/foo/bar/ | update\r");
         check.eq_str(":argdo ran in the last file", app.editor.buffer.dump(), "bar three\n");
-        type_text(app, ":first\r");
+        type_text(app, ":prev\r:prev\r");
         check.eq_str(":argdo ran in the first file", app.editor.buffer.dump(), "bar one\n");
         type_text(app, ":args " + base + "-b.txt " + base + "-c.txt\r");
         check.eq_str(":args FILES edits the first", app.editor.buffer.dump(), "bar two\n");
@@ -118,15 +120,54 @@ match (MED_app.open_all([base + "-a.txt"])) {
         print("cannot open: " + message);
     }
 }
-// Ex mode: Q keeps the command line open after each command, :visual leaves
+// Ex mode, :append, :z and the other removed commands are refused with a way forward
 match (MED_app.open_all([base + "-a.txt"])) {
     case Ok(MED_app.App app): {
         type_text(app, "gQ");
-        check.ok("gQ opens the command line", app.editor.mode == MED_editor.CMDLINE);
-        type_text(app, "s/bar/EX/\r");
-        check.ok("and it is open again after a command", app.editor.mode == MED_editor.CMDLINE);
-        type_text(app, "visual\r");
-        check.ok(":visual leaves Ex mode", app.editor.mode == MED_editor.NORMAL && !app.is_ex_mode);
+        check.ok("gQ does not open the command line", app.editor.mode == MED_editor.NORMAL);
+        check.ok("and says so", app.editor.message.contains("Ex mode"));
+        type_text(app, ":append\r");
+        check.ok(":append is refused", app.editor.message.contains("E492") && app.editor.message.contains("o, O or cc"));
+        type_text(app, ":3z\r");
+        check.ok(":z is refused", app.editor.message.contains("E492") && app.editor.message.contains("<C-f>"));
+        type_text(app, ":visual\r");
+        check.ok(":visual is refused", app.editor.message.contains("no Ex mode"));
+        type_text(app, ":set swapfile\r");
+        check.ok("an option m3 does not read is refused with the reason", app.editor.message.starts_with("E518") && app.editor.message.contains("recovery copy"));
+        type_text(app, ":set noshowmode\r");
+        check.ok("also in the no form", app.editor.message.starts_with("E518"));
+        type_text(app, ":set gdefault\r");
+        check.ok("an option that acts is accepted", app.editor.is_option_on("gdefault", false));
+        type_text(app, ":s/o/0/\r");
+        check.eq_str("'gdefault' makes :s change every match", app.editor.buffer.dump(), "f00 0ne\n");
+        type_text(app, ":set showtabline=2\r");
+        check.eq_int("'showtabline' 2 always shows the tab line", app.tabline_rows(), 1);
+        type_text(app, ":set showtabline=0\r");
+        check.eq_int("and 0 never", app.tabline_rows(), 0);
+        type_text(app, ":set signcolumn=no\r");
+        check.eq_str("'signcolumn' is stored for the renderer", app.editor.opts.get("signcolumn").or(""), "no");
+        type_text(app, "g?w");
+        check.ok("g? is refused", app.editor.message.contains("E492") && app.editor.message.contains("rot13"));
+        type_text(app, "gR");
+        check.ok("gR is refused", app.editor.message.contains("Virtual Replace"));
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+// several tag matches are a list
+write_file(base + "-dup.c", "int dup(void)\n{\n}\nint dup2(void)\n{\n}\n");
+write_file(base + "-tags2", "dup\t" + base + "-dup.c\t1;\"\tf\ndup\t" + base + "-dup.c\t4;\"\tf\n");
+match (MED_app.open_all([base + "-a.txt"])) {
+    case Ok(MED_app.App app): {
+        type_text(app, ":set tags=" + base + "-tags2\r");
+        type_text(app, ":tag dup\r");
+        check.eq_int("the first match", app.editor.row, 0);
+        check.eq_int("both matches are in the list", app.lists.size(""), 2);
+        type_text(app, ":lnext\r");
+        check.eq_int(":lnext goes to the second match", app.editor.row, 3);
+        type_text(app, ":tnext\r");
+        check.ok(":tnext is refused and says to write :lnext", app.editor.message.contains(":lnext"));
     }
     case Err(str message): {
         print("cannot open: " + message);

@@ -201,7 +201,7 @@ def set_query_toggle_reset(binary, root):
         assert s.wait_for("one"), s.text()
         for keys, shown in ((":set ts?\r", "tabstop=8"), (":set sw=3 sw?\r", "shiftwidth=3"), (":set sw&\r:set sw?\r", "shiftwidth=8"),
                             (":set invwrap wrap?\r", "nowrap"), (":set wrap!\r:set wrap?\r", "  wrap"), (":set fenc?\r", "fileencoding=utf-8"),
-                            (":set inccommand?\r", "inccommand="), (":set nosuchopt\r", "E518")):
+                            (":set gdefault?\r", "nogdefault"), (":set swapfile\r", "E518")):
             s.send(keys, settle=0.4)
             assert shown in s.text(), "%r: %r not on screen:\n%s" % (keys, shown, s.text())
             s.send("\x1b", settle=0.2)
@@ -279,16 +279,16 @@ def quickfix_commands(binary, root):
         assert s.wait_for("Lines"), s.text()
         s.send("\x11", settle=0.6)  # CTRL-Q: every entry to the list
         s.send("\x1b", settle=0.4)
-        s.send(":clist\r", settle=0.5)
+        s.send(":l\r", settle=0.6)
         text = s.text()
-        assert "a.txt:1:" in text and "a.txt:3:" in text, "clist:\n" + text
-        s.send("\r", settle=0.3)
-        s.send(":cc 3\r", settle=0.5)
+        assert "a.txt:1:" in text or "one" in text, "the list opens:\n" + text
+        s.send("\x1b", settle=0.3)
+        s.send(":lnext 3\r", settle=0.5)
         assert "(3 of 3)" in s.text() and "3:1" in s.text(), s.text()
-        s.send(":cc 1\r", settle=0.5)
+        s.send(":lnext 1\r", settle=0.5)
         assert "(1 of 3)" in s.text(), s.text()
-        s.send(":cwindow\r", settle=0.6)
-        assert "List" in s.text(), s.text()
+        s.send(":cnext\r", settle=0.5)
+        assert "E492" in s.text() and ":lnext" in s.text(), "a removed command says what to write:\n" + s.text()
     finally:
         s.close()
 
@@ -358,12 +358,9 @@ def vi_command_line_and_ex_mode(binary, root):
         assert "a.txt [b.txt]" in s.text(), s.text()
         s.send(":prev\r", settle=0.4)
         assert "ONE" in s.text(), s.text()
-        # Ex mode: the command line stays open; :visual leaves
+        # Ex mode is gone: gQ is refused and the editor stays in Normal mode
         s.send("gQ", settle=0.3)
-        s.send("2\r", settle=0.3)
-        s.send("s/two/TWO/\r", settle=0.3)
-        s.send("visual\r", settle=0.3)
-        assert "TWO" in s.text(), s.text()
+        assert "no Ex mode" in s.text(), s.text()
         s.send("ihi\x1b", settle=0.3)
         assert "hi" in s.text() and "-- INSERT --" not in s.text(), s.text()
     finally:

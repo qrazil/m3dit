@@ -91,10 +91,14 @@ match (MED_app.open(base + "-a.txt")) {
         check.ok(":ListPrev is :lprev", app.notice.starts_with("(1 of 3)"));
         type_text(app, ":ListLast\r");
         check.ok(":ListLast is :llast", app.notice.starts_with("(3 of 3)"));
-        type_text(app, ":cc 2\r");
-        check.ok(":cc is an alias on the same list", app.notice.starts_with("(2 of 3)") && app.lists.current("") == 1);
+        type_text(app, ":lnext 2\r");
+        check.ok(":lnext N goes to row N", app.notice.starts_with("(2 of 3)") && app.lists.current("") == 1);
+        type_text(app, ":lnext\r");
+        check.ok(":lnext goes on from there", app.lists.current("") == 2);
         type_text(app, ":cnext\r");
-        check.ok(":cnext moves the same list", app.lists.current("") == 2);
+        check.ok(":cnext is refused and says what to write", app.editor.message.contains(":lnext") && app.lists.current("") == 2);
+        type_text(app, ":lgrep x\r");
+        check.ok(":lgrep is refused and says what to write", app.editor.message.contains(":grep"));
         type_text(app, ":l\r");
         check.ok(":l opens the list", app.has_picker && app.picker.title == "List");
         check.eq_int("with its rows", app.picker.entries.size(), 3);

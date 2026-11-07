@@ -23,6 +23,7 @@ import io;
 import engine.MED_autocmd;
 import engine.MED_editor;
 import engine.MED_fold;
+import engine.MED_removed;
 import engine.MED_vim;
 import engine.MED_buffer;
 import engine.MED_search;
@@ -1213,7 +1214,7 @@ bool is_ui_command(MED_editor.Editor editor, str name) {
 /* "full:shortest": a word names the first command whose full name it starts
  * and whose shortest form it reaches (Vim's order matters for ambiguity). */
 List<str> command_table() {
-    return ["substitute:1", "delete:1", "move:1", "t:1", "copy:2", "join:1", "global:1", "vglobal:1", "yank:1", "undo:1", "print:1", "put:2", "normal:4", "execute:3", "k:1", "mark:2", "nohlsearch:3", "set:2", "echo:2", "echomsg:5", "redraw:4", "messages:3", "highlight:2", "syntax:2", "filetype:5", "version:2", "history:3", "pwd:2", "setlocal:4", "setglobal:4", "undojoin:5", "redo:3", "read:1", "sort:3", "number:2", "quit:1", "write:1", "wq:2", "delmarks:4", "earlier:2", "later:3", "list:1", "z:1", "update:2", "xit:1", "wall:2", "qall:2", "wqall:3", "xall:2", "registers:3", "display:2", "marks:5", "jumps:2", "changes:7", "startinsert:4", "stopinsert:5", "retab:3", "left:2", "right:2", "center:2", "noautocmd:3", "edit:1", "enew:3", "bnext:2", "bprevious:2", "bNext:2", "buffer:1", "bdelete:2", "bwipeout:2", "bunload:3", "bfirst:2", "brewind:2", "blast:2", "ls:2", "buffers:7", "files:5", "close:3", "only:2", "split:2", "vsplit:2", "new:3", "vnew:3", "wincmd:4", "Rename:3", "Delete:3", "Create:3", "Mkdir:2", "resize:3", "vertical:4", "tab:3", "tabnew:6", "tabedit:4", "tabnext:4", "tabprevious:4", "tabNext:4", "tabfirst:6", "tabrewind:4", "tablast:4", "tabclose:4", "tabonly:4", "tabs:4", "tabmove:4", "Files:1", "Buffers:2", "Grep:1", "Commands:3", "help:1", "Explore:2", "Sexplore:3", "Vexplore:3", "Keys:4", "Plugins:7", "PluginEnable:12", "PluginDisable:13", "Recent:6", "Registers:9", "Symbols:7", "Branches:8", "Commits:7", "Changed:7", "colorscheme:4", "theme:5", "checktime:6", "recover:3", "Session:7", "fold:2", "foldopen:5", "foldclose:5", "map:3", "nmap:2", "vmap:2", "xmap:2", "omap:2", "imap:2", "cmap:2", "noremap:2", "nnoremap:2", "vnoremap:2", "xnoremap:2", "onoremap:3", "inoremap:3", "cnoremap:3", "unmap:3", "nunmap:3", "vunmap:2", "xunmap:2", "ounmap:2", "iunmap:2", "cunmap:2", "mapclear:4", "nmapclear:5", "vmapclear:5", "xmapclear:5", "omapclear:5", "imapclear:5", "cmapclear:5", "let:3", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "cabbrev:2", "cnoreabbrev:5", "cunabbrev:4", "cabclear:4", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "source:2", "terminal:2", "Lsp:3", "copen:3", "cclose:3", "cc:2", "clist:3", "cwindow:4", "cdo:3", "cfdo:3", "bufdo:4", "cnext:2", "cprevious:2", "cNext:3", "cfirst:4", "clast:3", "List:4", "ListNext:8", "ListPrev:8", "ListFirst:9", "ListLast:8", "ListClear:9", "lnext:2", "lprev:2", "lfirst:2", "llast:2", "lclear:3", "autocmd:2", "augroup:3", "doautocmd:5", "command:3", "delcommand:4", "args:2", "next:1", "Next:1", "previous:4", "first:3", "rewind:3", "last:2", "wnext:2", "argadd:4", "argdelete:4", "argdo:5", "windo:5", "tabdo:6", "tag:2", "tselect:2", "tjump:3", "tnext:3", "tprevious:2", "tNext:2", "trewind:2", "tfirst:3", "tlast:2", "pop:2", "tags:4", "make:3", "lmake:3", "grep:2", "lgrep:3", "vimgrep:3", "lvimgrep:5", "file:1", "preserve:3", "visual:2", "Formatter:9", "Profile:7", "append:1", "insert:1", "change:1", "exinput:7", "write!:99"];
+    return ["substitute:1", "delete:1", "move:1", "t:1", "copy:2", "join:1", "global:1", "vglobal:1", "yank:1", "undo:1", "print:1", "put:2", "normal:4", "execute:3", "k:1", "mark:2", "nohlsearch:3", "set:2", "echo:2", "echomsg:5", "redraw:4", "messages:3", "highlight:2", "syntax:2", "filetype:5", "version:2", "history:3", "pwd:2", "setlocal:4", "setglobal:4", "undojoin:5", "redo:3", "read:1", "sort:3", "number:2", "quit:1", "write:1", "wq:2", "delmarks:4", "earlier:2", "later:3", "list:1", "update:2", "xit:1", "wall:2", "qall:2", "wqall:3", "xall:2", "registers:3", "display:2", "marks:5", "jumps:2", "changes:7", "startinsert:4", "stopinsert:5", "retab:3", "left:2", "right:2", "center:2", "noautocmd:3", "edit:1", "enew:3", "bnext:2", "bprevious:2", "bNext:2", "buffer:1", "bdelete:2", "bwipeout:2", "bunload:3", "bfirst:2", "brewind:2", "blast:2", "ls:2", "buffers:7", "files:5", "close:3", "only:2", "split:2", "vsplit:2", "new:3", "vnew:3", "wincmd:4", "Rename:3", "Delete:3", "Create:3", "Mkdir:2", "resize:3", "vertical:4", "tab:3", "tabnew:6", "tabedit:4", "tabnext:4", "tabprevious:4", "tabNext:4", "tabfirst:6", "tabrewind:4", "tablast:4", "tabclose:4", "tabonly:4", "tabs:4", "tabmove:4", "Files:1", "Buffers:2", "Grep:1", "Commands:3", "help:1", "Explore:2", "Sexplore:3", "Vexplore:3", "Keys:4", "Plugins:7", "PluginEnable:12", "PluginDisable:13", "Recent:6", "Registers:9", "Symbols:7", "Branches:8", "Commits:7", "Changed:7", "colorscheme:4", "theme:5", "checktime:6", "recover:3", "Session:7", "fold:2", "foldopen:5", "foldclose:5", "map:3", "nmap:2", "vmap:2", "xmap:2", "omap:2", "imap:2", "cmap:2", "noremap:2", "nnoremap:2", "vnoremap:2", "xnoremap:2", "onoremap:3", "inoremap:3", "cnoremap:3", "unmap:3", "nunmap:3", "vunmap:2", "xunmap:2", "ounmap:2", "iunmap:2", "cunmap:2", "mapclear:4", "nmapclear:5", "vmapclear:5", "xmapclear:5", "omapclear:5", "imapclear:5", "cmapclear:5", "let:3", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "cabbrev:2", "cnoreabbrev:5", "cunabbrev:4", "cabclear:4", "abbreviate:2", "iabbrev:2", "noreabbrev:5", "inoreabbrev:6", "unabbreviate:3", "iunabbrev:4", "abclear:3", "iabclear:4", "source:2", "terminal:2", "Lsp:3", "bufdo:4", "List:4", "ListNext:8", "ListPrev:8", "ListFirst:9", "ListLast:8", "ListClear:9", "lnext:2", "lprev:2", "lfirst:2", "llast:2", "lclear:3", "ldo:3", "lfdo:4", "autocmd:2", "augroup:3", "doautocmd:5", "command:3", "delcommand:4", "args:2", "next:1", "Next:1", "previous:4", "argadd:4", "argdelete:4", "argdo:5", "windo:5", "tabdo:6", "tag:2", "pop:2", "tags:4", "make:3", "grep:2", "vimgrep:3", "file:1", "preserve:3", "Formatter:9", "Profile:7", "write!:99"];
 }
 
 /// Whether `word` names (or abbreviates) one of the editor's own ex commands; extensions may not take those names.
@@ -1242,11 +1243,11 @@ bool is_modifier(str word, str full, int least) {
 }
 
 bool did_takes_bar(str name) {
-    return !(name == "global" || name == "vglobal" || name == "normal" || name == "cdo" || name == "cfdo" || name == "bufdo" || name == "make" || name == "grep" || name == "vimgrep" || name == "argdo" || name == "windo" || name == "tabdo" || name == "substitute" || name == "&" || name == "~" || name == "&&");
+    return !(name == "global" || name == "vglobal" || name == "normal" || name == "ldo" || name == "lfdo" || name == "bufdo" || name == "make" || name == "grep" || name == "vimgrep" || name == "argdo" || name == "windo" || name == "tabdo" || name == "substitute" || name == "&" || name == "~" || name == "&&");
 }
 
 bool did_zero_range(str name) {
-    return name == "put" || name == "read" || name == "append" || is_tab_address_command(name);
+    return name == "put" || name == "read" || is_tab_address_command(name);
 }
 
 str canonical_special(int char_code) {
@@ -1491,6 +1492,10 @@ Step run_one(MED_editor.Editor editor, str text) {
             }
         }
         if (name == "") {
+            str advice = MED_removed.command_hint(text.substr(index, stop));
+            if (advice.size() > 0) {
+                return fail(editor, "E492: Not an editor command: " + advice);
+            }
             return fail(editor, "E492: Not an editor command: " + text.substr(index, text.size()));
         }
     } else {
@@ -1655,7 +1660,7 @@ void set_pcmark(MED_editor.Editor editor) {
 
 // ------------------------------------------------------------------ commands
 
-/* The register and count of `:d`, `:y` and friends, then the flags `p # l`.
+/* The register and count of `:d`, `:y` and friends, (the print flags `p # l` are gone).
  * Returns an error message, "" when fine. */
 str reg_count(MED_editor.Editor editor, Cmd cmd, bool needs_reg, bool needs_count) {
     str first_text = cmd.arg;
@@ -1681,9 +1686,6 @@ str reg_count(MED_editor.Editor editor, Cmd cmd, bool needs_reg, bool needs_coun
             cmd.line2 = last_line(editor);
         }
         first_text = skip_one_white(first_text.substr(stop, first_text.size()));
-    }
-    while (first_text != "" && (at(first_text, 0) == 112 || at(first_text, 0) == 35 || at(first_text, 0) == 108)) {
-        first_text = skip_one_white(first_text.substr(1, first_text.size()));
     }
     if (first_text != "") {
         return "E488: Trailing characters: " + first_text;
@@ -1793,72 +1795,6 @@ Step exec_cmd(MED_editor.Editor editor, Cmd cmd) {
     if (name == "copy" || name == "t" || name == "move") {
         return cmd_copymove(editor, cmd);
     }
-    if (name == "append" || name == "insert" || name == "change") {
-        // the text follows on the lines after the command, up to a line with only a dot
-        editor.ex_input_kind = name;
-        editor.ex_input_lines = [];
-        editor.ex_input_indent = "";
-        editor.ex_input_first = -1;
-        editor.ex_input_last = -1;
-        int reference = cmd.line1 - 1;
-        if (name == "append") {
-            editor.ex_input_after = cmd.line2 - 1;
-            reference = cmd.line2 - 1;
-        } else if (name == "insert") {
-            editor.ex_input_after = cmd.line1 - 2;
-        } else {
-            editor.ex_input_after = cmd.line2 - 1;
-            editor.ex_input_first = cmd.line1 - 1;
-            editor.ex_input_last = cmd.line2 - 1;
-        }
-        if (editor.is_autoindent && reference >= 0 && reference <= last_line(editor) - 1) {
-            editor.ex_input_indent = MED_text.leading_white(editor.buffer.line(reference));
-        }
-        MED_vim.enter_cmdline(editor, 62, []);
-        return done();
-    }
-    if (name == "exinput") {
-        List<str> typed = editor.ex_input_lines;
-        if (editor.ex_input_kind == "") {
-            return done();
-        }
-        List<str> fresh = [];
-        for (str one in typed) {
-            fresh.push(editor.ex_input_indent + one);
-        }
-        if (fresh.size() > 0) {
-            insert_rows(editor, editor.ex_input_after, fresh);
-        }
-        int first_new = editor.ex_input_after + 1;
-        int shift = fresh.size();
-        if (editor.ex_input_first >= 0) {
-            int old_first = editor.ex_input_first;
-            int old_last = editor.ex_input_last;
-            if (old_last - old_first + 1 >= editor.buffer.line_count() - shift) {
-                // the whole buffer is replaced
-                if (shift == 0) {
-                    editor.change(MED_buffer.Pos(0, 0), MED_buffer.Pos(old_last, editor.buffer.line_size(old_last)), "");
-                } else {
-                    delete_rows(editor, old_first, old_last);
-                    first_new = 0;
-                }
-            } else {
-                delete_rows(editor, old_first, old_last);
-                first_new = old_first;
-            }
-        }
-        editor.ex_input_kind = "";
-        editor.ex_input_lines = [];
-        if (shift > 0) {
-            editor.marks.set("[", MED_buffer.Pos(first_new, 0));
-            editor.marks.set("]", MED_buffer.Pos(first_new + shift - 1, 0));
-            editor.row = first_new + shift - 1;
-            editor.col = 0;
-        }
-        editor.clamp();
-        editor.needs_stale = true;
-        return done();
-    }
     if (name == "k" || name == "mark") {
         str first_text = cmd.arg;
         if (first_text == "") {
@@ -1937,9 +1873,6 @@ Step exec_cmd(MED_editor.Editor editor, Cmd cmd) {
     }
     if (name == "=") {
         return done();
-    }
-    if (name == "z") {
-        return cmd_z(editor, cmd);
     }
     if (name == "substitute" || name == "&" || name == "~") {
         return cmd_sub(editor, cmd);
@@ -2344,9 +2277,6 @@ pub str option_text(MED_editor.Editor editor, MED_option.Spec spec) {
     if (name == "textwidth") {
         return editor.textwidth.to_str();
     }
-    if (name == "wrapmargin") {
-        return editor.wrapmargin.to_str();
-    }
     if (name == "scroll") {
         return editor.scroll_opt.to_str();
     }
@@ -2408,8 +2338,6 @@ void option_store(MED_editor.Editor editor, MED_option.Spec spec, str text) {
         editor.softtabstop = count;
     } else if (name == "textwidth") {
         editor.textwidth = count;
-    } else if (name == "wrapmargin") {
-        editor.wrapmargin = count;
     } else if (name == "scroll") {
         editor.scroll_opt = count;
     } else if (name == "magic") {
@@ -2611,6 +2539,16 @@ Step cmd_set(MED_editor.Editor editor, Cmd cmd) {
             is_invert = spec.name != "";
         }
         if (spec.name == "") {
+            str reason = MED_removed.option_hint(word);
+            if (reason.size() == 0 && word.starts_with("no")) {
+                reason = MED_removed.option_hint(word.substr(2, word.size()));
+            }
+            if (reason.size() == 0 && word.starts_with("inv")) {
+                reason = MED_removed.option_hint(word.substr(3, word.size()));
+            }
+            if (reason.size() > 0) {
+                return fail(editor, "E518: Unknown option: " + word + " (" + reason + ")");
+            }
             return fail(editor, "E518: Unknown option: " + word);
         }
         if (spec.name == "transparent" && operator == "" && !is_query && !is_reset) {
@@ -2700,85 +2638,6 @@ Step cmd_undo_to(MED_editor.Editor editor, Cmd cmd) {
     int count = digits_value(cmd.arg, 0, cmd.arg.size());
     if (count >= editor.nodes.size() || !editor.did_undo_to(count)) {
         return fail(editor, "E830: Undo number " + count.to_str() + " not found");
-    }
-    return done();
-}
-
-// `:[range]z[+-^.=][count]`: the cursor ends on the last line it would print.
-Step cmd_z(MED_editor.Editor editor, Cmd cmd) {
-    str first_text = cmd.arg;
-    int kind = 0;
-    int new_insert = 0;
-    if (first_text.size() > 0) {
-        int key = first_text.byte_at(0);
-        if (key == 45 || key == 43 || key == 61 || key == 94 || key == 46) {
-            kind = key;
-            new_insert = 1;
-        }
-    }
-    int bigness = (editor.view_height / 2) * 2;
-    if (cmd.is_bang) {
-        bigness = editor.view_height + 1;
-    }
-    int replacement = 1;
-    if (kind == 45 || kind == 43) {
-        while (new_insert < first_text.size() && first_text.byte_at(new_insert) == kind) {
-            replacement = replacement + 1;
-            new_insert = new_insert + 1;
-        }
-    }
-    if (new_insert < first_text.size()) {
-        int value = 0;
-        for (int j in new_insert .. first_text.size()) {
-            int delta = first_text.byte_at(j);
-            if (delta < 48 || delta > 57) {
-                return fail(editor, "E144: non-numeric argument to :z");
-            }
-            value = value * 10 + (delta - 48);
-        }
-        bigness = value;
-        if (kind == 61) {
-            bigness = bigness + 2;
-        }
-    }
-    int lnum = cmd.line2;
-    int start = lnum;
-    int end = lnum;
-    int curs = lnum;
-    if (kind == 45) {
-        start = lnum - bigness * replacement + 1;
-        end = start + bigness - 1;
-        curs = end;
-    } else if (kind == 61) {
-        curs = lnum;
-    } else if (kind == 94) {
-        start = lnum - bigness * 2 * replacement;
-        end = start + bigness;
-        curs = end;
-    } else if (kind == 46) {
-        end = lnum + (bigness - 1) / 2;
-        curs = end;
-    } else {
-        if (kind == 43) {
-            start = lnum + bigness * (replacement - 1) + 1;
-        } else if (cmd.addr_count == 0) {
-            start = lnum + 1;
-        }
-        end = start + bigness - 1;
-        curs = end;
-    }
-    int last = editor.buffer.line_count();
-    if (curs > last) {
-        curs = last;
-    }
-    if (curs < 1) {
-        curs = 1;
-    }
-    // the column is only touched when the line changes: then it is column 0
-    if (curs - 1 != editor.row) {
-        editor.row = curs - 1;
-        editor.col = 0;
-        editor.want_from_cursor();
     }
     return done();
 }
@@ -4204,7 +4063,7 @@ Step cmd_sub(MED_editor.Editor editor, Cmd cmd_value) {
         return done();
     }
     // flags
-    bool should_all = false;
+    bool should_all = editor.is_option_on("gdefault", false);
     bool should_error = true;
     bool should_count = false;
     int do_ic = 0;
@@ -4232,10 +4091,6 @@ Step cmd_sub(MED_editor.Editor editor, Cmd cmd_value) {
             should_count = true;
         } else if (char_code == 101) {
             should_error = !should_error;
-        } else if (char_code == 114) {
-            which = 2;
-        } else if (char_code == 112 || char_code == 35 || char_code == 108) {
-            // printing is not shown
         } else if (char_code == 105) {
             do_ic = 1;
         } else if (char_code == 73) {

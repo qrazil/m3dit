@@ -167,7 +167,7 @@ pub OpAt op_at(List<int> keys, int other_index) {
             return op_at_value;
         }
         int second = keys[other_index + 1];
-        if (second == 126 || second == 117 || second == 85 || second == 63 || second == 113 || second == 119 || second == 64 || second == 99 || second == 104 || second == 72) {
+        if (second == 126 || second == 117 || second == 85 || second == 113 || second == 119 || second == 64 || second == 99 || second == 104 || second == 72) {
             op_at_value.name = "g" + str.from_chars([second]);
             op_at_value.length = 2;
             return op_at_value;

@@ -259,16 +259,14 @@ pub type App {
     /// The argument list (`:args`, `:next`, `:argdo`): the files named on the command line, and where `:next` is.
     pub List<str> arglist = [];
     pub int arg_index = 0;
-    /// Ex mode (`gQ`, `m3 -e`): the command line comes back after each command, until `:visual`.
-    pub bool is_ex_mode = false;
-    /// External formatters (`:Formatter LANGUAGE COMMAND`), tried in order for a buffer of that language or extension.
+    /** Ex mode (`gQ`, `m3 -e`): the command line comes back after each command, until `:visual`.
+     * External formatters (`:Formatter LANGUAGE COMMAND`), tried in order for a buffer of that language or extension. */
     pub List<str> formatter_keys = [];
     pub List<str> formatter_commands = [];
     /// The tag stack (`:tag`, CTRL-], `:pop`, CTRL-T) and the matches of the last `:tag`.
     pub List<TagFrame> tag_stack = [];
     pub List<MED_tags.Tag> tag_matches = [];
     pub List<str> tag_match_dirs = [];
-    pub int tag_match_index = 0;
     /// Where recent files, positions and harpoon lists are kept ("" none).
     pub str state_directory = "";
     pub List<str> recent = [];
@@ -1404,10 +1402,14 @@ void App.run_request(str request) {
         start_terminal(arg.trim());
     } else if (name == "Keys") {
         open_picker("help", "");
-    } else if (name == "copen" || name == "list" || name == "List") {
+    } else if (name == "list" || name == "List") {
         open_picker("list", arg.trim());
     } else if (name == "lnext" || name == "ListNext") {
-        go_list(arg.trim(), 1);
+        if (arg.trim().parse_int().is_some()) {
+            go_list_number(MED_lists.DEFAULT_NAME, arg.trim());
+        } else {
+            go_list(arg.trim(), 1);
+        }
     } else if (name == "lprev" || name == "ListPrev") {
         go_list(arg.trim(), -1);
     } else if (name == "lfirst" || name == "ListFirst") {
@@ -1416,19 +1418,12 @@ void App.run_request(str request) {
         go_list(arg.trim(), 2);
     } else if (name == "lclear" || name == "ListClear") {
         clear_list(arg.trim());
-    } else if (name == "cclose") {
-        has_picker = false;
-    } else if (name == "cdo" || name == "cfdo" || name == "bufdo" || name == "argdo" || name == "windo" || name == "tabdo") {
+    } else if (name == "ldo" || name == "lfdo" || name == "bufdo" || name == "argdo" || name == "windo" || name == "tabdo") {
         run_do(name, arg);
-    } else if (name == "tag" || name == "tselect" || name == "tjump" || name == "tnext" || name == "tprevious" || name == "tNext" || name == "trewind" || name == "tfirst" || name == "tlast" || name == "pop" || name == "tags") {
+    } else if (name == "tag" || name == "pop" || name == "tags") {
         run_tag(name, arg.trim());
-    } else if (name == "make" || name == "grep" || name == "lgrep" || name == "vimgrep" || name == "lvimgrep" || name == "lmake") {
+    } else if (name == "make" || name == "grep" || name == "vimgrep") {
         run_make(name, arg, is_forced);
-    } else if (name == "visual") {
-        is_ex_mode = false;
-        if (arg.trim().size() > 0) {
-            edit(arg, is_forced);
-        }
     } else if (name == "Profile") {
         run_profile(arg.trim());
     } else if (name == "Formatter") {
@@ -1437,24 +1432,8 @@ void App.run_request(str request) {
         run_file_command(arg.trim());
     } else if (name == "preserve") {
         preserve_now();
-    } else if (name == "args" || name == "next" || name == "Next" || name == "previous" || name == "first" || name == "rewind" || name == "last" || name == "wnext" || name == "argadd" || name == "argdelete") {
+    } else if (name == "args" || name == "next" || name == "Next" || name == "previous" || name == "argadd" || name == "argdelete") {
         run_arglist(name, arg, is_forced);
-    } else if (name == "cc") {
-        go_list_number(MED_lists.DEFAULT_NAME, arg.trim());
-    } else if (name == "clist") {
-        print_list(MED_lists.DEFAULT_NAME);
-    } else if (name == "cwindow") {
-        if (lists.size(MED_lists.DEFAULT_NAME) > 0) {
-            open_picker("list", "");
-        }
-    } else if (name == "cnext") {
-        go_list(MED_lists.DEFAULT_NAME, 1);
-    } else if (name == "cprevious" || name == "cNext") {
-        go_list(MED_lists.DEFAULT_NAME, -1);
-    } else if (name == "cfirst") {
-        go_list(MED_lists.DEFAULT_NAME, 0);
-    } else if (name == "clast") {
-        go_list(MED_lists.DEFAULT_NAME, 2);
     } else if (name == "theme" || name == "colorscheme") {
         run_theme_command(arg.trim());
     } else if (name == "Plugins" || name == "PluginEnable" || name == "PluginDisable") {
@@ -1750,9 +1729,6 @@ void App.run_requests() {
  * for another buffer) unless it was forced. */
 bool App.did_finish() {
     run_requests();
-    if (is_ex_mode && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && !editor.is_quit) {
-        begin_command("");
-    }
     editor.log_message();
     editor.log_notice(notice);
     fire_mode_autocmds();
@@ -1806,8 +1782,12 @@ TUI_geometry.Rect App.screen_rect() {
 
 /** 1 when the tabline (buffer list) is shown: tab pages, or the buffers when a plugin gives the buffer line (`did_bar`)
  * and enough are open. */
-int App.tabline_rows() {
-    if (pages.size() >= 2) {
+pub int App.tabline_rows() {
+    int tabline_mode = editor.opts.get("showtabline").or("").parse_int().or(1);
+    if (tabline_mode == 0) {
+        return 0;
+    }
+    if (pages.size() >= 2 || tabline_mode == 2) {
         return 1;
     }
     if (!ext.is_bar_live() || (ext.bar_option.size() > 0 && !editor.is_option_on(ext.bar_option, true))) {
@@ -1947,7 +1927,11 @@ bool App.did_split(bool is_vertical) {
     }
     int id = next_win;
     wins.push(MED_window.Win(id, current_id, row: editor.row, col: editor.col, view_top: editor.view_top, left_column: left_column));
-    layout = MED_window.split(layout, current_win, id, is_vertical, true);
+    bool is_after = editor.is_option_on("splitbelow", true);
+    if (is_vertical) {
+        is_after = editor.is_option_on("splitright", true);
+    }
+    layout = MED_window.split(layout, current_win, id, is_vertical, is_after);
     next_win = id + 1;
     focus_window(id);
     return true;
@@ -3693,7 +3677,7 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
     }
     if (editor.ta_keys.size() > 0 && !has_picker) {
         map_ms = map_ms + elapsed_ms;
-        if (map_ms >= MAP_TIMEOUT_MS) {
+        if (map_ms >= editor.opts.get("timeoutlen").or("").parse_int().or(MAP_TIMEOUT_MS)) {
             map_ms = 0;
             MED_ex.flush_maps(editor);
             did_finish();
@@ -3779,13 +3763,6 @@ bool App.should_quit_after(int key) {
         run_lsp_command("signature", "");
         return did_finish();
     }
-    if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && key == 81 && editor.pending.size() == 1 && editor.pending[0] == 103 && !editor.maps.has_prefix("n", 103) && !editor.local_maps.has_prefix("n", 103)) {
-        // gQ: Ex mode (a plain Q is nvim's: it replays the last recorded macro)
-        editor.pending = [];
-        is_ex_mode = true;
-        begin_command("");
-        return did_finish();
-    }
     if (editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && editor.ta_keys.size() == 0 && (key == 29 || key == 20) && !editor.maps.has_prefix("n", key) && !editor.local_maps.has_prefix("n", key)) {
         // CTRL-]: jump to the tag under the cursor; CTRL-T: back up the tag stack
         if (key == 20) {
@@ -3798,6 +3775,11 @@ bool App.should_quit_after(int key) {
                 run_tag("tag", word);
             }
         }
+        return did_finish();
+    }
+    if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && key == 75 && editor.pending.size() == 0 && !has_server_here() && !editor.maps.has_prefix("n", 75)) {
+        // K without a language server: 'keywordprg' (a program, or an ex command when it starts with a colon) on the word
+        run_keywordprg();
         return did_finish();
     }
     if (editor.mode == MED_editor.NORMAL && editor.ta_keys.size() == 0 && has_server_here() && is_lsp_key(key)) {
@@ -4966,12 +4948,15 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
     }
     subject.sign_columns = 0;
     diagnostic_rows = diagnostic_rows_of(file, subject.buffer.line_count());
-    if (ext.is_sign_column_wanted(win.buffer_id) || has_marks(subject) || diagnostic_rows.size() > 0 || (servers.size() > 0 && file.size() > 0 && subject.is_option_on("lsp", true))) {
+    str sign_mode = subject.opts.get("signcolumn").or("auto");
+    if (sign_mode != "no" && (sign_mode == "yes" || ext.is_sign_column_wanted(win.buffer_id) || has_marks(subject) || diagnostic_rows.size() > 0 || (servers.size() > 0 && file.size() > 0 && subject.is_option_on("lsp", true)))) {
         // (a running language server reserves the column before its first diagnostic)
         subject.sign_columns = 1;
     }
     // the gutter only grows: a diagnostic clearing does not shift the text back
-    if (subject.sign_columns > 0) {
+    if (sign_mode == "no") {
+        subject.is_sign_floor = false;
+    } else if (subject.sign_columns > 0) {
         subject.is_sign_floor = true;
     } else if (subject.is_sign_floor) {
         subject.sign_columns = 1;
@@ -6009,26 +5994,6 @@ void App.clear_list(str name) {
     notice = "The list " + MED_lists.named(name) + " is cleared";
 }
 
-/// `:clist`: every row of a list, numbered, the current one marked.
-void App.print_list(str name) {
-    str which = MED_lists.named(name);
-    List<MED_picker.Entry> rows = lists.items(which);
-    if (rows.size() == 0) {
-        notice = "The list " + which + " is empty";
-        return;
-    }
-    List<str> out = [];
-    for (int position in 0 .. rows.size()) {
-        MED_picker.Entry one = rows[position];
-        str mark = " ";
-        if (position == lists.current(which)) {
-            mark = ">";
-        }
-        out.push(mark + (position + 1).to_str() + " " + one.path + ":" + (one.line + 1).to_str() + ":" + (one.column + 1).to_str() + " " + one.text);
-    }
-    overlay = out;
-}
-
 /// Recent files below the project root, newest first.
 List<MED_picker.Entry> App.recent_entries() {
     List<MED_picker.Entry> out = [];
@@ -6103,7 +6068,7 @@ void App.open_scratch(str title, List<str> lines) {
     notice = title;
 }
 
-/** `:cdo CMD` runs the ex line at each entry of the default list, `:cfdo CMD` once for each file in it (at its first
+/** `:ldo CMD` runs the ex line at each entry of the default list, `:lfdo CMD` once for each file in it (at its first
  * entry), `:bufdo CMD` in each listed buffer, as `:cfirst | CMD | cnext | CMD ...` would; the first line that fails ends
  * it. Nothing is written: add `| update` to the command (or `:wall` afterwards), as in Vim. */
 void App.run_do(str name, str line) {
@@ -6139,7 +6104,7 @@ void App.run_do(str name, str line) {
         }
         List<str> seen = [];
         for (MED_picker.Entry one in lists.items(MED_lists.DEFAULT_NAME)) {
-            if (name == "cfdo" && seen.contains(one.path)) {
+            if (name == "lfdo" && seen.contains(one.path)) {
                 continue;
             }
             seen.push(one.path);
@@ -6195,12 +6160,12 @@ void App.fill_list(List<MED_errfmt.Place> places, bool is_forced, str what) {
 /** `:make [ARGS]` runs 'makeprg', `:grep ARGS` runs 'grepprg'; the places in their output become the default list.
  * `:vimgrep /PATTERN/ FILE...` searches the files itself. Files are named as the shell expands them. */
 void App.run_make(str name, str arg, bool is_forced) {
-    if (name == "vimgrep" || name == "lvimgrep") {
+    if (name == "vimgrep") {
         run_vimgrep(arg.trim(), is_forced);
         return;
     }
     str program = editor.opts.get("makeprg").or("make");
-    if (name == "grep" || name == "lgrep") {
+    if (name == "grep") {
         program = editor.opts.get("grepprg").or("grep -HIn $* /dev/null");
         if (arg.trim().size() == 0) {
             notice = "E471: Argument required";
@@ -6256,7 +6221,7 @@ void App.run_vimgrep(str arg, bool is_forced) {
 }
 
 /// The ex lines of `-c`, `+CMD` and `-t` (and `:recover` for `-r`), run once the files are read; `-e` then starts Ex mode.
-pub void App.run_startup(List<str> lines, bool is_ex_start) {
+pub void App.run_startup(List<str> lines) {
     for (str line in lines) {
         bool did_run = MED_ex.did_run_line(editor, line);
         run_requests();
@@ -6264,10 +6229,31 @@ pub void App.run_startup(List<str> lines, bool is_ex_start) {
             break;
         }
     }
-    if (is_ex_start) {
-        is_ex_mode = true;
-        begin_command("");
+}
+
+/// `K` with no language server: 'keywordprg' run on the word under the cursor.
+void App.run_keywordprg() {
+    str program = editor.opts.get("keywordprg").or("").trim();
+    if (program.size() == 0) {
+        notice = "'keywordprg' is empty";
+        return;
     }
+    str word = word_under_cursor();
+    if (word.size() == 0) {
+        notice = "E349: No identifier under cursor";
+        return;
+    }
+    if (program.starts_with(":")) {
+        MED_ex.did_run_line(editor, program.substr(1, program.size()) + " " + word);
+        run_requests();
+        return;
+    }
+    MED_shell.Ran ran = MED_shell.run(["sh", "-c", program + " " + word + " 2>&1"], root, "", timeout_ms: 20000);
+    if (ran.code < 0) {
+        notice = "E282: cannot run " + program;
+        return;
+    }
+    overlay = MED_shell.split_lines(ran.text);
 }
 
 /// `:file` shows the buffer's name and position; `:file NAME` renames the buffer.
@@ -6285,7 +6271,6 @@ void App.run_file_command(str arg) {
 void App.find_tags(str name) {
     tag_matches = [];
     tag_match_dirs = [];
-    tag_match_index = 0;
     str here = "";
     if (path.size() > 0) {
         here = parent_directory(path);
@@ -6323,7 +6308,6 @@ void App.jump_to_tag(int index) {
     editor.col = 0;
     editor.clamp();
     editor.want_from_cursor();
-    tag_match_index = index;
     notice = "tag " + (index + 1).to_str() + " of " + tag_matches.size().to_str();
 }
 
@@ -6351,32 +6335,6 @@ void App.run_tag(str name, str arg) {
         editor.want_from_cursor();
         return;
     }
-    if (name == "tnext" || name == "tprevious" || name == "tNext" || name == "trewind" || name == "tfirst" || name == "tlast") {
-        if (tag_matches.size() == 0) {
-            notice = "E73: tag stack empty";
-            return;
-        }
-        int target = tag_match_index;
-        if (name == "tnext") {
-            target = target + 1;
-        } else if (name == "tprevious" || name == "tNext") {
-            target = target - 1;
-        } else if (name == "trewind" || name == "tfirst") {
-            target = 0;
-        } else {
-            target = tag_matches.size() - 1;
-        }
-        if (target >= tag_matches.size()) {
-            notice = "E428: Cannot go beyond last matching tag";
-            return;
-        }
-        if (target < 0) {
-            notice = "E425: Cannot go before first matching tag";
-            return;
-        }
-        jump_to_tag(target);
-        return;
-    }
     if (arg.size() == 0) {
         notice = "E471: Argument required";
         return;
@@ -6392,10 +6350,39 @@ void App.run_tag(str name, str arg) {
     }
     tag_stack.push(TagFrame(file: path, row: editor.row, col: editor.col, name: arg));
     jump_to_tag(0);
+    if (tag_matches.size() > 1) {
+        // several matches are a list: ':lnext' and ']l' walk them
+        lists.replace(MED_lists.DEFAULT_NAME, tag_list_rows());
+        lists.pick(MED_lists.DEFAULT_NAME, 1);
+        notice = "tag 1 of " + tag_matches.size().to_str() + " (:lnext for the next)";
+    }
 }
 
-/** The argument list commands: `:args [FILE...]`, `:next [FILE...]`, `:Next`/`:previous`, `:first`/`:rewind`, `:last`,
- * `:wnext`, `:argadd FILE...`, `:argdelete FILE...`. Names are split at spaces; there is no glob. */
+/// The rows of the default list for the matches of the last `:tag` (each placed by reading its file).
+List<MED_picker.Entry> App.tag_list_rows() {
+    List<MED_picker.Entry> rows = [];
+    for (int index in 0 .. tag_matches.size()) {
+        MED_tags.Tag one = tag_matches[index];
+        str file = one.file;
+        str base = tag_match_dirs[index];
+        if (!file.starts_with("/") && base.size() > 0 && base != ".") {
+            file = base + "/" + file;
+        }
+        int row = 0;
+        match (io.read(file)) {
+            case Ok(str text): {
+                row = MED_num.larger(MED_tags.line_of(text.split("\n"), one.address), 0);
+            }
+            case Err(io.Error error): {
+            }
+        }
+        rows.push(MED_picker.Entry(one.name + "  " + file, path: file, line: row, column: 0));
+    }
+    return rows;
+}
+
+/** The argument list commands: `:args [FILE...]`, `:next [FILE...]`, `:Next`/`:previous`,
+ * `:argadd FILE...`, `:argdelete FILE...`. Names are split at spaces; there is no glob. */
 void App.run_arglist(str name, str arg, bool is_forced) {
     List<str> named = [];
     for (str word in arg.trim().split(" ")) {
@@ -6442,10 +6429,7 @@ void App.run_arglist(str name, str arg, bool is_forced) {
         return;
     }
     int target = arg_index;
-    if (name == "wnext") {
-        write_file("");
-    }
-    if (name == "next" || name == "wnext") {
+    if (name == "next") {
         target = arg_index + 1;
         if (target >= arglist.size()) {
             notice = "E165: Cannot go beyond last file";
@@ -6457,10 +6441,6 @@ void App.run_arglist(str name, str arg, bool is_forced) {
             notice = "E164: Cannot go before first file";
             return;
         }
-    } else if (name == "first" || name == "rewind") {
-        target = 0;
-    } else if (name == "last") {
-        target = arglist.size() - 1;
     }
     arg_index = target;
     edit(arglist[target], is_forced);
@@ -7617,6 +7597,10 @@ void App.pum_answer(str purpose, json.Value result) {
         }
     }
     pum = MED_pum.open(items, editor.row, anchor, line_text.substr(anchor, editor.col), is_incomplete);
+    int limit = editor.opts.get("pumheight").or("").parse_int().or(0);
+    if (limit > 0) {
+        pum.row_limit = limit;
+    }
     pum_shown_at = -2;
     pum_note_selection();
 }
@@ -7701,7 +7685,7 @@ bool App.did_use_pum_key(int key) {
         return true;
     }
     if (key == MED_key.PAGE_DOWN || key == MED_key.PAGE_UP) {
-        int step = MED_pum.MAX_ROWS - 1;
+        int step = pum.row_limit - 1;
         if (key == MED_key.PAGE_UP) {
             step = 0 - step;
         }

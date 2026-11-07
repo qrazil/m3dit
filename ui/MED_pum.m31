@@ -69,6 +69,8 @@ pub type Ranked {
 
 pub type Pum {
     pub bool is_open = false;
+    /// Most rows shown ('pumheight'; 0 keeps `MAX_ROWS`).
+    pub int row_limit = MAX_ROWS;
     pub List<Item> all = [];
     pub List<Ranked> shown = [];
     /// The selected row of `shown`; -1 selects nothing (Enter then types a line break).
@@ -140,7 +142,7 @@ pub void Pum.refilter(str typed) {
             }
         }
     }
-    keep_selection_visible(MAX_ROWS);
+    keep_selection_visible(row_limit);
 }
 
 /// The scroll window follows the selection.
@@ -191,7 +193,7 @@ pub void Pum.move(int delta) {
         }
     }
     selected = next;
-    keep_selection_visible(MAX_ROWS);
+    keep_selection_visible(row_limit);
 }
 
 /// The selected item (an Item with an empty label when nothing is selected).
@@ -553,7 +555,7 @@ pub int list_width(Pum pum, int limit) {
         }
     }
     int width = widest + 1;
-    if (pum.shown.size() > MAX_ROWS) {
+    if (pum.shown.size() > pum.row_limit) {
         width = width + 1;
     }
     if (width > MAX_WIDTH) {
@@ -579,8 +581,8 @@ pub Layout place(Pum pum, int anchor_x, int cursor_y, TUI_geometry.Rect bounds, 
     int below = bottom - (cursor_y + 1);
     int above = cursor_y - bounds.y;
     int wanted = pum.shown.size();
-    if (wanted > MAX_ROWS) {
-        wanted = MAX_ROWS;
+    if (wanted > pum.row_limit) {
+        wanted = pum.row_limit;
     }
     if (wanted < 1 || bounds.width < 8 || (below < 1 && above < 1)) {
         return out;

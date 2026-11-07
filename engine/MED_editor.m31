@@ -145,8 +145,6 @@ pub type Editor {
     pub int shiftwidth = 8;
     /// 'textwidth' (0: the window width, at most 79, for `gq`) and the window's width.
     pub int textwidth = 0;
-    /// 'wrapmargin': with 'textwidth' 0, lines break this many columns before the window's right edge.
-    pub int wrapmargin = 0;
     /// 'magic' off: patterns are read as if they began with \M.
     pub bool is_nomagic = false;
     pub int view_width = 80;
@@ -395,10 +393,6 @@ pub type Editor {
     pub bool is_completing = false;
     /// An arrow key moved the cursor in this insert and nothing was typed since.
     pub bool is_ins_moved = false;
-    /** Virtual Replace mode (gR): replaces screen cells, and the number of
-     * lines the buffer had when it began. */
-    pub bool is_virtual = false;
-    pub int virtual_lines = 0;
     pub List<str> completion_items = [];
     pub int completion_index = 0;
     pub int completion_col = 0;
@@ -469,15 +463,6 @@ pub type Editor {
     /** Ex command lines typed (or replayed) and not yet run: MED_ex runs them,
      * because only it can call into the ex executor. */
     pub List<str> ex_queue = [];
-    /** `:append`, `:insert` and `:change` read their text a line at a time (a `.` line ends it): which command,
-     * the row the text goes after (-1: the top), the rows `:change` replaces (first, last; -1: none), the indent
-     * `autoindent` copies and the lines so far. */
-    pub str ex_input_kind = "";
-    pub int ex_input_after = 0;
-    pub int ex_input_first = -1;
-    pub int ex_input_last = -1;
-    pub str ex_input_indent = "";
-    pub List<str> ex_input_lines = [];
     /// The rows (first, last; -1: none) of the last `gh` / `gH` operator, which the git plugin reads (`Ctx.operator_range`).
     pub int op_first = -1;
     pub int op_last = -1;

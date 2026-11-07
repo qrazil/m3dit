@@ -122,11 +122,10 @@ table.epilog = "keys: Vim; <Space> leader (which-key), <Space>ff files, <Space>e
 List<str> raw = os.arguments();
 raw.remove_at(0);
 /* vi's command line, taken out before the grammar sees it: `-c CMD` and `+CMD` (`+` is `$`, `+N` is line N) run an ex
- * line after the files are read, `-t TAG` is `:tag TAG`, `-R` and `-r` are `:set readonly` and `:recover`, `-e` and
- * `-E` start in Ex mode (docs/VI-CORE.md) */
+ * line after the files are read, `-t TAG` is `:tag TAG`, `-R` and `-r` are `:set readonly` and `:recover`
+ * (docs/VI-CORE.md; `-e` and `-E` are refused: m3 has no Ex mode) */
 List<str> startup_lines = [];
 List<str> kept = [];
-bool is_ex_start = false;
 bool is_recover_start = false;
 int raw_at = 0;
 while (raw_at < raw.size()) {
@@ -146,8 +145,6 @@ while (raw_at < raw.size()) {
         startup_lines.push("set readonly");
     } else if (word == "-r") {
         is_recover_start = true;
-    } else if (word == "-e" || word == "-E") {
-        is_ex_start = true;
     } else {
         kept.push(word);
     }
@@ -306,7 +303,7 @@ match (MED_app.open_all(files)) {
         if (is_recover_start) {
             startup_lines.insert(0, "recover");
         }
-        app.run_startup(startup_lines, is_ex_start);
+        app.run_startup(startup_lines);
         app.motion.loop = loop;
         app.motion.configure(is_no_anim, is_truecolour(), !is_light_background());
         match (loop.run_with((TUI_buffer.Buffer buffer, TUI_geometry.Rect area) => app.render(buffer, area), (term.Event event) => app.handle(event), (int elapsed_ms) => app.tick(elapsed_ms), (TUI_mouse.Routed routed) => app.handle_mouse(routed))) {
