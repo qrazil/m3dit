@@ -158,6 +158,15 @@ Generated from `tests/oracles/divergences.tsv` by `python3 scripts/divergences.p
 | `ctrl-r-redo` | vi's CTRL-R redraws the screen | CTRL-R redoes (as Vim and nvim do); CTRL-L redraws | Vim wins over vi | no case affected |
 | `remap-option` | vi has 'remap'; nvim has no such option | `:set remap` is accepted and ignored | a shared config must load | no case affected |
 | `open-mode` | vi's `:open` and `:ex` open mode | not built | nvim has no open mode either | no case affected |
+| `key-rot13` | `g?{motion}`, `g??`, `g?g?` rot13 the text | refused: `E492: Not an editor command: g? (rot13 is gone; ...)` | an operator for a cipher; filter with `!{motion}tr` if needed (docs/DIVERGENCE-AUDIT.md) | cases skipped |
+| `key-virtual-replace` | `gR` Virtual Replace mode | refused: `gR (Virtual Replace is gone; use R)` | the engine pretended (handled like Replace); only tabs differ | cases skipped |
+| `ex-append` | `:a[ppend]` `:i[nsert]` `:c[hange]` read text lines up to a lone `.` | refused: `E492 ... type o, O or cc in Normal mode` | script-only; m3 has no headless mode | cases skipped |
+| `ex-z` | `:z` prints a page of lines and moves the cursor | refused: `E492 ... scroll with <C-f>, <C-b> or z<CR>` | no use with a screen | cases skipped |
+| `opt-wrapmargin` | 'wrapmargin' breaks lines before the window edge | refused: `E518: Unknown option: wm (use 'textwidth')` | depends on the window width; 'textwidth' is the tool | cases skipped |
+| `ex-removed-commands` | `:lgrep` `:first` `:last` `:rewind` `:wnext` `:tselect` `:tnext` ... `:cnext` `:cdo` and the other `:c*` commands exist | refused with the name of the generic-list or argument-list command to write instead | one list API (docs/LIST.md); no corpus case uses them | no case affected |
+| `opt-removed` | about 170 options are accepted and stored although nothing reads them | refused: `E518: Unknown option: NAME (reason)` | a `:set` that does nothing hides that it does nothing; the reasons are in engine/MED_removed.m31 | no case affected |
+| `ex-mode` | `gQ`, `-e`, `-E`, `:visual` Ex mode | not built; `gQ` and `:visual` are refused, `-e` / `-E` are refused by the command line | the command line `:` is the Ex line | no case affected |
+| `opt-split-defaults` | 'splitbelow' and 'splitright' are off | both are on | new windows open below and right, what nearly everyone sets; the window oracle runs nvim with both on | no case affected |
 
 <!-- divergences:end -->
 

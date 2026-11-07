@@ -1,6 +1,6 @@
 # Divergence audit (0.26.0): what m3 carries from vim and nvim, and what it should keep
 
-Status: **proposal for the owner to veto.** Nothing in this file has been removed or changed yet; the DROP and CHANGE items are implemented only after the owner confirms them, in small commits, each with a migration line in CHANGELOG.md.
+Status: **the DROP and CHANGE groups were accepted by the owner and implemented in 0.27.0** (the IMPROVE items are separate work). See "Implementation status (0.27.0)" at the end. The verdict tables below are the proposal as it was put to the owner; the numbers in them (326 options, 173 stored only) are those of 0.26.0.
 
 Design law (owner): nvim and helix are idea sources; m3 does not copy their mistakes or their unwanted features. **Lean toward divergence when there is a good reason**: better or new functionality, a better default, a simpler design, or performance. Parity is a means, not a goal. The nvim oracle corpus stays the regression reference for the vi core (motions, operators, text objects, registers, marks, macros, ex basics, and every behaviour the corpus gates), which stays compatible by default; a divergence there needs a `tests/oracles/divergences.tsv` row and a one-line justification. docs/CORE-STATUS.md shows that file as a table.
 
@@ -222,3 +222,24 @@ Upper bounds: a count is the number of the 42008 corpus cases whose key text con
 4. Whether `:cc` `:clist` `:cwindow` `:copen` `:cclose` `:cnext` ... (X8) go now or after a release.
 
 Nothing is implemented until the owner answers; each accepted group becomes one small commit with a CHANGELOG migration line (and an `E` message for a refused option).
+
+## 8. Implementation status (0.27.0)
+
+Refusals use the style of the command line's own ("help has one spelling"): the word, then what to write. `engine/MED_removed.m31` holds every message.
+
+| item | status |
+|---|---|
+| ex commands `:lgrep :lvimgrep :lmake :z :first :rewind :last :wnext :append :insert :change :visual :tselect :tjump :tnext :tprevious :tNext :trewind :tfirst :tlast` | removed; refused with `E492: Not an editor command: WORD is gone from m3; write ':x'` |
+| the `:c*` commands `:cc :clist :cwindow :copen :cclose :cnext :cprevious :cNext :cfirst :clast :cdo :cfdo` | removed; `:lnext N` goes to row N, `:ldo` and `:lfdo` replace `:cdo` and `:cfdo` |
+| `:tag` with several matches | fills the generic list; `:lnext` walks it |
+| `gQ`, `:visual`, `-e`, `-E` (Ex mode) | removed (`gQ` and `:visual` refused with a message; `-e` / `-E` are refused by the command line) |
+| `g?` (rot13), `gR` (Virtual Replace) | removed and refused with a message |
+| `g8`, `gs`, `gK`, spell `z=` `zg` `zG` `zw` `zW` `zu*`, `z^ z+ zp zP zy`, `[m [* [# [s ...`, preview-window `CTRL-W` chords | were never implemented in m3: nothing to remove; typing one is refused where m3 has a chord table entry (`g8 gs gK`), else it does what any unknown chord does |
+| `:s` flags `p # l r` and the print flags of `:d :y ...` | removed (`E488: Trailing characters`) |
+| `wrapmargin` | removed with its code |
+| 171 stored-only options | removed from the option table; `:set NAME` answers `E518: Unknown option: NAME (reason)` (also `noNAME`, `invNAME`) |
+| CHANGE: options that now act | `splitright` and `splitbelow` (both now default on: new windows open right and below, as the window oracle already assumed), `gdefault`, `timeoutlen`, `pumheight`, `keywordprg` (`K` without a language server; a program, or an ex command if it starts with `:`), `signcolumn` (`no`, `yes`, `auto`), `showtabline` (0, 1, 2) |
+| CHANGE: options refused instead of made to act | `ruler showmode showcmd cmdheight tildeop modifiable formatprg equalprg infercase copyindent preserveindent fixendofline scrolljump foldcolumn timeout ttimeout ttimeoutlen matchtime showmatch shell confirm`: each needs a feature m3 does not have, so a refusal that says why replaces a silent no-op. Say which of these you want built. |
+| kept stored only | `smoothscroll` alone (m3 animates scrolling itself; the name is kept so a shared config loads) |
+| marks `0-9` | not changed: not verified to exist, left for a later audit |
+| `scripts/options_doc.py` | fixed: it also reads `ext/` and the plugins, and ignores two-letter short names (the old check counted `sb` of the keymap as the option `splitbelow`); it found that `splitbelow` and `splitright` were never acting |

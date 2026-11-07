@@ -273,8 +273,8 @@ These are the features of the core that have a switch; as each one moves into a 
 (`plugins/NAME/`, docs/CORE-AND-PLUGINS.md) it keeps its name and the same two commands, and `:Plugins` shows the
 compiled plugins under "Compiled plugins" with their state (`active`, `lazy`, `off`, `refused: requires x`)
 and the extension API they were written for. Compiled plugins since 0.18.0, each in `plugins/NAME/` with its own README and tests: `move`, `bracketed`, `harpoon`, `todo`, `notify` (new: toast notifications, `:Notify`, `:Notifications`), `statusline` and (0.19.0) `session` and (0.21.0) `git`; each keeps its row in the table above, and `--without NAME` builds without it. Everything else in the table is still in the core ([docs/DAILY-DRIVER.md](docs/DAILY-DRIVER.md) says what is missing for daily use, [docs/CORE-AND-PLUGINS.md](docs/CORE-AND-PLUGINS.md) what moves next).
-Project-wide replace: put hits in the list (`<C-q>` in a finder list), then `:cdo s/old/new/ | update` runs the line at
-each entry, `:cfdo %s/old/new/ | update` once for each file in the list, `:bufdo` in each listed buffer; the first line that fails
+Project-wide replace: put hits in the list (`<C-q>` in a finder list), then `:ldo s/old/new/ | update` runs the line at
+each entry, `:lfdo %s/old/new/ | update` once for each file in the list, `:bufdo` in each listed buffer; the first line that fails
 ends the run.
 `:Keys` or `<Space>?` browses every key. `:set nojk_escape` turns the Insert-mode `jk` off.
 

@@ -29,7 +29,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 | Project settings | core | `.editorconfig`, `.m3.toml` | tabstop, formatting, per-project options |
 | Themes, transparent terminals, truecolor with fallbacks | core | theme engine (14 themes) | decision: stays in core |
 | Clipboard, mouse, bracketed paste | core | | OSC 52 / wl-copy / xclip / pbcopy detected |
-| Multi-buffer / project search and replace | core (0.19.0), partial | `:cdo` `:cfdo` `:bufdo` in `MED_app.run_do` | the finder sends hits to quickfix (`<C-q>`), then `:cdo s/old/new/ \| update`; stops at the first failing line. `:windo`, `:argdo`, `:tabdo`, `:vimgrep`, `:grep`, `:make` exist since 0.20.0 (docs/VI-CORE.md); 'errorformat' is not read |
+| Multi-buffer / project search and replace | core (0.19.0), partial | `:ldo` `:lfdo` `:bufdo` in `MED_app.run_do` | the finder sends hits to quickfix (`<C-q>`), then `:cdo s/old/new/ \| update`; stops at the first failing line. `:windo`, `:argdo`, `:tabdo`, `:vimgrep`, `:grep`, `:make` exist since 0.20.0 (docs/VI-CORE.md); 'errorformat' is not read |
 | Diff mode (`:diffthis`, `]c` between two windows) | **missing** | | `:Git diff` and hunk preview exist; two-window diff does not |
 | `:make` and the quickfix errorformat | **missing** | | quickfix is fed by the finder and LSP only |
 | Spell checking | **declined** | ROADMAP | not before 1.x |
@@ -40,7 +40,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 
 ## Gaps, in the order they hurt a daily user
 
-1. **Project-wide replace: done in 0.19.0 for `:cdo`, `:cfdo` and `:bufdo`** (core, `App.run_do`: an ex line at each quickfix
+1. **Project-wide replace: done in 0.19.0 for `:ldo`, `:lfdo` and `:bufdo` (named `:cdo` and `:cfdo` until 0.26.0)** (core, `App.run_do`: an ex line at each quickfix
    entry, once per file, in each listed buffer; the first failing line ends the run; nothing is written, add `| update`).
    The plugin API still has no buffer handle (it reads and edits the active buffer only), so this had to be core code in
    the App, which owns the buffers. Left: `:windo` and `:argdo` (rarely used), and checking `:cdo` against nvim in the oracle

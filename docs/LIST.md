@@ -5,7 +5,7 @@ the nox `nox-list` plugin (`apps/nox/plugins/nox-list`), cut down to what the ed
 
 ## Model
 
-A **list** has a name and rows. The default list is called `quickfix`; every command below that takes no name uses it. A **row** is a
+A **list** has a name and rows. The default list is called `quickfix`; every command below that takes no name uses it. Since 0.27.0 the `:c*` commands (`:cnext`, `:copen`, `:cdo` ...) are gone; this is the only list API. A **row** is a
 `MED_picker.Entry`: `text` (shown and matched), `path` + 0-based `line` + `column` (where it goes), `action` (an `ex:` / `picker:` / `keys:`
 row for rows that are not places) and `detail` (what a plugin's preview provider understands). A list also remembers its **current row**
 (the one `:lnext` last went to; none until one was visited). Replacing a list forgets the current row.
@@ -17,13 +17,13 @@ There is one store (`ui/MED_lists.m31`, `App.lists`). A location list is a list 
 | source | list | notes |
 |---|---|---|
 | finder `<C-q>` | `quickfix` | the marked (or all) rows that have a position; the list opens |
-| `:grep` `:lgrep` `:vimgrep` `:lvimgrep` `:make` `:lmake` | `quickfix` | the first row is jumped to (not with `!`); the `l` forms are the same command |
+| `:grep` `:vimgrep` `:make` | `quickfix` | the first row is jumped to (not with `!`); `:lgrep` `:lvimgrep` `:lmake` are gone |
 | LSP references (`grr`, `:Lsp references`) | `quickfix` | the list opens |
 | LSP diagnostics (`<Space>xx`, `<Space>xX`) | `diagnostics` | the list opens; `]d` `[d` still walk the diagnostics themselves |
 | git hunks of the buffer (`:Hunk list`) | `quickfix` | the git plugin, through the plugin API |
 | a plugin | any | `Ctx.list_set` / `list_add` / `list_clear` / `list_open` (extension API 0.7.0) |
 
-`:cdo` and `:cfdo` run on the default list.
+`:ldo CMD` runs an ex line at each row of the default list and `:lfdo CMD` once for each file in it (at its first row); the first line that fails ends the run. Nothing is written: add `| update`.
 
 ## Commands
 
@@ -34,7 +34,7 @@ There is one store (`ui/MED_lists.m31`, `App.lists`). A location list is a list 
 | `:lprev [NAME]`, `:ListPrev` | the previous row (wraps) |
 | `:lfirst [NAME]`, `:ListFirst` / `:llast [NAME]`, `:ListLast` | the first / last row |
 | `:lclear [NAME]`, `:ListClear` | empty the list |
-| `:cc [N]` `:clist` `:cwindow` `:copen` `:cnext` `:cprevious` `:cNext` `:cfirst` `:clast` `:cdo` `:cfdo` | thin aliases on the default list, kept so that vim habits and the nvim oracle keep working |
+| `:lnext N` | go to row N of the default list |
 
 Keys: `[l` `]l` previous / next, `[L` `]L` first / last row of the default list (the `bracketed` plugin). `[q` `]q` `[Q` `]Q` are not mapped
 any more. The finder slots `<Space>sq` (default), `<Space>fq` (config), `<Space>xQ` and `<Space>xL` open the list; they are defaults, so

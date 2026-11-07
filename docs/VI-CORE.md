@@ -20,7 +20,7 @@ plus the 70 older corpus files (`docs/CORE-STATUS.md`). New behaviour has unit t
 | `-t tag` | done+tested | same scenario |
 | `-r` (recover) | partial | `-r` runs `:recover` on the first file (m3 keeps a recovery file per modified buffer in its state directory, no swap file); `-r` alone does not list files |
 | `-R` (read-only) | done+tested | `:set readonly` after the files are read |
-| `-e`, `-E` / `ex` | done | starts in Ex mode (below); there is no `ex` binary name, `m3 -e` is it |
+| `-e`, `-E` / `ex` | dropped (0.27.0) | m3 has no Ex mode; `-e` and `-E` are refused by the command line |
 | `-s` (silent batch) | missing | m3 needs a terminal; there is no headless mode (a request for the editor, not for m31) |
 
 ## Motions
@@ -52,15 +52,15 @@ Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119).
 
 | command | status | note |
 |---|---|---|
-| `:a[ppend]`, `:i[nsert]`, `:c[hange]` | done+tested (new) | text read a line at a time up to a line with only `.`, Esc gives up; 'autoindent' copies the indent of the reference line like nvim; cases 110-112 of corpus 118 |
+| `:a[ppend]`, `:i[nsert]`, `:c[hange]` | dropped (0.27.0) | script-only (text up to a lone `.`); refused with `type o, O or cc in Normal mode`; 3 corpus cases are `skip` rows of divergences.tsv |
 | `:ab[breviate]`, `:una[bbreviate]`, `:map`, `:unmap`, `:map!` | done+tested | corpus 118; one harness artifact in `known_divergences.txt` |
-| `:ar[gs]`, `:n[ext]`, `:N[ext]`, `:prev[ious]`, `:fir[st]`, `:rew[ind]`, `:la[st]`, `:wn[ext]`, `:argadd`, `:argdelete` | done+tested (new) | `t_vi`; names are split at spaces, no glob |
+| `:ar[gs]`, `:n[ext]`, `:N[ext]`, `:prev[ious]`, `:argadd`, `:argdelete` | done+tested (new) | `t_vi`; names are split at spaces, no glob |
 | `:argdo`, `:windo`, `:tabdo`, `:bufdo` | done+tested (new, `bufdo` older) | `t_vi` |
 | `:c[opy]` `:t` `:m[ove]` `:d[elete]` `:y[ank]` `:pu[t]` `:j[oin]` `:>` `:<` | done+tested | corpus 118, 119 |
 | `:s` with `&` `~` `\1` `\u` `\U`, flags `g c`, `:&` `:&&` `:~` `g&` `&` | done+tested | corpus 119 |
 | `:g`, `:v` (and `:g!`) | done+tested | corpus 118, 119 |
 | `:k`, `:ma[rk]` | done+tested | corpus 118 |
-| `:z`, `:=`, `:#`, `:nu`, `:p` (`:l` is the generic list since 0.25.0) | done+tested | corpus 119 (`:z+ - . ^ =` and counts) |
+| `:=`, `:#`, `:nu`, `:p` (`:l` is the generic list since 0.25.0; `:z` is dropped, 0.27.0) | done+tested | corpus 119 |
 | `:r file`, `:r !cmd`, `:{range}!cmd` filters, `:!` | done+tested | corpus 118 |
 | `:e!`, `:e #`, `:f[ile]` | done+tested (`:file` new) | `:file NAME` renames the buffer |
 | `:@x`, `:*x` | done+tested | corpus 119 |
@@ -68,9 +68,9 @@ Addresses `. $ % N 'x /pat/ ?pat? +N -N ;` and `,`: done+tested (corpus 119).
 | `:w`, `:w!`, `:wq`, `:x`, `:q`, `:q!` | done+tested | `:x`/`:w`/`:q` are harness artifacts in the oracle (they end the process); unit and pty tests cover them |
 | `:pre[serve]` | done (new) | writes the recovery files now; message "Preserved" |
 | `:rec[over]` | done+tested | older; `-r` calls it |
-| `:ta[g]`, `:ts[elect]`, `:tj[ump]`, `:tn[ext]`, `:tp[revious]`, `:tN`, `:tr[ewind]`, `:tl[ast]`, `:po[p]`, `:tags` | done+tested (new) | `t_vi`; see Tags |
-| `:gr[ep]`, `:vim[grep]`, `:mak[e]` (and `l` forms) | done+tested (new) | fill the default list (docs/LIST.md); see below |
-| `:vi[sual]`, `gQ` (Ex mode) | done+tested (new) | see Ex mode; vi's `Q` is **divergence kept** (below) |
+| `:ta[g]`, `:po[p]`, `:tags` (several matches fill the generic list, `:lnext` walks it; `:tselect :tjump :tnext :tprevious :tNext :trewind :tfirst :tlast` are dropped, 0.27.0) | done+tested (new) | `t_vi`; see Tags |
+| `:gr[ep]`, `:vim[grep]`, `:mak[e]` (the `l` forms are dropped, 0.27.0) | done+tested (new) | fill the default list (docs/LIST.md); see below |
+| `:vi[sual]`, `gQ` (Ex mode) | dropped (0.27.0) | refused: `E492: ... m3 has no Ex mode`; vi's `Q` is **divergence kept** (below) |
 | `:st[op]`, `:su[spend]`, `CTRL-Z` | missing | needs the terminal library to raise SIGTSTP and restore the screen on SIGCONT: **m31 request**: signals (`SIGTSTP`/`SIGCONT` handlers or `os.raise`), the same blocker as `docs/M31-ON-TRAP-REQUEST.md` |
 | `:sh[ell]` | missing | would run `$SHELL` with the terminal handed over (needs a terminal suspend/resume in tui); the `terminal` plugin's `:terminal` is the m3 way |
 | `:ex`, `:o[pen]` (open mode) | divergence kept | `:open` is a vi line-at-a-time visual mode; nvim has no open mode either |
@@ -92,7 +92,10 @@ sorted files (the files are scanned linearly), `tagcase`, `taglength`, `:tselect
 entry is jumped to (not with `!`). `:vimgrep /pat/ files` searches the named files itself (smart-case, files as the shell expands them, no `**`).
 `:lgrep`, `:lvimgrep`, `:lmake` are the same (there is one list store, docs/LIST.md; since 0.25.0 the list is the generic one and `:l` / `:lnext` ... walk it).
 
-## Ex mode
+## Ex mode (dropped in 0.27.0)
+
+The text below describes what existed until 0.26.0; docs/DIVERGENCE-AUDIT.md has the decision.
+
 
 `gQ` (and `m3 -e`) opens the command line; it opens again after each command until `:visual` (`:vi`). Vi's `Q` is **not** Ex mode here: nvim 0.11 makes `Q` replay the last recorded macro (checked with `nvim --headless`, corpus 118 has the cases) and Vim commands behave like nvim. Divergence: the line is the editor's
 command line at the bottom of the screen, not a scrolling teletype; there is no `:` prompt character change. Esc closes the line and it comes back.
@@ -145,5 +148,5 @@ command line at the bottom of the screen, not a scrolling teletype; there is no 
 ## Counts
 
 Rows: see the tables. Items that the task text named and what happened: tags (done), args list (done), `:windo` (done), `:grep`/`:vimgrep`/`:make`
-(done), Ex mode (done), `:preserve` and `-r` (done, `-r` partial), `:append`/`:insert`/`:change` (done), 'wrapmargin' 'scroll' 'sections'
+(done), Ex mode, `:append`/`:insert`/`:change` and 'wrapmargin' (dropped in 0.27.0), `:preserve` and `-r` (done, `-r` partial), 'scroll' 'sections'
 'paragraphs' 'magic' (done), CTRL-Z / `:stop` / `:shell` (missing, m31 request), `-s` (missing).
