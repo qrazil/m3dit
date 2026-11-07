@@ -246,7 +246,7 @@ def osc52_without_clipboard_tool(binary, root):
 @scenario
 def clipboard_is_the_default_register(binary, root):
     clip = os.path.join(root, "fake-clipboard")
-    env = {"M3_CLIP_COPY": "tee " + clip, "M3_CLIP_PASTE": "cat " + clip}
+    env = {"M3_CLIP_COPY": "cat > " + clip, "M3_CLIP_PASTE": "cat " + clip}
     with open(clip, "w") as handle:
         handle.write("")
     s = Session(binary, root, ["a.txt"], env=env)
