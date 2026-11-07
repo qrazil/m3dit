@@ -52,7 +52,6 @@ import ui.MED_lists;
 import ui.MED_pum;
 import ui.MED_glide;
 import ui.MED_picker;
-import ui.MED_vt;
 import ui.MED_plugin;
 import engine.MED_shell;
 import ui.MED_sources;
@@ -107,8 +106,10 @@ pub type Slot {
     /** A directory listing (`:Explore`): `path` is the directory, the text is
      * read-only and Enter opens the entry under the cursor. */
     pub bool is_listing = false;
-    /// A terminal pane's name ("" for an ordinary buffer).
+    /// A pane's title ("" for an ordinary buffer), the pane a plugin owns in it ("" for none) and whether its keys go to the plugin's program.
     pub str title = "";
+    pub str pane = "";
+    pub bool is_pane_input = false;
     /** The `:set` lines `.editorconfig` / `.m3.toml` gave this buffer; run again whenever it becomes active
      * (options are shared between buffers, these are not). */
     pub List<str> local_lines = [];
@@ -116,18 +117,6 @@ pub type Slot {
     pub str stamp = "";
     /// `editor.buffer.tick` when the recovery file was last written (-1: never).
     pub int recover_tick = -1;
-}
-
-/// A terminal pane: a program on a pty whose output fills a buffer.
-pub type Term {
-    pub int buffer_id;
-    List<proc.Pty> ptys = [];
-    pub MED_vt.Screen screen = MED_vt.Screen();
-    /// Keys go to the program (until CTRL-\ CTRL-N).
-    pub bool is_input = true;
-    pub bool is_alive = true;
-    bool is_leaving = false;
-    bytes pending = [];
 }
 
 pub type App {
@@ -188,8 +177,6 @@ pub type App {
     /// How long (ms) a pending prefix (g, z, [, CTRL-W, an operator) has waited.
     pub int prefix_ms = 0;
     pub bool is_prefix_help = false;
-    /// The terminal panes.
-    pub List<Term> terms = [];
     /** Running language servers, the language each one serves, and the
      * commands the user set (`:Lsp server LANG CMD...`). */
     pub List<MED_lsp.Server> servers = [];
@@ -1302,6 +1289,8 @@ void App.run_request(str request) {
     if (!ext.is_empty() && ext.has_command(name)) {
         MED_ext.Ctx context = MED_ext.context(ext, editor, path);
         context.buffer_id = current_id;
+        ext.pane_rows = current_text_rows();
+        ext.pane_columns = MED_num.larger(screen_rect().width, 20);
         ext.did_run_command(name, context, arg.trim(), is_forced);
         ext_finish(context);
         return;
@@ -1398,8 +1387,6 @@ void App.run_request(str request) {
         str word = arg.trim();
         int space = word.index_of(" ").or(word.size());
         run_lsp_command(word.substr(0, space), word.substr(space, word.size()).trim());
-    } else if (name == "terminal") {
-        start_terminal(arg.trim());
     } else if (name == "Keys") {
         open_picker("help", "");
     } else if (name == "list" || name == "List") {
@@ -3495,7 +3482,7 @@ List<MED_keymap.Binding> App.prefix_table(str typed) {
 
 /// The timer: animation frames, then the app's own work (`tick_work`).
 pub TUI_app.Action App.tick(int elapsed_ms) {
-    motion.is_app_busy = has_picker || is_leader || is_prefix_help || prefix_ms > 0 || editor.ta_keys.size() > 0 || terms.size() > 0 || servers.size() > 0 || is_lsp_wanted() || panel_columns(screen_rect().width) > 0 || is_grep_due || !source.is_done || is_dragging || editor.mode == MED_editor.CMDLINE || editor.pending.size() > 0;
+    motion.is_app_busy = has_picker || is_leader || is_prefix_help || prefix_ms > 0 || editor.ta_keys.size() > 0 || ext.is_pane_busy || servers.size() > 0 || is_lsp_wanted() || panel_columns(screen_rect().width) > 0 || is_grep_due || !source.is_done || is_dragging || editor.mode == MED_editor.CMDLINE || editor.pending.size() > 0;
     bool is_frame_due = motion.did_tick(elapsed_ms);
     if (did_autoscroll(elapsed_ms)) {
         is_frame_due = true;
@@ -3641,7 +3628,7 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
     if (did_tick_pending(elapsed_ms)) {
         return TUI_app.Action.Redraw;
     }
-    if (terms.size() > 0 && did_poll_terminals()) {
+    if (ext.is_panes_live() && did_pane_tick(elapsed_ms)) {
         return TUI_app.Action.Redraw;
     }
     // a yank or delete reaches the system clipboard here, not in the key that made it (no process is started per keystroke)
@@ -3708,18 +3695,11 @@ bool App.should_quit_after(int key) {
     if (is_leader) {
         return should_quit_after_leader(key);
     }
-    if (is_terminal_input() && !is_window_key && editor.mode == MED_editor.NORMAL) {
-        send_terminal_key(key);
+    if (!is_window_key && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && ext.is_panes_live() && pane_of(current_id).size() > 0 && did_pane_key(key)) {
         return false;
     }
     if (jump_stage > 0) {
         handle_jump_key(key);
-        return false;
-    }
-    if (terminal_of(current_id) >= 0 && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && (key == 105 || key == 97 || key == 73 || key == 65)) {
-        // back into the program
-        int found = terminal_of(current_id);
-        terms[found].is_input = true;
         return false;
     }
     if (has_panel_focus() && !is_window_key && editor.mode == MED_editor.NORMAL && editor.pending.size() == 0 && key != MED_key.SPACE && key != 58 && key != 23) {
@@ -4419,7 +4399,7 @@ bool App.did_autoscroll(int elapsed_ms) {
 }
 
 str App.mode_name() {
-    if (is_terminal_input()) {
+    if (is_pane_input()) {
         return "TERMINAL";
     }
     if (editor.mode == MED_editor.INSERT) {
@@ -4924,7 +4904,7 @@ void App.draw_window(TUI_buffer.Buffer buffer, MED_window.Placed frame, bool is_
     }
     MED_editor.Editor subject = editor;
     str file = path;
-    if (is_in_listing() || terminal_of(current_id) >= 0) {
+    if (is_in_listing() || pane_of(current_id).size() > 0) {
         file = slot_name(slots[index_of(current_id)]);
     }
     bool is_changed = is_modified();
@@ -6474,175 +6454,78 @@ pub str App.arguments_text() {
     return listed.join(" ");
 }
 
-/// Where the terminal of buffer `id` is in `terms`, or -1.
-int App.terminal_of(int id) {
-    for (int position in 0 .. terms.size()) {
-        if (terms[position].buffer_id == id) {
-            return position;
-        }
+/// The pane a plugin owns in buffer `id` ("" for an ordinary buffer).
+str App.pane_of(int id) {
+    int position = index_of(id);
+    if (position < 0) {
+        return "";
     }
-    return -1;
+    return slots[position].pane;
 }
 
-/// Whether the active buffer is a terminal that takes the keys.
-bool App.is_terminal_input() {
-    int found = terminal_of(current_id);
-    return found >= 0 && terms[found].is_input && terms[found].is_alive;
+/// Whether the active buffer is a pane whose keys go to its program.
+bool App.is_pane_input() {
+    int position = index_of(current_id);
+    return position >= 0 && slots[position].pane.size() > 0 && slots[position].is_pane_input;
 }
 
-/// `:terminal [command]`: a shell (or `sh -c command`) on a pty in a new buffer.
-void App.start_terminal(str command) {
-    if (!is_plugin_on("terminal")) {
-        notice = "The terminal plugin is off (:PluginEnable terminal)";
+/// The context a pane handler runs with.
+MED_ext.Ctx App.pane_context() {
+    MED_ext.Ctx context = MED_ext.context(ext, editor, "");
+    context.buffer_id = current_id;
+    context.owner = ext.pane_owner_index();
+    ext.pane_rows = current_text_rows();
+    ext.pane_columns = MED_num.larger(screen_rect().width, 20);
+    return context;
+}
+
+/// A key typed in Normal mode in a pane buffer: true when the plugin took it.
+bool App.did_pane_key(int key) {
+    MED_ext.Ctx context = pane_context();
+    bool did_take = ext.pane_driver.did_key(context, pane_of(current_id), key);
+    ext_finish(context);
+    return did_take;
+}
+
+/// The panes' timer: the plugin reads what its programs printed. True when the screen should be redrawn.
+bool App.did_pane_tick(int elapsed_ms) {
+    MED_ext.Ctx context = pane_context();
+    bool did_change = ext.pane_driver.did_tick(context, elapsed_ms);
+    ext_finish(context);
+    return did_change;
+}
+
+/// One `Ctx.pane_open` / `pane_set` / `pane_input` of a plugin.
+void App.apply_pane_op(MED_ext.PaneOp operation) {
+    if (operation.kind == "open") {
+        new_buffer();
+        Slot fresh = slots[index_of(current_id)];
+        fresh.title = operation.title;
+        fresh.pane = operation.pane;
+        fresh.is_pane_input = true;
+        editor.buffer.lines = [""];
+        editor.buffer.dirty_row = 0;
+        editor.row = 0;
+        editor.col = 0;
+        saved_current = editor.current;
+        notice = "";
         return;
     }
-    List<str> argv = [os.env("SHELL").or("sh")];
-    str title = argv[0];
-    if (command.size() > 0) {
-        argv = ["sh", "-c", command];
-        title = command;
-    }
-    TUI_geometry.Rect area = screen_rect();
-    int rows = current_text_rows();
-    int columns = area.width;
-    if (columns < 20) {
-        columns = 80;
-    }
-    match (proc.start_pty(argv, rows: rows, columns: columns)) {
-        case Ok(proc.Pty pty): {
-            new_buffer();
-            Slot slot = slots[index_of(current_id)];
-            slot.title = "term://" + title;
-            Term fresh = Term(current_id);
-            fresh.ptys.push(pty);
-            terms.push(fresh);
-            editor.buffer.lines = [""];
-            editor.buffer.dirty_row = 0;
-            editor.row = 0;
-            editor.col = 0;
-            saved_current = editor.current;
-            notice = "";
-        }
-        case Err(proc.Error error): {
-            notice = "terminal: " + error.to_str();
-        }
-    }
-}
-
-/** A typed key in a terminal pane: CTRL-\ CTRL-N leaves to Normal mode, every
- * other key goes to the program. */
-void App.send_terminal_key(int key) {
-    int found = terminal_of(current_id);
-    if (found < 0) {
-        return;
-    }
-    if (terms[found].is_leaving) {
-        terms[found].is_leaving = false;
-        if (key == 14) {
-            terms[found].is_input = false;
-            return;
-        }
-        write_terminal(found, [28]);
-    } else if (key == 28) {
-        terms[found].is_leaving = true;
-        return;
-    }
-    write_terminal(found, terminal_bytes(key));
-}
-
-void App.write_terminal(int found, bytes data) {
-    if (data.size() == 0 || terms[found].ptys.size() == 0) {
-        return;
-    }
-    Result<int, io.Error> written = terms[found].ptys[0].master.write(data);
-}
-
-/// Read what the terminals printed. True when a screen changed.
-bool App.did_poll_terminals() {
-    bool is_changed = false;
-    for (int position in 0 .. terms.size()) {
-        Term term_state = terms[position];
-        if (!term_state.is_alive || term_state.ptys.size() == 0) {
+    for (int position in 0 .. slots.size()) {
+        Slot one = slots[position];
+        if (one.pane != operation.pane) {
             continue;
         }
-        int rounds = 0;
-        bool is_read = false;
-        while (rounds < 8) {
-            rounds = rounds + 1;
-            term_state.ptys[0].master.set_deadline_ns(timer.monotonic_ns() + 20000);
-            match (term_state.ptys[0].master.read(65536)) {
-                case Ok(bytes data): {
-                    if (data.size() == 0) {
-                        term_state.is_alive = false;
-                        break;
-                    }
-                    term_state.pending.extend(data);
-                    is_read = true;
-                }
-                case Err(io.Error error): {
-                    break;
-                }
-            }
+        if (operation.kind == "input") {
+            one.is_pane_input = operation.is_on;
+        } else if (operation.lines.size() > 0) {
+            one.editor.buffer.lines = operation.lines;
+            one.editor.buffer.dirty_row = 0;
+            one.editor.buffer.tick = one.editor.buffer.tick + 1;
+            int row = MED_num.smaller(operation.row, operation.lines.size() - 1);
+            one.editor.row = row;
+            one.editor.col = MED_num.smaller(operation.column, operation.lines[row].size());
         }
-        if (is_read) {
-            str text = decode_terminal(term_state.pending);
-            int used = text.to_bytes().size();
-            if (used > 0) {
-                term_state.pending.drop_front(used);
-                term_state.screen.feed(text);
-            } else if (term_state.pending.size() > 8) {
-                term_state.pending = [];
-            }
-            is_changed = true;
-        }
-        if (!term_state.is_alive) {
-            int code = 0;
-            match (term_state.ptys[0].wait()) {
-                case Ok(os.ExitStatus status): {
-                    if (!status.is_success()) {
-                        code = 1;
-                    }
-                }
-                case Err(proc.Error error): {
-                    code = 1;
-                }
-            }
-            term_state.screen.feed("\r\n[Process exited " + code.to_str() + "]");
-            term_state.is_input = false;
-            is_changed = true;
-        }
-        if (is_changed) {
-            show_terminal(position);
-        }
-    }
-    return is_changed;
-}
-
-/// Copy a terminal's screen into its buffer and put the cursor on its cursor.
-void App.show_terminal(int position) {
-    Term term_state = terms[position];
-    int slot_position = index_of(term_state.buffer_id);
-    if (slot_position < 0) {
-        return;
-    }
-    Slot slot = slots[slot_position];
-    List<str> lines = term_state.screen.lines.slice(0, term_state.screen.lines.size());
-    slot.editor.buffer.lines = lines;
-    slot.editor.buffer.dirty_row = 0;
-    slot.editor.buffer.tick = slot.editor.buffer.tick + 1;
-    int row = term_state.screen.row;
-    if (row >= lines.size()) {
-        row = lines.size() - 1;
-    }
-    List<int> cells = lines[row].chars();
-    int column = term_state.screen.col;
-    if (column > cells.size()) {
-        column = cells.size();
-    }
-    slot.editor.row = row;
-    slot.editor.col = str.from_chars(cells.slice(0, column)).size();
-    if (slot.editor.col >= lines[row].size() && lines[row].size() > 0) {
-        slot.editor.col = lines[row].size();
     }
 }
 
@@ -6683,7 +6566,7 @@ List<str> App.server_command(str lang) {
 
 /// The language of the active buffer ("" for a scratch buffer or a directory).
 str App.language_here() {
-    if (path.size() == 0 || is_in_listing() || terminal_of(current_id) >= 0) {
+    if (path.size() == 0 || is_in_listing() || pane_of(current_id).size() > 0) {
         return "";
     }
     return server_language_of(path, editor.buffer.line(0));
@@ -6696,7 +6579,7 @@ str App.lsp_language_here() {
     if (lang.size() > 0) {
         return lang;
     }
-    if (path.size() == 0 || is_in_listing() || terminal_of(current_id) >= 0) {
+    if (path.size() == 0 || is_in_listing() || pane_of(current_id).size() > 0) {
         return "";
     }
     return MED_lsp.language_of_extension(path);
@@ -8634,6 +8517,13 @@ void App.ext_finish(MED_ext.Ctx context) {
             notify_user(levels[index], texts[index], true);
         }
     }
+    if (context.pane_ops.size() > 0) {
+        List<MED_ext.PaneOp> pane_changes = context.pane_ops;
+        context.pane_ops = [];
+        for (MED_ext.PaneOp one in pane_changes) {
+            apply_pane_op(one);
+        }
+    }
     if (context.has_panel_focus) {
         context.has_panel_focus = false;
         ext.is_panel_focused = ext.is_panel_live();
@@ -9598,60 +9488,6 @@ pub Result<App, str> open_all(List<str> paths) {
 // ---------------------------------------------------------------- state: recent, positions (harpoon is a plugin)
 
 // ---------------------------------------------------------------- git: hunks, blame, checkout
-
-// ---------------------------------------------------------------- terminal pane
-
-/// Engine key to the bytes a terminal program expects.
-bytes terminal_bytes(int key) {
-    if (key == MED_key.UP_KEY) {
-        return "\x1b[A".to_bytes();
-    }
-    if (key == MED_key.DOWN) {
-        return "\x1b[B".to_bytes();
-    }
-    if (key == MED_key.RIGHT) {
-        return "\x1b[C".to_bytes();
-    }
-    if (key == MED_key.LEFT) {
-        return "\x1b[D".to_bytes();
-    }
-    if (key == MED_key.HOME) {
-        return "\x1b[H".to_bytes();
-    }
-    if (key == MED_key.END) {
-        return "\x1b[F".to_bytes();
-    }
-    if (key == MED_key.DEL) {
-        return "\x1b[3~".to_bytes();
-    }
-    if (key == MED_key.PAGE_UP) {
-        return "\x1b[5~".to_bytes();
-    }
-    if (key == MED_key.PAGE_DOWN) {
-        return "\x1b[6~".to_bytes();
-    }
-    if (key >= MED_key.UP_KEY || key < 0) {
-        return [];
-    }
-    return str.from_chars([key]).to_bytes();
-}
-
-// The text of `pending` up to a complete UTF-8 sequence; the rest stays.
-str decode_terminal(bytes pending) {
-    for (int cut in 0 .. 4) {
-        if (pending.size() - cut < 0) {
-            break;
-        }
-        match (pending.substr(0, pending.size() - cut).utf8()) {
-            case Some(str text): {
-                return text;
-            }
-            case None: {
-            }
-        }
-    }
-    return "";
-}
 
 // ---------------------------------------------------------------- language servers
 

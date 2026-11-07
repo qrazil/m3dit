@@ -1,0 +1,225 @@
+/* The `terminal` plugin: `:terminal [command]` (and `<Space>t`) runs a shell, or `sh -c command`, on a pty in a buffer. It was the Term
+ * type and about 300 lines of the App module. The host now gives plugins two services (API 0.8.0): ptys (`Ctx.pty_open`, `pty_write`,
+ * `pty_read`, `is_pty_open`) and panes (`Ctx.pane_open`, `pane_set`, `pane_input`, and the `PaneDriver` the keys and the timer go
+ * through). The plugin keeps what runs: the screen model (MEDX_terminal_vt), the bytes, the leave-input state.
+ *
+ * In a terminal buffer the keys go to the program until CTRL-\ CTRL-N; `i` `a` `I` `A` give them back. Full-screen programs need a real
+ * emulator and are out of scope (MEDX_terminal_vt). */
+
+import engine.MED_key;
+import ext.MED_ext;
+import plugins.terminal.MEDX_terminal_vt;
+
+/// One terminal buffer: the pty, the screen model and the input state.
+type Term {
+    str pane;
+    int pty;
+    MEDX_terminal_vt.Screen screen = MEDX_terminal_vt.Screen();
+    bool is_input = true;
+    bool is_alive = true;
+    bool is_leaving = false;
+    bytes pending = [];
+}
+
+type State {
+    List<Term> terms = [];
+    int next_pane = 1;
+}
+
+/// Engine key to the bytes a terminal program expects.
+bytes terminal_bytes(int key) {
+    if (key == MED_key.UP_KEY) {
+        return "\x1b[A".to_bytes();
+    }
+    if (key == MED_key.DOWN) {
+        return "\x1b[B".to_bytes();
+    }
+    if (key == MED_key.RIGHT) {
+        return "\x1b[C".to_bytes();
+    }
+    if (key == MED_key.LEFT) {
+        return "\x1b[D".to_bytes();
+    }
+    if (key == MED_key.HOME) {
+        return "\x1b[H".to_bytes();
+    }
+    if (key == MED_key.END) {
+        return "\x1b[F".to_bytes();
+    }
+    if (key == MED_key.DEL) {
+        return "\x1b[3~".to_bytes();
+    }
+    if (key == MED_key.PAGE_UP) {
+        return "\x1b[5~".to_bytes();
+    }
+    if (key == MED_key.PAGE_DOWN) {
+        return "\x1b[6~".to_bytes();
+    }
+    if (key >= MED_key.UP_KEY || key < 0) {
+        return [];
+    }
+    return str.from_chars([key]).to_bytes();
+}
+
+// The text of `pending` up to a complete UTF-8 sequence; the rest stays.
+str decode_terminal(bytes pending) {
+    for (int cut in 0 .. 4) {
+        if (pending.size() - cut < 0) {
+            break;
+        }
+        match (pending.substr(0, pending.size() - cut).utf8()) {
+            case Some(str text): {
+                return text;
+            }
+            case None: {
+            }
+        }
+    }
+    return "";
+}
+
+int term_of(State state, str pane) {
+    for (int position in 0 .. state.terms.size()) {
+        if (state.terms[position].pane == pane) {
+            return position;
+        }
+    }
+    return -1;
+}
+
+/// `:terminal [command]`: a shell (or `sh -c command`) on a pty in a new buffer.
+Result<bool, str> run_terminal(State state, MED_ext.Ctx context, str command) {
+    List<str> argv = [context.environment("SHELL")];
+    if (argv[0].size() == 0) {
+        argv = ["sh"];
+    }
+    str title = argv[0];
+    if (command.size() > 0) {
+        argv = ["sh", "-c", command];
+        title = command;
+    }
+    List<int> size = context.pane_size();
+    int columns = size[1];
+    if (columns < 20) {
+        columns = 80;
+    }
+    int pty = context.pty_open(argv, size[0], columns);
+    if (pty < 0) {
+        return Result<bool, str>.Ok(true);
+    }
+    str pane = "terminal" + state.next_pane.to_str();
+    state.next_pane = state.next_pane + 1;
+    context.pane_open(pane, "term://" + title);
+    state.terms.push(Term(pane, pty));
+    context.pane_busy(true);
+    return Result<bool, str>.Ok(true);
+}
+
+/// Copy a terminal's screen into its buffer and put the cursor on its cursor.
+void show(MED_ext.Ctx context, Term term_state) {
+    List<str> lines = term_state.screen.lines.slice(0, term_state.screen.lines.size());
+    int row = term_state.screen.row;
+    if (row >= lines.size()) {
+        row = lines.size() - 1;
+    }
+    List<int> cells = lines[row].chars();
+    int column = term_state.screen.col;
+    if (column > cells.size()) {
+        column = cells.size();
+    }
+    context.pane_set(term_state.pane, lines, row, str.from_chars(cells.slice(0, column)).size());
+}
+
+type Panes {
+    State state;
+}
+
+/** A typed key in a terminal buffer: CTRL-\ CTRL-N leaves to Normal mode, every other key goes to the program; in Normal mode
+ * `i` `a` `I` `A` give the keys back to it. */
+bool Panes.did_key(MED_ext.Ctx context, str pane, int key) {
+    int found = term_of(state, pane);
+    if (found < 0) {
+        return false;
+    }
+    Term term_state = state.terms[found];
+    if (!term_state.is_input) {
+        if (term_state.is_alive && (key == 105 || key == 97 || key == 73 || key == 65)) {
+            term_state.is_input = true;
+            context.pane_input(pane, true);
+            return true;
+        }
+        return false;
+    }
+    if (term_state.is_leaving) {
+        term_state.is_leaving = false;
+        if (key == 14) {
+            term_state.is_input = false;
+            context.pane_input(pane, false);
+            return true;
+        }
+        context.pty_write(term_state.pty, [28]);
+    } else if (key == 28) {
+        term_state.is_leaving = true;
+        return true;
+    }
+    context.pty_write(term_state.pty, terminal_bytes(key));
+    return true;
+}
+
+/// Read what the programs printed and show it. True when a screen changed.
+bool Panes.did_tick(MED_ext.Ctx context, int elapsed_ms) {
+    bool is_changed = false;
+    bool is_busy = false;
+    for (int position in 0 .. state.terms.size()) {
+        Term term_state = state.terms[position];
+        if (!term_state.is_alive) {
+            continue;
+        }
+        bytes data = context.pty_read(term_state.pty);
+        bool is_read = data.size() > 0;
+        if (is_read) {
+            term_state.pending.extend(data);
+            str text = decode_terminal(term_state.pending);
+            int used = text.to_bytes().size();
+            if (used > 0) {
+                term_state.pending.drop_front(used);
+                term_state.screen.feed(text);
+            } else if (term_state.pending.size() > 8) {
+                term_state.pending = [];
+            }
+            is_changed = true;
+        }
+        if (!context.is_pty_open(term_state.pty)) {
+            term_state.is_alive = false;
+            int code = context.pty_exit_code(term_state.pty);
+            term_state.screen.feed("\r\n[Process exited " + code.to_str() + "]");
+            term_state.is_input = false;
+            context.pane_input(term_state.pane, false);
+            is_changed = true;
+        } else {
+            is_busy = true;
+        }
+        if (is_changed) {
+            show(context, term_state);
+        }
+    }
+    context.pane_busy(is_busy);
+    return is_changed;
+}
+
+type Terminal {
+    State state = State();
+}
+
+Result<bool, str> Terminal.activate(MED_ext.Registry api) {
+    State kept = state;
+    api.did_panes(Panes(kept));
+    api.did_command("terminal", "a shell, or `sh -c COMMAND`, on a pty in a new buffer", (MED_ext.Ctx context, str arguments, bool is_bang) => run_terminal(kept, context, arguments.trim()));
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("terminal", summary: ":terminal, <Space>t, a shell or command on a pty in a buffer");
+    spec.commands.push(MED_ext.command("terminal", "a shell, or `sh -c COMMAND`, on a pty in a new buffer"));
+    api.did_plugin(spec, Terminal());
+}

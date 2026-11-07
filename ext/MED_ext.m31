@@ -57,6 +57,8 @@ import engine.MED_shell;
 import fs;
 import io;
 import os;
+import proc;
+import timer;
 import ui.MED_files;
 import tui.core.TUI_buffer;
 import tui.core.TUI_style;
@@ -67,9 +69,9 @@ import ui.MED_theme;
 /** The API version: major.minor.patch. While the major is 0 a plugin built for 0.M.p runs on a host 0.M.q with
  * p <= q (a patch only adds) and another minor is refused; from 1.0 only the major breaks and a minor adds. */
 pub const int API_MAJOR = 0;
-pub const int API_MINOR = 7;
+pub const int API_MINOR = 8;
 pub const int API_PATCH = 0;
-pub const str API_VERSION = "0.7.0";
+pub const str API_VERSION = "0.8.0";
 /// `Ctx.mode()` of Normal mode (0.5.0).
 pub const int MODE_NORMAL = 0;
 /// The longest `context.run` may block the editor.
@@ -497,6 +499,48 @@ pub interface Panel {
     bool did_tick(Ctx context, int elapsed_ms);
 }
 
+/** The programs on a pty that a plugin runs (0.8.0): the plugin may not import `proc`, so the host owns the ptys and the plugin
+ * names them by number (`Ctx.pty_open`). */
+pub type PtyTable {
+    pub List<proc.Pty> items = [];
+    pub List<bool> is_open = [];
+}
+
+/** A pane (0.8.0): a buffer whose text a plugin sets and whose Normal-mode keys it may take (the terminal). The host keeps the buffer, the
+ * window and the status line; the plugin keeps what runs behind it. */
+pub interface PaneDriver {
+    /// A key typed in Normal mode (nothing pending) in the buffer of pane `pane`; true when the plugin took it.
+    bool did_key(Ctx context, str pane, int key);
+    /// About every app tick while `Ctx.pane_busy(true)` was the last word (and at the plugin tick otherwise); true: redraw.
+    bool did_tick(Ctx context, int elapsed_ms);
+}
+
+type NoPaneDriver {
+}
+
+bool NoPaneDriver.did_key(Ctx context, str pane, int key) {
+    return false;
+}
+
+bool NoPaneDriver.did_tick(Ctx context, int elapsed_ms) {
+    return false;
+}
+
+PaneDriver no_pane_driver() {
+    return NoPaneDriver();
+}
+
+/// One change to a pane (0.8.0, in the order the plugin made them): kind "open", "set" or "input".
+pub type PaneOp {
+    pub str kind;
+    pub str pane;
+    pub str title = "";
+    pub List<str> lines = [];
+    pub int row = 0;
+    pub int column = 0;
+    pub bool is_on = false;
+}
+
 type NoPanel {
 }
 
@@ -594,7 +638,7 @@ pub type Spec {
     pub str name;
     pub str summary = "";
     pub int api_major = 0;
-    pub int api_minor = 7;
+    pub int api_minor = 8;
     pub int api_patch = 0;
     /// Not registered unless every one of these is built in and on.
     pub List<str> requires = [];
@@ -829,6 +873,14 @@ pub type Registry {
     pub Map<str, GitSummary> git_summaries = {};
     /// The key profile (`minimal`, `default`, `nvim`, `legacy`); the maps of other profiles are not installed.
     pub str profile = "default";
+    /// The ptys (0.8.0), the pane driver and who gave it, whether it wants fast ticks, and the size a pane may use.
+    pub PtyTable ptys = PtyTable();
+    pub PaneDriver pane_driver = no_pane_driver();
+    pub bool has_pane_driver = false;
+    int pane_owner = -1;
+    pub bool is_pane_busy = false;
+    pub int pane_rows = 24;
+    pub int pane_columns = 80;
     /// The docked panel (`did_panel`, 0.6.0), the extension that gave it and whether it has the keys.
     pub Panel panel = no_panel();
     pub bool has_panel = false;
@@ -1522,6 +1574,32 @@ pub bool Registry.did_panel(Panel run) {
     return true;
 }
 
+/// Register the pane driver (0.8.0): one plugin has the panes.
+pub bool Registry.did_panes(PaneDriver run) {
+    if (current < 0) {
+        problem("api.did_panes called before a successful api.did_declare or outside activate");
+        return false;
+    }
+    if (has_pane_driver) {
+        problem(extensions[current].name + ": the panes are already taken by " + owner_name(pane_owner));
+        return false;
+    }
+    pane_driver = run;
+    has_pane_driver = true;
+    pane_owner = current;
+    return true;
+}
+
+/// Whether a live plugin has the panes.
+pub bool Registry.is_panes_live() {
+    return has_pane_driver && !extensions[pane_owner].is_off;
+}
+
+/// The registry index of the extension that owns the panes.
+pub int Registry.pane_owner_index() {
+    return pane_owner;
+}
+
 /// Whether a live plugin has a panel.
 pub bool Registry.is_panel_live() {
     return has_panel && !extensions[panel_owner].is_off;
@@ -2111,6 +2189,10 @@ str map_text(MapSpec spec, str command, bool is_buffer) {
 
 /// Whether `name` can name an extension or a command: an uppercase ASCII letter first, then letters and digits.
 pub bool is_valid_name(str name) {
+    if (name == "terminal") {
+        // the one lowercase name: nvim's `:terminal`, which the terminal plugin supplies
+        return true;
+    }
     if (name.size() == 0 || name.size() > 40) {
         return false;
     }
@@ -2194,6 +2276,8 @@ pub type Ctx {
     pub int pick_list_line = -1;
     /// `list_set` / `list_add` / `list_clear` / `list_open` were called (0.7.0), in order.
     pub List<ListOp> list_ops = [];
+    /// `pane_open` / `pane_set` / `pane_input` were called (0.8.0), in order.
+    pub List<PaneOp> pane_ops = [];
     /// `focus_panel` / `blur_panel` were called (0.6.0).
     pub bool has_panel_focus = false;
     pub bool has_panel_blur = false;
@@ -2647,6 +2731,109 @@ pub void Ctx.list_clear(str name) {
 /// Open the generic list `name` in the finder, with its preview (0.7.0).
 pub void Ctx.list_open(str name) {
     list_ops.push(ListOp("open", name: name));
+}
+
+/// The environment variable `name` of the editor ("" when it is not set) (0.8.0).
+pub str Ctx.environment(str name) {
+    return os.env(name).or("");
+}
+
+/** Start `argv` on a pty of `rows` by `columns` cells (0.8.0). Returns its number, or -1 with the reason in the message line. */
+pub int Ctx.pty_open(List<str> argv, int rows, int columns) {
+    match (proc.start_pty(argv, rows: rows, columns: columns)) {
+        case Ok(proc.Pty pty): {
+            registry.ptys.items.push(pty);
+            registry.ptys.is_open.push(true);
+            return registry.ptys.items.size() - 1;
+        }
+        case Err(proc.Error error): {
+            notice = "terminal: " + error.to_str();
+            return -1;
+        }
+    }
+}
+
+/// Send bytes to the program on pty `id` (0.8.0).
+pub void Ctx.pty_write(int id, bytes data) {
+    if (id < 0 || id >= registry.ptys.items.size() || data.size() == 0 || !registry.ptys.is_open[id]) {
+        return;
+    }
+    Result<int, io.Error> written = registry.ptys.items[id].master.write(data);
+}
+
+/** What the program on pty `id` printed since the last call, without waiting (0.8.0); empty when nothing came. When the
+ * program has ended `is_pty_open` turns false. */
+pub bytes Ctx.pty_read(int id) {
+    bytes out = [];
+    if (id < 0 || id >= registry.ptys.items.size() || !registry.ptys.is_open[id]) {
+        return out;
+    }
+    int rounds = 0;
+    while (rounds < 8) {
+        rounds = rounds + 1;
+        registry.ptys.items[id].master.set_deadline_ns(timer.monotonic_ns() + 20000);
+        match (registry.ptys.items[id].master.read(65536)) {
+            case Ok(bytes data): {
+                if (data.size() == 0) {
+                    registry.ptys.is_open[id] = false;
+                    return out;
+                }
+                out.extend(data);
+            }
+            case Err(io.Error error): {
+                return out;
+            }
+        }
+    }
+    return out;
+}
+
+/// Whether the program on pty `id` is still there (0.8.0).
+pub bool Ctx.is_pty_open(int id) {
+    return id >= 0 && id < registry.ptys.items.size() && registry.ptys.is_open[id];
+}
+
+/// How the program on pty `id` ended: 0 for success, 1 otherwise (0.8.0); call it after `is_pty_open` turned false.
+pub int Ctx.pty_exit_code(int id) {
+    if (id < 0 || id >= registry.ptys.items.size()) {
+        return 1;
+    }
+    match (registry.ptys.items[id].wait()) {
+        case Ok(os.ExitStatus status): {
+            if (status.is_success()) {
+                return 0;
+            }
+            return 1;
+        }
+        case Err(proc.Error error): {
+            return 1;
+        }
+    }
+}
+
+/// Open a new buffer for pane `pane`, titled `title`, in the current window (0.8.0).
+pub void Ctx.pane_open(str pane, str title) {
+    pane_ops.push(PaneOp("open", pane, title: title));
+}
+
+/// Replace the text of pane `pane` and put the cursor at `row`, `column` (0-based; column in characters) (0.8.0).
+pub void Ctx.pane_set(str pane, List<str> lines, int row, int column) {
+    pane_ops.push(PaneOp("set", pane, lines: lines, row: row, column: column));
+}
+
+/// Tell the status line whether keys go to the program of pane `pane` (it shows TERMINAL) (0.8.0).
+pub void Ctx.pane_input(str pane, bool is_on) {
+    pane_ops.push(PaneOp("input", pane, is_on: is_on));
+}
+
+/// Ask for app-rate ticks while a pane has a program running (0.8.0).
+pub void Ctx.pane_busy(bool is_on) {
+    registry.is_pane_busy = is_on;
+}
+
+/// The rows and columns a pane can use: [rows, columns] (0.8.0).
+pub List<int> Ctx.pane_size() {
+    return [registry.pane_rows, registry.pane_columns];
 }
 
 /// The first and last row the last plugin operator (`gh{motion}`, `gH{motion}`) covered; [-1, -1] before any (0.5.0).

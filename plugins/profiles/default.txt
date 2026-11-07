@@ -13,3 +13,4 @@ statusline
 session
 git
 explorer
+terminal

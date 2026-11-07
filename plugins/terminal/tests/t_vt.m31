@@ -1,10 +1,10 @@
 // Unit checks for MED_vt, the terminal pane's screen model.
 
 import tests.MED_check;
-import ui.MED_vt;
+import plugins.terminal.MEDX_terminal_vt;
 
 MED_check.Check check = MED_check.Check();
-MED_vt.Screen screen = MED_vt.Screen();
+MEDX_terminal_vt.Screen screen = MEDX_terminal_vt.Screen();
 screen.feed("hello\r\nworld");
 check.eq_int("two lines", screen.lines.size(), 2);
 check.eq_str("first", screen.lines[0], "hello");
@@ -28,7 +28,7 @@ screen.feed("caf\u{e9} \u{4e16}");
 check.eq_str("utf-8", screen.lines[0], "caf\u{e9} \u{4e16}");
 screen.feed("\r\x1b[3C!");
 check.eq_str("cursor right overwrites", screen.lines[0], "caf! \u{4e16}");
-MED_vt.Screen long_screen = MED_vt.Screen();
+MEDX_terminal_vt.Screen long_screen = MEDX_terminal_vt.Screen();
 for (int index in 0 .. 6000) {
     long_screen.feed("line\r\n");
 }

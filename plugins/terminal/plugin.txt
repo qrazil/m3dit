@@ -1,0 +1,2 @@
+name: terminal
+summary: :terminal, <Space>t, a shell or command on a pty in a buffer

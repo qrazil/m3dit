@@ -6,7 +6,7 @@
  * which are read and dropped. Full-screen programs (editors, pagers, htop)
  * need a real emulator and are out of scope; see DESIGN.md.
  *
- *   MED_vt.Screen screen = MED_vt.Screen();
+ *   MEDX_terminal_vt.Screen screen = MEDX_terminal_vt.Screen();
  *   screen.feed(text)        process printed text
  *   screen.lines             the lines so far (scrollback is capped) */
 
