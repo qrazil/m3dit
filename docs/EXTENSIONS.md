@@ -1,6 +1,6 @@
 # Extending m3
 
-Status: API 0.7.0, experimental (the plugin layer is section 0, what 0.3.0 to 0.7.0 added is sections 0.1 to 0.5; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.8.0, experimental (the plugin layer is section 0, what 0.3.0 to 0.8.0 added is sections 0.1 to 0.6; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
@@ -147,6 +147,21 @@ the store, walks it with `:lnext` / `]l` and shows it in the finder.
 | `Ctx.list_open(name)` | open the list in the finder, with its preview | git |
 
 The calls are recorded in order and applied when the handler returns, as `pick_list` is.
+
+### 0.6 API 0.8.0 (m3 0.29.0): what `terminal` needed
+
+Additive; `0.7` plugins are refused until rebuilt (`Spec` defaults to `0.8`). Two host services, because a plugin may not import `proc`, `os` or `term`.
+
+| addition | what it is | used by |
+|---|---|---|
+| `Ctx.pty_open(argv, rows, columns)` | start a program on a pty; its number, or -1 with the reason in the message line | terminal |
+| `Ctx.pty_write(id, bytes)`, `pty_read(id)`, `is_pty_open(id)`, `pty_exit_code(id)` | send keys; what it printed since the last call (never waits); whether it is still there; how it ended | terminal |
+| `Ctx.environment(name)` | an environment variable of the editor ("" when unset) | terminal |
+| `Registry.did_panes(PaneDriver)` | the plugin that owns the pane buffers: `did_key(ctx, pane, key)` for a Normal-mode key in a pane buffer (true: taken), `did_tick(ctx, ms)` at the app's tick | terminal |
+| `Ctx.pane_open(pane, title)`, `pane_set(pane, lines, row, column)`, `pane_input(pane, is_on)` | open a buffer for a pane; replace its text and cursor; tell the status line whether keys go to the program (TERMINAL) | terminal |
+| `Ctx.pane_busy(is_on)`, `pane_size()` | ask for app-rate ticks while a program runs; the rows and columns a pane can use | terminal |
+
+`:terminal` is the one command name that may start with a lowercase letter (nvim's own).
 
 ## 1. What an extension is
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.29.0
+
+The `terminal` plugin, and extension API 0.8.0. `:terminal` left the core: `Term`, the pty polling, the key forwarding and about 300 lines of `ui/MED_app.m31` and
+`ui/MED_vt.m31` are `plugins/terminal/` (docs/EXTENSIONS.md 0.6). The host gained two services a plugin cannot build for itself, since a plugin may not import
+`proc`: **ptys** (`Ctx.pty_open`, `pty_write`, `pty_read`, `is_pty_open`, `pty_exit_code`) and **panes** (`Ctx.pane_open`, `pane_set`, `pane_input`, `pane_busy`,
+`pane_size` and `Registry.did_panes`). Nothing visible changed: `:terminal [command]`, the TERMINAL mode, `CTRL-\ CTRL-N`, `i a I A` and the exit message are as before.
+
+- A `--no-plugins` build has no `:terminal` (E492); `:PluginDisable terminal` says it is switched off. `ui/MED_vt.m31` moved to `plugins/terminal/MEDX_terminal_vt.m31`.
+- The default profile includes `terminal` (`plugins/profiles/default.txt`).
+- Plugins built for API 0.7 must be rebuilt.
+- Tests: the core_pty scenario `terminal_plugin`, the e2e scenario `terminal_pane`, `plugins/terminal/tests/t_vt.m31`; the golden screen `plugins_list` was re-recorded.
 ## 0.28.1
 
 Fixes 0.28.0, whose CI run failed on Linux x86-64 (`screen_pty` `notify_toast`: the raw byte stream had about 340 more bytes than the golden).
