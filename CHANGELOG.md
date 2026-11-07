@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.28.1
+
+Fixes 0.28.0, whose CI run failed on Linux x86-64 (`screen_pty` `notify_toast`: the raw byte stream had about 340 more bytes than the golden).
+
+- **The clipboard no longer starts a process per keystroke** (behaviour). With a clipboard tool present, 0.28.0 read the clipboard whenever a batch of keys held `p`, `P`, `"`, `+`, `*`, CTRL-R or `:`,
+  also when those were letters typed in the command line or in Insert mode (`:Notify ... space ...` has a `p`), and wrote it after every key that yanked or deleted. Each cost a `sh` process
+  and extra frames. Now a read happens only for keys that can read a register (`p P " + *` in Normal and Visual mode up to a `:` `/` `?`, CTRL-R anywhere), and a yank or delete is handed to the tool
+  (or sent as OSC 52) on the next timer tick, or before a read, a paste or the exit, so the order is kept.
+- **The pty tests no longer depend on the runner's clipboard.** `tests/e2e.py` (and so `core_pty.py`, `ext_pty.py` ...) and `bench/uxperf.py` (and so `screen_pty.py`, `anim_pty.py`) give every
+  session a fake clipboard, a file in a temporary directory, and drop `DISPLAY` and `WAYLAND_DISPLAY`; a scenario that wants another setup passes its own `M3_CLIP_*`. `screen_pty`,
+  `core_pty` and `anim_pty` pass under `env -i` with no `DISPLAY`, no `WAYLAND_DISPLAY` and no xclip, wl-copy, xsel or pbcopy on `PATH`.
+- Migration: none.
+
 ## 0.28.0
 
 Two owner decisions.
