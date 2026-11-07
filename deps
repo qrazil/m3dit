@@ -4,5 +4,5 @@ version 0.26.0
 # tui v0.16.1
 tui https://github.com/qrazil/tui 29476c0bc5d666f84f11c5896da1e9850a93d686
 syntax https://github.com/qrazil/syntax 7107aac4c7d021378e34b4089773b7b1f8a9b53d
-# m31git v0.30.1
-m31git https://github.com/qrazil/m31git 7c6da6f129c5e325ad5131b859fa56c6e573e529
+# m31git 0.37.5 (built on m31 v0.14.2)
+m31git https://github.com/qrazil/m31git 9124433a4d86212a40307894dc328ac3ece6893a
