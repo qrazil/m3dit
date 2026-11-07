@@ -52,8 +52,9 @@ pub type Registers {
      * and "* are then a register of their own, and 'clipboard' can make the
      * unnamed register use it. */
     pub bool has_clipboard = false;
-    /// The 'clipboard' option: "unnamed" and "unnamedplus" among its items.
-    pub str clip_mode = "";
+    /** The 'clipboard' option: "unnamed" and "unnamedplus" among its items. It is "unnamedplus" unless set otherwise: yanks and
+     * deletes go to the system clipboard (to the terminal by OSC 52 when there is no tool, else they stay in the register). */
+    pub str clip_mode = "unnamedplus";
     /// A write went to the clipboard register that the provider has not seen.
     pub bool is_clip_dirty = false;
     str clip_seen = "";
@@ -214,13 +215,11 @@ pub void Registers.yank(str name, Reg reg) {
     }
     store(slot, reg, is_append(name));
     previous = slot;
-    if (has_clipboard) {
-        if (slot == "+") {
-            is_clip_dirty = true;
-        } else if (name == "" && is_clip_unnamed()) {
-            slots.set("+", reg);
-            is_clip_dirty = true;
-        }
+    if (slot == "+") {
+        is_clip_dirty = true;
+    } else if (name == "" && is_clip_unnamed()) {
+        slots.set("+", reg);
+        is_clip_dirty = true;
     }
 }
 
@@ -263,13 +262,11 @@ pub void Registers.delete(str name, Reg reg, bool is_shift, bool is_small) {
         store("-", reg, false);
         previous = "-";
     }
-    if (has_clipboard) {
-        if (name != "" && slot_of(name) == "+") {
-            is_clip_dirty = true;
-        } else if (name == "" && is_clip_unnamed()) {
-            slots.set("+", reg);
-            is_clip_dirty = true;
-        }
+    if (name != "" && slot_of(name) == "+") {
+        is_clip_dirty = true;
+    } else if (name == "" && is_clip_unnamed()) {
+        slots.set("+", reg);
+        is_clip_dirty = true;
     }
 }
 

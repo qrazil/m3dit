@@ -17,3 +17,4 @@ ex-removed-commands	`:lgrep` `:first` `:last` `:rewind` `:wnext` `:tselect` `:tn
 opt-removed	about 170 options are accepted and stored although nothing reads them	refused: `E518: Unknown option: NAME (reason)`	a `:set` that does nothing hides that it does nothing; the reasons are in engine/MED_removed.m31	doc	
 ex-mode	`gQ`, `-e`, `-E`, `:visual` Ex mode	not built; `gQ` and `:visual` are refused, `-e` / `-E` are refused by the command line	the command line `:` is the Ex line	doc	
 opt-split-defaults	'splitbelow' and 'splitright' are off	both are on	new windows open below and right, what nearly everyone sets; the window oracle runs nvim with both on	doc	
+clipboard-default	'clipboard' is empty: the unnamed register is internal	'clipboard' is `unnamedplus`: yanks and deletes also go to the system clipboard (or OSC 52), and `p` reads it	yy and p should work across programs; the oracle has no clipboard provider, so its cases cannot see it	doc	

@@ -2584,6 +2584,11 @@ Step cmd_set(MED_editor.Editor editor, Cmd cmd) {
             }
             continue;
         }
+        if (spec.name == "clipboard" && is_negate && operator == "" && !is_query) {
+            // `:set noclipboard`: the unnamed register stays inside the editor
+            option_store(editor, spec, "");
+            continue;
+        }
         if (is_negate || is_invert) {
             return fail(editor, "E474: Invalid argument: " + token);
         }

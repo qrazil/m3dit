@@ -31,6 +31,10 @@ LANGC=${LANGC:-./m31c}
 WORK=$(mktemp -d)
 # unit programs that need scratch files (t_theme) put them here, not in /tmp
 export M3_TEST_TMP=$WORK
+# the system clipboard is the unnamed register by default (0.28.0): the tests use a file as the clipboard, so that no run
+# touches the real one (pbcopy / xclip / wl-copy) and every machine behaves the same
+export M3_CLIP_COPY="tee $WORK/clipboard"
+export M3_CLIP_PASTE="cat $WORK/clipboard"
 trap 'rm -rf "$WORK"' EXIT
 pass=0
 fail=0

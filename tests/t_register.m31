@@ -24,4 +24,24 @@ check.eq_int("append line count", regs.get("a").or(MED_register.Reg([""], MED_re
 check.eq_int("append line kind", regs.get("a").or(MED_register.Reg([""], MED_register.CHAR)).kind, MED_register.LINE);
 regs.yank("_", MED_register.Reg(["gone"], MED_register.CHAR));
 check.eq_str("black hole leaves previous", regs.get("").or(MED_register.Reg([""], MED_register.CHAR)).lines[0], "foobar");
+// the system clipboard is the unnamed register by default
+MED_register.Registers clip = MED_register.Registers();
+clip.has_clipboard = true;
+check.ok("clipboard=unnamedplus is the default", clip.clip_mode == "unnamedplus");
+clip.yank("", MED_register.Reg(["shared"], MED_register.CHAR));
+check.ok("a yank marks the clipboard register for the provider", clip.is_clip_dirty);
+check.eq_str("and puts the text there", clip.clip_text(), "shared");
+clip.did_flush_clipboard();
+clip.delete("", MED_register.Reg(["gone"], MED_register.CHAR), false, true);
+check.ok("a delete does too", clip.is_clip_dirty && clip.clip_text() == "gone");
+clip.did_flush_clipboard();
+clip.yank("a", MED_register.Reg(["named"], MED_register.CHAR));
+check.ok("a named register stays inside the editor", !clip.is_clip_dirty);
+clip.clip_mode = "";
+clip.yank("", MED_register.Reg(["private"], MED_register.CHAR));
+check.ok("noclipboard: the unnamed register does not reach the clipboard", !clip.is_clip_dirty && clip.clip_text() == "gone");
+MED_register.Registers bare = MED_register.Registers();
+bare.yank("", MED_register.Reg(["osc"], MED_register.CHAR));
+check.ok("without a clipboard tool the write is still marked (the front end sends OSC 52)", bare.is_clip_dirty);
+check.eq_str("and the unnamed register holds the text", bare.get("").or(MED_register.Reg([""], MED_register.CHAR)).lines[0], "osc");
 check.finish("t_register");

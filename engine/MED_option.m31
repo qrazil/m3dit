@@ -53,7 +53,7 @@ const List<str> SPECS = [
     "gdefault:gd:bool:false",
     "fileformat:ff:str:unix",
     "fileencoding:fenc:str:utf-8",
-    "clipboard:cb:str:",
+    "clipboard:cb:str:unnamedplus",
     "backspace:bs:str:indent,eol,start",
     "formatoptions:fo:str:tcqj",
     "comments:com:str:s1:/*,mb:*,ex:*/,://,b:#,:%,:XCOMM,n:>,fb:-,fb:•",

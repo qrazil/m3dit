@@ -213,7 +213,7 @@ def set_query_toggle_reset(binary, root):
 def osc52_without_clipboard_tool(binary, root):
     empty = os.path.join(root, "nobin")
     os.makedirs(empty)
-    s = Session(binary, root, ["a.txt"], env={"PATH": empty})
+    s = Session(binary, root, ["a.txt"], env={"PATH": empty, "M3_CLIP_COPY": "", "M3_CLIP_PASTE": ""})
     raw = []
     original = s.stream.feed
     s.stream.feed = lambda data: (raw.append(data), original(data))[1]
@@ -224,10 +224,14 @@ def osc52_without_clipboard_tool(binary, root):
         assert b"\x1b]52;c;b25lCg==" in got, "no OSC 52 for 'one\\n': %r" % got[-300:]
         s.send('"+p', settle=0.3)
         assert s.text().count("one") >= 2, s.text()
+        # the default 'clipboard' makes a plain yank reach the terminal too
+        del raw[:]
+        s.send("jyy", settle=0.6)
+        assert b"\x1b]52;c;" in b"".join(raw), "a plain yank sends no OSC 52: %r" % b"".join(raw)[-200:]
     finally:
         s.close()
     # M3_NO_OSC52=1: nothing is written
-    s = Session(binary, root, ["a.txt"], env={"PATH": empty, "M3_NO_OSC52": "1"})
+    s = Session(binary, root, ["a.txt"], env={"PATH": empty, "M3_NO_OSC52": "1", "M3_CLIP_COPY": "", "M3_CLIP_PASTE": ""})
     raw = []
     original = s.stream.feed
     s.stream.feed = lambda data: (raw.append(data), original(data))[1]
@@ -235,6 +239,35 @@ def osc52_without_clipboard_tool(binary, root):
         assert s.wait_for("one"), s.text()
         s.send('"+yy', settle=0.6)
         assert b"]52;" not in b"".join(raw)
+    finally:
+        s.close()
+
+
+@scenario
+def clipboard_is_the_default_register(binary, root):
+    clip = os.path.join(root, "fake-clipboard")
+    env = {"M3_CLIP_COPY": "tee " + clip, "M3_CLIP_PASTE": "cat " + clip}
+    with open(clip, "w") as handle:
+        handle.write("")
+    s = Session(binary, root, ["a.txt"], env=env)
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send("yy", settle=0.6)
+        with open(clip) as handle:
+            assert handle.read() == "one\n", "yy did not reach the clipboard"
+        with open(clip, "w") as handle:
+            handle.write("outside\n")
+        s.send("p", settle=0.5)
+        assert "outside" in s.text(), "p did not paste from the clipboard:\n" + s.text()
+        s.send("kdd", settle=0.5)
+        with open(clip) as handle:
+            assert handle.read() == "one\n", "dd did not reach the clipboard"
+        s.send(":set noclipboard\r", settle=0.4)
+        s.send("yy", settle=0.5)
+        with open(clip, "w") as handle:
+            handle.write("elsewhere\n")
+        s.send("p", settle=0.5)
+        assert "elsewhere" not in s.text(), "noclipboard still pasted from the clipboard:\n" + s.text()
     finally:
         s.close()
 

@@ -155,6 +155,31 @@ match (MED_app.open_all([base + "-a.txt"])) {
         print("cannot open: " + message);
     }
 }
+// surround and autopairs are core features, on by default, each with its switch
+write_file(base + "-p.txt", "word\n");
+match (MED_app.open_all([base + "-p.txt"])) {
+    case Ok(MED_app.App app): {
+        type_text(app, "A (\x1b");
+        check.eq_str("autopairs closes a bracket by default", app.editor.buffer.dump(), "word ()\n");
+        type_text(app, "u");
+        check.eq_str("and one undo takes the pair out", app.editor.buffer.dump(), "word\n");
+        type_text(app, ":set noautopairs\r");
+        type_text(app, "A (\x1b");
+        check.eq_str(":set noautopairs types only the bracket", app.editor.buffer.dump(), "word (\n");
+        type_text(app, "u");
+        type_text(app, "ysiw)");
+        check.eq_str("surround wraps a word by default", app.editor.buffer.dump(), "(word)\n");
+        type_text(app, "ds)");
+        check.eq_str("ds) takes it off", app.editor.buffer.dump(), "word\n");
+        type_text(app, "ysiw)");
+        type_text(app, ":set nosurround\r");
+        type_text(app, "ds)");
+        check.eq_str(":set nosurround turns the keys off", app.editor.buffer.dump(), "(word)\n");
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
 // several tag matches are a list
 write_file(base + "-dup.c", "int dup(void)\n{\n}\nint dup2(void)\n{\n}\n");
 write_file(base + "-tags2", "dup\t" + base + "-dup.c\t1;\"\tf\ndup\t" + base + "-dup.c\t4;\"\tf\n");

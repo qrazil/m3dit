@@ -3924,19 +3924,18 @@ void App.refresh_clipboard(List<int> keys) {
     }
 }
 
-/// Hand a changed `+` register to the system clipboard.
+/** Hand a changed `+` register to the system clipboard; when there is no tool, or it fails (an ssh session, a bare container),
+ * ask the terminal with OSC 52 (`M3_NO_OSC52=1` turns that off, and a text over 100000 bytes is not sent); the register
+ * then only holds the text. Nothing here reports an error. */
 void App.flush_clipboard() {
-    if (clipboard.is_present && editor.regs.is_clip_dirty) {
-        MED_clip.did_copy(clipboard, editor.regs.clip_text());
-        editor.regs.did_flush_clipboard();
-    } else if (!clipboard.is_present && editor.regs.is_clip_dirty) {
-        /* no tool to hand the text to (an ssh session, a bare container): ask the terminal, OSC 52
-         * (M3_NO_OSC52=1 turns that off; the `+` register then only holds the text) */
-        if (os.env("M3_NO_OSC52").or("") == "") {
-            motion.loop.copy(editor.regs.clip_text());
-        }
-        editor.regs.did_flush_clipboard();
+    if (!editor.regs.is_clip_dirty) {
+        return;
     }
+    bool did_hand = clipboard.is_present && MED_clip.did_copy(clipboard, editor.regs.clip_text());
+    if (!did_hand && os.env("M3_NO_OSC52").or("") == "" && editor.regs.clip_text().size() <= 100000) {
+        motion.loop.copy(editor.regs.clip_text());
+    }
+    editor.regs.did_flush_clipboard();
 }
 
 /// Whether `event` is a bracketed paste arriving in Insert or Replace mode.
