@@ -34,6 +34,9 @@ import argparse
 import fcntl
 import json
 import os
+import shutil
+import atexit
+import itertools
 import pty
 import random
 import re
@@ -84,6 +87,12 @@ def percentile(values, q):
     return ordered[index]
 
 
+
+# where the sessions' fake system clipboards live
+CLIP_DIR = tempfile.mkdtemp(prefix="m3clip-")
+CLIP_COUNTER = itertools.count()
+atexit.register(shutil.rmtree, CLIP_DIR, True)
+
 class Frames:
     """Output grouped into frames, with the time each frame ended."""
 
@@ -106,6 +115,13 @@ class Editor:
                     HOME=cwd, XDG_CONFIG_HOME=os.path.join(cwd, ".config"),
                     XDG_STATE_HOME=os.path.join(cwd, ".state"))
         full.pop("M3_KEYMAP", None)
+        # the system clipboard is a file in a temporary directory (not the project, whose listings the screens show), whatever the runner has installed (a runner with xclip, pbcopy or
+        # nothing at all must give the same bytes); a test that wants another setup passes env={"M3_CLIP_COPY": ...}
+        clip = os.path.join(CLIP_DIR, "clipboard-%d-%d" % (os.getpid(), next(CLIP_COUNTER)))
+        full["M3_CLIP_COPY"] = "cat > " + clip
+        full["M3_CLIP_PASTE"] = "cat " + clip
+        full.pop("DISPLAY", None)
+        full.pop("WAYLAND_DISPLAY", None)
         full.pop("M3_NO_ANIM", None)
         if env:
             full.update(env)
