@@ -58,8 +58,8 @@ switched off at run time with `:PluginDisable`; migrate later, when wanted; none
 | session | cursor position, layout and buffers restored | **done, 0.19.0** (`plugins/session`: positions, recent, visits; `:Session` stays core) |
 | terminal | `:terminal` and `<Space>t` | later (needs slice D) |
 | notify (new) | toasts over the message ring | **done, 0.18.0** (`plugins/notify`; the ring stays core) |
-| surround | `ys ds cs`, Visual `S` | later, last: it is entangled with the engine and goes only with the oracle green |
-| autopairs | insert-mode pairing | later, last: same |
+| surround | `ys ds cs`, Visual `S` | **stays in the core** (owner decision, 0.28.0): on by default, `:set nosurround` turns it off |
+| autopairs | insert-mode pairing | **stays in the core** (owner decision, 0.28.0): on by default, `:set noautopairs` turns it off |
 
 **OPTIONAL plugins** (compiled into the `full` profile, not into `default`): `colors` (colour-literal preview, off by default),
 `icons`, `trouble`, `indentscope`, and label jump (`jump`, `<Space>j`) until the owner makes it a default.
@@ -113,8 +113,8 @@ is a compiled plugin, "in core code" while its extraction is still open), **OPT-
 | Move a line or selection (Alt keys) | DEFAULT PLUGIN `move` | done |
 | File tree sidebar (`<Space>e`, `:Neotree`) | DEFAULT PLUGIN `explorer` (0.24.0, API 0.6.0) | done; miller columns (`<Space>E`) planned |
 | Terminal (`:terminal`, `<Space>t`, `:!` filters) | DEFAULT PLUGIN `terminal`, in core code (extraction open) | done as code, plugin form missing |
-| Surround (`ys ds cs S`) | DEFAULT PLUGIN `surround`, in core code (extraction open) | partial (find / highlight keys missing) |
-| Autopairs | DEFAULT PLUGIN `autopairs`, in core code (extraction open) | done as code, plugin form missing |
+| Surround (`ys ds cs S`) | CORE (owner decision 0.28.0: not a plugin; `'surround'` switches it off) | partial (find / highlight keys missing) |
+| Autopairs | CORE (owner decision 0.28.0: not a plugin; `'autopairs'` switches it off) | done |
 | Comment operator (`gc`) | CORE (an engine feature checked against nvim) | done |
 | Label jump (`<Space>j`) | OPT-IN PLUGIN `jump` (in core code today, on by default) | done as code |
 | Indent guides | DEFAULT PLUGIN `guides` (in core code, a renderer feature) | done |

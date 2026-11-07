@@ -151,8 +151,10 @@ More
   the finder with a commit preview (`Enter` on a blame row jumps to the line), `:Git show [REV]` and `:Git diff
   [working|index|head]` open scratch buffers. `:Hunk stage|reset|undo|preview` act on the hunk under the cursor
   (`undo` unstages it); `ih` / `ah` select the hunk (`ah` adds the blank rows after it), as in `dih`, `yah`, `vih`.
-- System clipboard: `"+` and `"*` use pbcopy / pbpaste (macOS), wl-clipboard, xclip or xsel; `:set clipboard=unnamedplus` makes
-  every yank and put use it.
+- System clipboard (the default since 0.28.0): `'clipboard'` is `unnamedplus`, so `yy`, `dd` and `p` use the system clipboard
+  (pbcopy / pbpaste on macOS, wl-clipboard, xclip or xsel; `M3_CLIP_COPY` and `M3_CLIP_PASTE` name other commands). With no tool, or when it
+  fails (ssh, a bare container), writes go to the terminal as OSC 52 (`M3_NO_OSC52=1` turns that off) and the unnamed register holds the text:
+  nothing ever reports an error. `:set noclipboard` (or `set noclipboard` in the keymap file) keeps the unnamed register inside the editor.
 - Windows: `:resize`, `:vertical resize`, `<C-w>` `+ - < > _ | =` `H J K L` `r R x T`; closing a modified buffer's last window is E37.
 - Language servers: diagnostics, hover (`K`), definition, references, rename, code actions, format, completion,
   signature help (`:Lsp signature`, `<C-s>` in Insert mode, `<Space>ck`, and after the server's trigger characters),

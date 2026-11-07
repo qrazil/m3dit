@@ -167,6 +167,7 @@ Generated from `tests/oracles/divergences.tsv` by `python3 scripts/divergences.p
 | `opt-removed` | about 170 options are accepted and stored although nothing reads them | refused: `E518: Unknown option: NAME (reason)` | a `:set` that does nothing hides that it does nothing; the reasons are in engine/MED_removed.m31 | no case affected |
 | `ex-mode` | `gQ`, `-e`, `-E`, `:visual` Ex mode | not built; `gQ` and `:visual` are refused, `-e` / `-E` are refused by the command line | the command line `:` is the Ex line | no case affected |
 | `opt-split-defaults` | 'splitbelow' and 'splitright' are off | both are on | new windows open below and right, what nearly everyone sets; the window oracle runs nvim with both on | no case affected |
+| `clipboard-default` | 'clipboard' is empty: the unnamed register is internal | 'clipboard' is `unnamedplus`: yanks and deletes also go to the system clipboard (or OSC 52), and `p` reads it | yy and p should work across programs; the oracle has no clipboard provider, so its cases cannot see it | no case affected |
 
 <!-- divergences:end -->
 
@@ -179,6 +180,7 @@ What to drop or change next is proposed, with a verdict and a migration for each
 | Recovery files instead of swap files | A swap file litters the project and is read by nobody; a state-directory copy written only when the buffer is modified and the user is quiet costs nothing while typing and answers the one question (what did I lose?) |
 | Non-UTF-8 text opens as Latin-1 | It is the last entry of nvim's default `fileencodings` and the only single-byte encoding that round-trips every byte |
 | `m3 DIR` opens the listing | nvim does (netrw); exiting 1 was the worse behaviour |
+| The system clipboard is the unnamed register by default (0.28.0) | owner decision: `yy` and `p` should just work between programs; `:set noclipboard` turns it off; no tool or a failing one falls back to OSC 52, then to the internal register, and never reports an error |
 | OSC 52 is on when no clipboard tool exists | the terminal decides; `M3_NO_OSC52=1` turns it off; reading the clipboard through OSC 52 is never done |
 | One list store, no per-window location list | m3 produces lists (picker CTRL-Q, `:grep`, LSP, hunks, plugins) and a second store would hold nothing the first cannot; the `:l*` commands are the generic list's (0.25.0) |
 | User commands may be abbreviated when the prefix is unique, as in Vim | the corpus compares it |
