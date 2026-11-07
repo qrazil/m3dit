@@ -84,7 +84,7 @@ fi
 # builds with the fixture plugins
 if LANGC="$LANGC" bash scripts/build.sh --plugin-dir "$fixtures" --plugins hello -o "$WORK/m3_hello" >"$WORK/m3_hello.log" 2>&1 \
     && LANGC="$LANGC" bash scripts/build.sh --plugin-dir "$fixtures" --plugins greeter -o "$WORK/m3_greeter" >"$WORK/m3_greeter.log" 2>&1; then
-    if out=$("$WORK/m3_greeter" --version 2>&1) && [ "$out" = "m3 $(grep '^version ' deps | awk '{print $2}') (api 0.7.0; plugins: hello greeter)" ]; then
+    if out=$("$WORK/m3_greeter" --version 2>&1) && [ "$out" = "m3 $(grep '^version ' deps | awk '{print $2}') (api 0.8.0; plugins: hello greeter)" ]; then
         note "m3 --version names the api and the plugins: $out"
     else
         bad "m3 --version with plugins" "$out"

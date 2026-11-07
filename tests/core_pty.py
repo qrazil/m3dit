@@ -272,6 +272,24 @@ def clipboard_is_the_default_register(binary, root):
         s.close()
 
 
+@scenario
+def terminal_plugin(binary, root):
+    s = Session(binary, root, ["a.txt"], env={"SHELL": "/bin/sh", "PS1": "$ "})
+    try:
+        assert s.wait_for("one"), s.text()
+        s.send(":terminal printf 'from_%s\\n' plugin\r", settle=0.8)
+        assert s.wait_for("from_plugin"), s.text()
+        assert s.wait_for("Process exited 0"), s.text()
+        s.send("\x1b", settle=0.2)
+        s.send(":bprevious\r", settle=0.4)
+        assert s.wait_for("one"), s.text()
+        s.send(":PluginDisable terminal\r", settle=0.5)
+        s.send(":terminal\r", settle=0.4)
+        assert "switched off" in s.text(), "a disabled terminal plugin says so:\n" + s.text()
+    finally:
+        s.close()
+
+
 def cpu_ticks(pid):
     """User plus system clock ticks of a process, or None where there is no /proc (macOS)."""
     try:

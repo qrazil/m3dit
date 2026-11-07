@@ -1328,7 +1328,7 @@
     "  on   terminal  :terminal, <Space>t, :! :r! filters",
     "  on   session  remember the cursor position of each file",
     "  on   lsp  language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13)",
-    "Compiled plugins (api 0.7.0):",
+    "Compiled plugins (api 0.8.0):",
     "  lazy  notify  toast notifications in the top right corner, and :Notifications history",
     "Press ENTER or type command to continue",
     " NORMAL  [No Name]                                                                        1:1  100%",
