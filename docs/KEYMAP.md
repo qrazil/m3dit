@@ -512,6 +512,6 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | jump | label jump: <Space>j, then a character, then a label |
 | guides | indent guides |
 | todo | highlight TODO FIXME HACK NOTE WARN |
-| terminal | :terminal, <Space>t, :! :r! filters |
+| terminal | :terminal, <Space>t, a shell or command on a pty in a buffer |
 | session | remember the cursor position of each file |
 | lsp | language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13) |
