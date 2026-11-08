@@ -326,7 +326,7 @@ def quickfix_commands(binary, root):
     s = Session(binary, root, ["a.txt"])
     try:
         assert s.wait_for("one"), s.text()
-        s.send(" sb", settle=0.8)
+        s.send(" fg", settle=0.8)
         assert s.wait_for("Lines"), s.text()
         s.send("\x11", settle=0.6)  # CTRL-Q: every entry to the list
         s.send("\x1b", settle=0.4)

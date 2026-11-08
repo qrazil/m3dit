@@ -26,10 +26,6 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 
 | keys | mode | action | plugin | source |
 |---|---|---|---|---|
-| `<Space><Space>` | Normal | Find files | finder | m3 |
-| `<Space>,` | Normal | Switch buffer | finder | m3 |
-| `<Space>/` | Normal | Live grep (project) | finder | m3 |
-| `<Space>:` | Normal | Commands | finder | m3 |
 | `<Space>?` | Normal | All keys | core | m3 |
 | `<Space>-` | Normal | Split below | core | m3 |
 | `<Space>\|` | Normal | Split right | core | m3 |
@@ -41,40 +37,28 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>fr` | Normal | Recent files | finder | m3 |
 | `<Space>fb` | Normal | Buffers | finder | m3 |
 | `<Space>fg` | Normal | Live grep (this buffer) | finder | m3 |
-| `<Space>fG` | Normal | Live grep (project) | finder | m3 |
 | `<Space>fe` | Normal | File explorer (picker) | finder | m3 |
 | `<Space>fn` | Normal | New file | core | m3 |
 | `<Space>s` | Normal | +search | finder | m3 |
 | `<Space>sg` | Normal | Live grep (project) | finder | m3 |
 | `<Space>sw` | Normal | Grep the word under the cursor | finder | m3 |
-| `<Space>sb` | Normal | Lines of this buffer | finder | m3 |
-| `<Space>sh` | Normal | Help: all keys | finder | m3 |
-| `<Space>sk` | Normal | Keymaps | finder | m3 |
-| `<Space>sC` | Normal | Commands | finder | m3 |
 | `<Space>so` | Normal | Options | finder | m3 |
 | `<Space>sm` | Normal | Marks | finder | m3 |
-| `<Space>sd` | Normal | Diagnostics | finder | m3 |
 | `<Space>ss` | Normal | Symbols in this file | finder | m3 |
 | `<Space>sq` | Normal | Generic list | finder | m3 |
+| `<Space>sC` | Normal | Commands | finder | m3 |
 | `<Space>sp` | Normal | Plugins | finder | m3 |
 | `<Space>sn` | Normal | Clear search highlight | core | m3 |
 | `<Space>b` | Normal | +buffers | core | m3 |
 | `<Space>bb` | Normal | Alternate buffer | core | m3 |
-| `<Space>bn` | Normal | Next buffer | core | m3 |
-| `<Space>bp` | Normal | Previous buffer | core | m3 |
 | `<Space>bd` | Normal | Delete buffer | core | m3 |
-| `<Space>bl` | Normal | List buffers | core | m3 |
 | `<Space>br` | Normal | Reload the file from disk | core | m3 |
 | `<Space>w` | Normal | +windows | core | m3 |
-| `<Space>ws` | Normal | Split below | core | m3 |
-| `<Space>wv` | Normal | Split right | core | m3 |
 | `<Space>wd` | Normal | Close window | core | m3 |
 | `<Space>wo` | Normal | Only this window | core | m3 |
 | `<Space>w=` | Normal | Equalize windows | core | m3 |
 | `<Space>g` | Normal | +git | finder | m3 |
 | `<Space>gg` | Normal | Changed files | finder | m3 |
-| `<Space>gs` | Normal | Status (changed files) | finder | m3 |
-| `<Space>gf` | Normal | Modified git files | finder | m3 |
 | `<Space>gb` | Normal | Branches (checkout) | finder | m3 |
 | `<Space>gl` | Normal | Commit log | finder | m3 |
 | `<Space>gn` | Normal | New branch (type the name) | finder | m3 |
@@ -84,19 +68,10 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>ca` | Normal | Code action | lsp | m3 |
 | `<Space>cf` | Normal | Format buffer | lsp | m3 |
 | `<Space>cd` | Normal | Show diagnostics at the cursor | lsp | m3 |
-| `<Space>cs` | Normal | Symbols | finder | m3 |
 | `<Space>D` | Normal | +diagnostics | lsp | m3 |
 | `<Space>Dd` | Normal | Diagnostics (workspace) | lsp | m3 |
 | `<Space>Db` | Normal | Diagnostics of this buffer | lsp | m3 |
-| `<Space>Dl` | Normal | Show diagnostics at the cursor | lsp | m3 |
-| `<Space>Ds` | Normal | Symbols in this file | finder | m3 |
-| `<Space>x` | Normal | +lists | lsp | m3 |
-| `<Space>xx` | Normal | Diagnostics | lsp | m3 |
-| `<Space>xX` | Normal | Diagnostics of this buffer | lsp | m3 |
-| `<Space>xQ` | Normal | Generic list | finder | m3 |
-| `<Space>xL` | Normal | Generic list | finder | m3 |
-| `<Space>t` | Normal | +terminal | terminal | m3 |
-| `<Space>tt` | Normal | Terminal | terminal | m3 |
+| `<Space>t` | Normal | Terminal | terminal | m3 |
 | `<Space>u` | Normal | +ui toggles | core | m3 |
 | `<Space>uh` | Normal | Toggle inlay hints | lsp | m3 |
 | `<Space>uC` | Normal | Colour schemes (themes) | finder | m3 |
@@ -204,7 +179,6 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>fw` | Normal | Grep the word under the cursor | finder | m3 |
 | `<Space>fh` | Normal | Help: all keys | finder | m3 |
 | `<Space>fc` | Normal | Commands | finder | m3 |
-| `<Space>fk` | Normal | Keymaps | finder | m3 |
 | `<Space>fo` | Normal | Options | finder | m3 |
 | `<Space>fm` | Normal | Marks | finder | m3 |
 | `<Space>fx` | Normal | Diagnostics | finder | m3 |

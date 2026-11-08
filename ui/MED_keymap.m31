@@ -70,10 +70,6 @@ void tree(List<Binding> rows, str plugin, str keys, str label, str action) {
  * is not listed). Plugin keys (harpoon, git hunks, todo) come from the plugins' `MapSpec`s. */
 List<Binding> default_rows() {
     List<Binding> rows = [];
-    tree(rows, "finder", " ", "Find files", "picker:files");
-    tree(rows, "finder", ",", "Switch buffer", "picker:buffers");
-    tree(rows, "finder", "/", "Live grep (project)", "picker:grep");
-    tree(rows, "finder", ":", "Commands", "picker:commands");
     tree(rows, "core", "?", "All keys", "picker:help");
     tree(rows, "core", "-", "Split below", "ex:split");
     tree(rows, "core", "|", "Split right", "ex:vsplit");
@@ -86,44 +82,32 @@ List<Binding> default_rows() {
     tree(rows, "finder", "fr", "Recent files", "picker:recent");
     tree(rows, "finder", "fb", "Buffers", "picker:buffers");
     tree(rows, "finder", "fg", "Live grep (this buffer)", "picker:lines");
-    tree(rows, "finder", "fG", "Live grep (project)", "picker:grep");
     tree(rows, "finder", "fe", "File explorer (picker)", "picker:explore");
     tree(rows, "core", "fn", "New file", "ex:enew");
     // s: search
     tree(rows, "finder", "s", "+search", "");
     tree(rows, "finder", "sg", "Live grep (project)", "picker:grep");
     tree(rows, "finder", "sw", "Grep the word under the cursor", "picker:word");
-    tree(rows, "finder", "sb", "Lines of this buffer", "picker:lines");
-    tree(rows, "finder", "sh", "Help: all keys", "picker:help");
-    tree(rows, "finder", "sk", "Keymaps", "picker:help");
-    tree(rows, "finder", "sC", "Commands", "picker:commands");
     tree(rows, "finder", "so", "Options", "picker:options");
     tree(rows, "finder", "sm", "Marks", "picker:marks");
-    tree(rows, "finder", "sd", "Diagnostics", "picker:diagnostics");
     tree(rows, "finder", "ss", "Symbols in this file", "picker:symbols");
     tree(rows, "finder", "sq", "Generic list", "picker:list");
+    tree(rows, "finder", "sC", "Commands", "picker:commands");
     tree(rows, "finder", "sp", "Plugins", "picker:plugins");
     tree(rows, "core", "sn", "Clear search highlight", "ex:nohlsearch");
     // b: buffers
     tree(rows, "core", "b", "+buffers", "");
     tree(rows, "core", "bb", "Alternate buffer", "ex:buffer #");
-    tree(rows, "core", "bn", "Next buffer", "ex:bnext");
-    tree(rows, "core", "bp", "Previous buffer", "ex:bprevious");
     tree(rows, "core", "bd", "Delete buffer", "ex:bdelete");
-    tree(rows, "core", "bl", "List buffers", "ex:ls");
     tree(rows, "core", "br", "Reload the file from disk", "ex:edit!");
     // w: windows
     tree(rows, "core", "w", "+windows", "");
-    tree(rows, "core", "ws", "Split below", "ex:split");
-    tree(rows, "core", "wv", "Split right", "ex:vsplit");
     tree(rows, "core", "wd", "Close window", "ex:close");
     tree(rows, "core", "wo", "Only this window", "ex:only");
     tree(rows, "core", "w=", "Equalize windows", "ex:wincmd =");
     // g: git (the hunk and log keys come from the git plugin)
     tree(rows, "finder", "g", "+git", "");
     tree(rows, "finder", "gg", "Changed files", "picker:changed");
-    tree(rows, "finder", "gs", "Status (changed files)", "picker:changed");
-    tree(rows, "finder", "gf", "Modified git files", "picker:changed");
     tree(rows, "finder", "gb", "Branches (checkout)", "picker:branches");
     tree(rows, "finder", "gl", "Commit log", "picker:commits");
     tree(rows, "finder", "gn", "New branch (type the name)", "keys::!git checkout -b ");
@@ -134,22 +118,12 @@ List<Binding> default_rows() {
     tree(rows, "lsp", "ca", "Code action", "app:lsp_action");
     tree(rows, "lsp", "cf", "Format buffer", "app:lsp_format");
     tree(rows, "lsp", "cd", "Show diagnostics at the cursor", "app:diag_float");
-    tree(rows, "finder", "cs", "Symbols", "picker:symbols");
     // D: diagnostics (d is reserved for debug)
     tree(rows, "lsp", "D", "+diagnostics", "");
     tree(rows, "lsp", "Dd", "Diagnostics (workspace)", "picker:diagnostics");
     tree(rows, "lsp", "Db", "Diagnostics of this buffer", "picker:buffer_diagnostics");
-    tree(rows, "lsp", "Dl", "Show diagnostics at the cursor", "app:diag_float");
-    tree(rows, "finder", "Ds", "Symbols in this file", "picker:symbols");
-    // x: lists
-    tree(rows, "lsp", "x", "+lists", "");
-    tree(rows, "lsp", "xx", "Diagnostics", "picker:diagnostics");
-    tree(rows, "lsp", "xX", "Diagnostics of this buffer", "picker:buffer_diagnostics");
-    tree(rows, "finder", "xQ", "Generic list", "picker:list");
-    tree(rows, "finder", "xL", "Generic list", "picker:list");
-    // t: terminal, u: ui toggles, q: quit
-    tree(rows, "terminal", "t", "+terminal", "");
-    tree(rows, "terminal", "tt", "Terminal", "ex:terminal");
+    // t: terminal (one key opens it), u: ui toggles, q: quit
+    tree(rows, "terminal", "t", "Terminal", "ex:terminal");
     tree(rows, "core", "u", "+ui toggles", "");
     tree(rows, "lsp", "uh", "Toggle inlay hints", "app:lsp_hints");
     tree(rows, "finder", "uC", "Colour schemes (themes)", "picker:themes");
@@ -204,7 +178,6 @@ List<Binding> legacy_rows() {
     rows.push(leaf_row("m3", "finder", "fw", "Grep the word under the cursor", "picker:word"));
     rows.push(leaf_row("m3", "finder", "fh", "Help: all keys", "picker:help"));
     rows.push(leaf_row("m3", "finder", "fc", "Commands", "picker:commands"));
-    rows.push(leaf_row("m3", "finder", "fk", "Keymaps", "picker:help"));
     rows.push(leaf_row("m3", "finder", "fo", "Options", "picker:options"));
     rows.push(leaf_row("m3", "finder", "fm", "Marks", "picker:marks"));
     rows.push(leaf_row("m3", "finder", "fx", "Diagnostics", "picker:diagnostics"));

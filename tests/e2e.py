@@ -232,7 +232,7 @@ def finder_lines_and_marks(binary, root):
     s = Session(binary, root, ["hello.txt"])
     try:
         assert s.wait_for("hello world")
-        s.send(" sb", settle=0.4)
+        s.send(" fg", settle=0.4)
         s.send("third", settle=0.4)
         s.send("\r", settle=0.4)
         assert "NORMAL" in s.text() and re.search(r" 3:\d+ ", s.text()), s.text()
@@ -492,7 +492,7 @@ def lsp_client(binary, root):
         assert re.search(r"^E ", s.text(), re.M) or " E " in s.text().split("\n")[0], "sign missing:\n" + s.text()
         s.send("]d", settle=0.4)
         assert s.wait_for("found BUG on line 1"), s.text()
-        s.send(" Dl", settle=0.4)
+        s.send(" cd", settle=0.4)
         assert s.wait_for("error: found BUG"), s.text()
         s.send("K", settle=0.6)
         assert s.wait_for("hover 0:"), "hover:\n" + s.text()
