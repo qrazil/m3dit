@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.31.1
+
+Fixes the CI of 0.31.0: the git oracle (`tests/oracles/oracle_git.py`) still typed `<Space>ghb`; it types `ghb` now. Tests only, no behaviour change.
+
 ## 0.31.0
 
 The hunk keys under one prefix, `gh` (docs/KEYMAP-AUDIT.md). `gh` is now only a prefix; the git plugin does the work through `:Hunk` (also usable by hand):
