@@ -26,8 +26,8 @@ nvim and helix are sources of ideas, not specifications, and m3 does not copy th
 
 ## 3. Non-goals (unless the owner changes them)
 
-A debugger (DAP) before 1.0; spell checking; remote files; tree-sitter and tree-sitter text objects (the `syntax` library highlights, there is no parse tree);
-a startup dashboard; a Vimscript or Lua interpreter (the extension language is m31); full-screen programs in the terminal pane (it is line oriented).
+A debugger (DAP) before 1.0; spell checking; remote files;
+a startup dashboard; a Vimscript or Lua interpreter (the extension language is m31); full-screen programs in the terminal pane (it is line oriented). Tree-sitter used to be on this list; it is a requirement now.
 
 ## 4. Distance to the goal
 
@@ -50,7 +50,8 @@ a startup dashboard; a Vimscript or Lua interpreter (the extension language is m
 | Project search and replace | partly done (`:ldo`, `:lfdo`, `:bufdo` on the list); a finder-based flow on the same list: queued |
 | The keymap audit (merged duplicate keys, toggles) | done (0.30.0, docs/KEYMAP-AUDIT.md) |
 | The owner's own nvim keymap and plugin list | owner input pending: the `nvim` profile follows his config once it is supplied |
-| Debugger, spell, remote files, tree-sitter, dashboard | not planned |
+| Tree-sitter: highlights, structural text objects, indent, folds, injections, incremental selection, with no server | **required before 1.0** (owner decision): spike done (docs/TREE-SITTER.md), design and questions pending, 0.34 and 0.35 |
+| Debugger, spell, remote files, dashboard | not planned |
 
 ## 5. Milestones (an order, not dates)
 
@@ -60,12 +61,13 @@ Done: 0.29 terminal plugin, 0.30 keymap audit, 0.31 the `gh*` hunk keys. The LSP
 |---|---|
 | 0.32 | the plugin toolkit (floats, popup, prompt, select, layout, timing helpers) and an excellent terminal (float, split, sessions, smooth under flood). **The owner dogfoods m3 for real work from here on** |
 | 0.33 | LSP navigation and the server installer |
-| 0.34 | project search and replace (the finder plus the generic list) |
-| 0.35 | virtual text API (one decorator for diagnostics, blame and plugins) |
-| 0.36 | miller columns on `<Space>E` |
-| 0.37 | `:diffthis` (two-window diff; `ghD` moves onto it) |
-| 0.38 | text-object registry, folds and expand/shrink selection. Sources in this order: LSP ranges (`documentSymbol`, `foldingRange`, `selectionRange`, semantic tokens), then a lexical fallback (the `syntax` library plus bracket and indent rules) for files without a server, then user-defined objects. The registry is designed so a tree-sitter source could be added without an API change; tree-sitter is not built, and is revisited after the dogfooding |
-| 0.39 and on | the owner's nvim keymap and plugin list, then 1.0 hardening |
+| 0.34 | tree-sitter core: the parser (helper process or in-process glue, docs/TREE-SITTER.md), incremental re-parse, highlights with injections, the large-file fallback to the lexical `syntax` library, a build option to leave it out |
+| 0.35 | tree-sitter text objects, indent, folds and incremental selection, with the text-object registry. Sources in this order: tree-sitter, LSP ranges (`documentSymbol`, `foldingRange`, `selectionRange`, semantic tokens), the lexical fallback (the `syntax` library plus bracket and indent rules), then user-defined objects |
+| 0.36 | project search and replace (the finder plus the generic list) |
+| 0.37 | virtual text API (one decorator for diagnostics, blame and plugins) |
+| 0.38 | miller columns on `<Space>E` |
+| 0.39 | `:diffthis` (two-window diff; `ghD` moves onto it) |
+| 0.40 and on | the owner's nvim keymap and plugin list, then 1.0 hardening |
 
 **Dogfood from 0.32.** Every gap the owner hits while working in m3 goes to the front of the queue, ahead of the list above. The CHANGELOG and its one-line migration notes are kept tidy so that
 he can follow what changes under him. Before anything is pushed or handed back, `bash scripts/prepush.sh` regenerates the generated files, runs lint and format, and runs the full `tests/test.sh` from

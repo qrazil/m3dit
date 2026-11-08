@@ -26,7 +26,7 @@ with `formatoptions` (auto-wrap, `gq`, comment leaders), `tabstop`, `shiftwidth`
 `wrapscan`, `startofline`, `smartindent`, `list`/`listchars`, `cursorline`,
 `cursorcolumn`, `colorcolumn`, `linebreak`/`breakat`/`showbreak`/`breakindent`/`breakindentopt`. Known limits: no command-line window, fold methods manual, indent and marker only,
 a reduced `=` indent (`cindent` is not implemented; `smartindent` is), `formatoptions` `a` and `n`, many
-an option m3 does not read is refused (docs/OPTIONS.md), no tree-sitter, and the terminal pane is
+an option m3 does not read is refused (docs/OPTIONS.md), no tree-sitter yet (planned, docs/TREE-SITTER.md), and the terminal pane is
 line oriented (no full-screen programs). `m3 --version` prints the version.
 
 ## Command line

@@ -37,7 +37,7 @@ rule for anything below that is a Vim command: nothing here is proposed as a loo
 | Spell checking | **declined** | ROADMAP | not before 1.x |
 | Debugger (DAP) | **declined** | ROADMAP item 18 | post 1.0 |
 | Full git UI (fugitive, lazygit), miller columns | **declined** | ROADMAP, owner | use `mgit`, `gitui` |
-| Tree-sitter text objects and folds | **declined** | ROADMAP | the `syntax` library highlights; no parse tree |
+| Tree-sitter text objects, folds, indent, highlights | **required before 1.0** (owner) | docs/TREE-SITTER.md | the `syntax` library highlights for now; the plan is 0.34 and 0.35 |
 | Remote files (netrw protocols) | **declined** | ROADMAP | |
 
 ## Gaps, in the order they hurt a daily user

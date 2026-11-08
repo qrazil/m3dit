@@ -1,6 +1,6 @@
 # Roadmap: 0.7.0 to 1.0.0
 
-> The current direction, the design laws and the milestone order are in [NORTH-STAR.md](NORTH-STAR.md); this file is the older queue and several of its rows are stale. The order from 0.32: the plugin toolkit and the terminal (0.32), LSP navigation and installer (0.33), project search and replace (0.34), virtual text API (0.35), miller columns (`<Space>E`, 0.36), `:diffthis` (0.37), the text-object registry with LSP ranges first (0.38), then the owner's nvim keymap and plugin list. The owner dogfoods m3 from 0.32; gaps he hits go to the front of the queue.
+> The current direction, the design laws and the milestone order are in [NORTH-STAR.md](NORTH-STAR.md); this file is the older queue and several of its rows are stale. The order from 0.32: the plugin toolkit and the terminal (0.32), LSP navigation and installer (0.33), tree-sitter core (0.34), tree-sitter text objects, indent, folds and the text-object registry (0.35: tree-sitter, then LSP ranges, then lexical, then user-defined), project search and replace (0.36), virtual text API (0.37), miller columns (`<Space>E`, 0.38), `:diffthis` (0.39), then the owner's nvim keymap and plugin list. The owner dogfoods m3 from 0.32; gaps he hits go to the front of the queue.
 
 Written 2026-10-15 from DESIGN.md (sections 9, 11, 12, 13, 14), CHANGELOG.md, docs/KEYMAP.md,
 `tests/oracles/known_divergences.txt`, `tests/oracles/pending/` and the open items of the 0.4.x line. The
@@ -14,7 +14,7 @@ renderer.
 |---|---|
 | Vim semantics, checked against `nvim --headless -u NONE` where nvim can answer; Helix-like polish only where Vim is silent | The oracle is what makes the engine trustworthy; nothing else in the repo is as strong |
 | m31 only; an item that needs something m31 lacks stops and is recorded in section 5 | Rule 1 of DESIGN.md |
-| No tree-sitter, no embedded scripting language in 1.0 | G3, and a language is a second product |
+| No embedded scripting language in 1.0 (the rule about tree-sitter is withdrawn: it is required before 1.0, docs/TREE-SITTER.md) | G3, and a language is a second product |
 | Extension is the keymap/ex file (`:map`, `:source`, `:autocmd`-lite) in 1.0; an external-process JSON-RPC protocol after 1.0 | Section 12: a process boundary costs a spawn per plugin and a second widget set; nothing needs it yet |
 | Every behaviour item ships with its test in the same commit: nvim corpus case, unit test (`tests/t_*.m31`) or pty scenario (`tests/e2e.py`), in that order of preference | |
 | Tests are macOS-safe: BSD `sed -i` needs a suffix, no `tac`, `cat -A`, GNU `timeout`, `date +%s%N`, no fixed `/tmp` paths | The owner builds on macOS |
