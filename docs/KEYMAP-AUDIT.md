@@ -62,11 +62,12 @@ The root keys `<Space><Space> , / :` of these two profiles are kept: they are th
 Not touched: motions, operators, text objects, registers, marks, `g` `z` `[` `]` `CTRL-W`. Divergence from vim applies to defaults that are mistakes, not to the editing grammar (the removals
 of 0.27.0 are in docs/DIVERGENCE-AUDIT.md).
 
-## Open: the `gh` hunk keys and the `gh{motion}` operators
+## The `gh` hunk keys (0.31.0)
 
-`gh{motion}` and `gH{motion}` (0.23.0) stage and reset the hunks a motion covers. The chosen single keys `ghb` (blame) and `ghl` (list) collide with that grammar: `b` and `l` are motions, so `ghb` means
-"stage the hunks from the cursor back one word" and `ghl` "the hunks one character right". The git milestone must decide between moving the single-key actions under the leader (`<Space>gh*`), a different
-prefix, or giving up the operator for those two letters; it is recorded here so that nobody finds out by typing it.
+`gh` is now only a prefix; the final set is `ghs` (stage, or unstage if staged; Visual: the selected lines), `ghr` (reset; Visual: the selected lines), `ghS` (stage or unstage the whole buffer),
+`ghR` (reset the buffer to the index: the command line is typed, Enter confirms), `ghd` (inline diff of the hunk), `ghD` (the buffer against the index), `ghb` (blame the line), `ghl` (the hunks in the
+generic list), with `]h [h` for the motions. `gh{motion}` and `gH{motion}` (0.23.0) are gone: they would have made `ghb` and `ghl` mean "the hunks from the cursor back a word" and "one character right";
+Visual mode (`ghs`, `ghr`) covers a range of lines, and `ih` / `ah` stay as text objects (`vihghs`). `<Space>gh*`, `<Space>gB` and `ghp` are gone.
 
 ## Migration
 

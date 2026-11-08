@@ -167,7 +167,7 @@ pub OpAt op_at(List<int> keys, int other_index) {
             return op_at_value;
         }
         int second = keys[other_index + 1];
-        if (second == 126 || second == 117 || second == 85 || second == 113 || second == 119 || second == 64 || second == 99 || second == 104 || second == 72) {
+        if (second == 126 || second == 117 || second == 85 || second == 113 || second == 119 || second == 64 || second == 99) {
             op_at_value.name = "g" + str.from_chars([second]);
             op_at_value.length = 2;
             return op_at_value;
@@ -204,6 +204,13 @@ int cmd_length(List<int> keys, int other_index) {
             return 3;
         }
         return 2;
+    }
+    if (key == 103 && other_index + 1 < count && keys[other_index + 1] == 104) {
+        // gh{s r S R d D b l}: the hunk family (docs/KEYMAP-AUDIT.md); any other third key is taken and refused
+        if (other_index + 2 >= count) {
+            return 0;
+        }
+        return 3;
     }
     if (key == 103 || key == 122 || key == 90 || key == 23) {
         if (other_index + 1 >= count) {

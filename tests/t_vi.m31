@@ -150,6 +150,11 @@ match (MED_app.open_all([base + "-a.txt"])) {
         check.ok("g? is refused", app.editor.message.contains("E492") && app.editor.message.contains("rot13"));
         type_text(app, "gR");
         check.ok("gR is refused", app.editor.message.contains("Virtual Replace"));
+        type_text(app, "ghx");
+        check.ok("gh with a third key that is none of ghs ghr ghS ghR ghd ghD ghb ghl is refused", app.editor.message.starts_with("E492") && app.editor.message.contains("ghx"));
+        check.eq_int("and the x was not typed as a command", app.editor.mode, MED_editor.NORMAL);
+        type_text(app, "gH");
+        check.ok("gH is gone and says what to type", app.editor.message.contains("ghr"));
     }
     case Err(str message): {
         print("cannot open: " + message);

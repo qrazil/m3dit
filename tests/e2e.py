@@ -267,7 +267,7 @@ def git_signs_and_pickers(binary, root):
     try:
         assert s.wait_for("hello world")
         s.send("ggOnew line\x1b", settle=0.3)
-        s.send(" ghs", settle=0.5)   # stage hunk
+        s.send("ghs", settle=0.5)   # stage hunk
         assert s.wait_for("Hunk staged"), s.text()
         out = subprocess.run(["git", "-C", root, "diff", "--cached", "--stat"], capture_output=True, text=True).stdout
         assert "hello.txt" in out, out

@@ -396,7 +396,7 @@ List<int> hunks_in(FileInfo info, int first, int last) {
     return picked;
 }
 
-/** `gh{motion}` and `gH{motion}`: stage or reset every hunk the motion covered. The last hunk goes first, so the rows
+/** `:Hunk range-stage`, `range-reset`, `range-toggle` (Visual `ghs`, `ghr`): stage or reset every hunk in the selected rows. The last hunk goes first, so the rows
  * and base lines of the others stay where the diff said they were. */
 Result<bool, str> range_command(State state, MED_ext.Ctx context, FileInfo info, bool is_stage) {
     List<int> rows = context.operator_range();
@@ -460,6 +460,48 @@ Result<bool, str> buffer_command(State state, MED_ext.Ctx context, FileInfo info
     }
 }
 
+/// `:Hunk toggle-buffer` with nothing left to stage: the index entry goes back to the text of HEAD.
+Result<bool, str> unstage_buffer(State state, MED_ext.Ctx context) {
+    str directory = MEDX_git_hunk.directory_of(context.file);
+    match (MEDX_git_lib.open(directory)) {
+        case Some(MEDX_git_lib.Repo repo): {
+            str relative = MEDX_git_lib.relative_to(repo, directory, MEDX_git_hunk.name_of(context.file));
+            match (MEDX_git_lib.head_bytes(repo, relative)) {
+                case Some(bytes head): {
+                    str said = MEDX_git_lib.stage_content(repo, relative, head);
+                    refresh(state, context, true);
+                    if (said == "") {
+                        return done(context, "Buffer unstaged");
+                    }
+                    return done(context, "Unstage failed: " + said);
+                }
+                case None: {
+                    return done(context, "Nothing staged: this file is not in HEAD");
+                }
+            }
+        }
+        case None: {
+            return done(context, "Not a git repository");
+        }
+    }
+}
+
+/// `:Hunk diff-buffer` (`ghD`): every hunk of the buffer against the index, as one unified diff in a scratch buffer.
+Result<bool, str> diff_buffer(MED_ext.Ctx context, FileInfo info) {
+    if (info.hunks.starts.size() == 0) {
+        return done(context, "No changes against the index");
+    }
+    List<str> out = ["--- index", "+++ buffer"];
+    List<str> lines = buffer_lines(context);
+    for (int index in 0 .. info.hunks.starts.size()) {
+        for (str one in MEDX_git_hunk.hunk_preview(info.hunks, index, info.base, lines)) {
+            out.push(one);
+        }
+    }
+    context.open_scratch("git-diff-buffer", out);
+    return Result<bool, str>.Ok(true);
+}
+
 /// `:Hunk list`: the hunks of this buffer, against the index, as the generic list (docs/LIST.md): `]l` walks them, `:l` shows them.
 Result<bool, str> list_hunks(State state, MED_ext.Ctx context) {
     str file = context.file;
@@ -488,7 +530,7 @@ Result<bool, str> list_hunks(State state, MED_ext.Ctx context) {
     return Result<bool, str>.Ok(true);
 }
 
-/// `:Hunk stage|reset|undo|preview|first|last|next|prev` and the range and buffer forms behind `gh` `gH` `hS` `hR`.
+/// `:Hunk stage|reset|undo|preview|first|last|next|prev` and the toggle, range and buffer forms behind `ghs` `ghr` `ghS` `ghR` `ghd` `ghD`.
 Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) {
     str word = arguments.trim();
     if (word == "next" || word == "prev") {
@@ -509,8 +551,8 @@ Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) 
         }
         return hunk_command(state, context, "preview");
     }
-    if (word != "stage" && word != "reset" && word != "undo" && word != "unstage" && word != "preview" && word != "range-stage" && word != "range-reset" && word != "stage-buffer" && word != "reset-buffer") {
-        return done(context, "Hunk: stage, reset, undo, preview, list, first, last, next or prev");
+    if (word != "stage" && word != "reset" && word != "undo" && word != "unstage" && word != "preview" && word != "range-stage" && word != "range-reset" && word != "stage-buffer" && word != "reset-buffer" && word != "toggle" && word != "range-toggle" && word != "toggle-buffer" && word != "diff" && word != "diff-buffer") {
+        return done(context, "Hunk: toggle, reset, diff, toggle-buffer, reset-buffer, diff-buffer, list, first, last, next or prev");
     }
     str file = context.file;
     if (file.size() == 0) {
@@ -519,6 +561,39 @@ Result<bool, str> hunk_command(State state, MED_ext.Ctx context, str arguments) 
     FileInfo info = refresh(state, context, false);
     if (!info.has_base) {
         return done(context, "This file is not tracked by git");
+    }
+    if (word == "diff") {
+        word = "preview";
+    }
+    if (word == "toggle") {
+        // an unstaged hunk at the cursor is staged; otherwise the staged hunk there is unstaged
+        if (MEDX_git_hunk.hunk_at(info.hunks, context.cursor().row) >= 0) {
+            word = "stage";
+        } else {
+            word = "undo";
+        }
+    }
+    if (word == "range-toggle") {
+        List<int> span = context.operator_range();
+        if (hunks_in(info, span[0], span[1]).size() > 0) {
+            return range_command(state, context, info, true);
+        }
+        str said_range = MEDX_git_hunk.unstage_hunk_at(file, info.hunks, span[0]);
+        if (said_range == "") {
+            refresh(state, context, true);
+            return done(context, "Hunk unstaged");
+        }
+        return done(context, "No hunk in the range");
+    }
+    if (word == "toggle-buffer") {
+        info = refresh(state, context, true);
+        if (info.hunks.starts.size() > 0) {
+            return buffer_command(state, context, info, true);
+        }
+        return unstage_buffer(state, context);
+    }
+    if (word == "diff-buffer") {
+        return diff_buffer(context, info);
     }
     if (word == "range-stage" || word == "range-reset") {
         return range_command(state, context, info, word == "range-stage");
@@ -638,16 +713,8 @@ pub void register(MED_ext.Registry api) {
     key(spec, "<Space>gl", "Git log %", "Git log of this file", "nvim legacy");
     key(spec, "<Space>gd", "Git diff", "Git diff (working tree)", "nvim legacy");
     key(spec, "<Space>gm", "Git blame", "Git blame list", "nvim legacy");
-    key(spec, "<Space>gB", "Git line", "Blame line", "nvim legacy");
     key(spec, "<Space>gt", "SignsGit", "Toggle git signs", "nvim legacy");
-    // default: the group of docs/KEYMAP-REVIEW.md 3.1 and 13.2 (hunks under `gh`, toggles under `u`)
-    spec.groups.push(MED_ext.GroupSpec("<Space>gh", "hunks"));
-    key(spec, "<Space>ghs", "Hunk stage", "Stage hunk", "default");
-    key(spec, "<Space>ghr", "Hunk reset", "Reset hunk", "default");
-    key(spec, "<Space>ghp", "Hunk preview", "Preview hunk", "default");
-    key(spec, "<Space>ghu", "Hunk undo", "Unstage hunk", "default");
-    key(spec, "<Space>ghb", "Git line", "Blame line", "default");
-    key(spec, "<Space>ghB", "Git blame", "Git blame list (buffer)", "default");
+    // default: the hunk keys are the Normal-mode chords gh{s r S R d D b l} (engine), not leader keys
     key(spec, "<Space>gL", "Git log %", "Log of this file", "default");
     key(spec, "<Space>gd", "Git diff", "Diff, working tree", "default");
     key(spec, "<Space>uG", "SignsGit", "Toggle git signs", "default");

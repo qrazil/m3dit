@@ -79,7 +79,6 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>qq` | Normal | Quit | core | m3 |
 | `<Space>qa` | Normal | Quit all | core | m3 |
 | `<Space>h` | Normal | +harpoon | harpoon | m3 |
-| `<Space>gh` | Normal | +hunks | git | m3 |
 | `<Space>ha` | Normal | Harpoon: add this file | harpoon | m3 |
 | `<Space>he` | Normal | Harpoon: menu | harpoon | m3 |
 | `<Space>hn` | Normal | Harpoon: next | harpoon | m3 |
@@ -95,12 +94,6 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>8` | Normal | Harpoon: file 8 | harpoon | m3 |
 | `<Space>9` | Normal | Harpoon: file 9 | harpoon | m3 |
 | `<Space>st` | Normal | TODO comments | todo | m3 |
-| `<Space>ghs` | Normal | Stage hunk | git | m3 |
-| `<Space>ghr` | Normal | Reset hunk | git | m3 |
-| `<Space>ghp` | Normal | Preview hunk | git | m3 |
-| `<Space>ghu` | Normal | Unstage hunk | git | m3 |
-| `<Space>ghb` | Normal | Blame line | git | m3 |
-| `<Space>ghB` | Normal | Git blame list (buffer) | git | m3 |
 | `<Space>gL` | Normal | Log of this file | git | m3 |
 | `<Space>gd` | Normal | Diff, working tree | git | m3 |
 | `<Space>uG` | Normal | Toggle git signs | git | m3 |
@@ -237,7 +230,6 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `<Space>gl` | Normal | Git log of this file | git | m3 |
 | `<Space>gd` | Normal | Git diff (working tree) | git | m3 |
 | `<Space>gm` | Normal | Git blame list | git | m3 |
-| `<Space>gB` | Normal | Blame line | git | m3 |
 | `<Space>gt` | Normal | Toggle git signs | git | m3 |
 
 ## Other keys of the default plugins, `nvim` and `legacy` profiles
@@ -438,8 +430,15 @@ replaces the leader tree and the plugins' keys, it does not add to them.
 | `grr` | Normal | references (language server) | lsp | m3 |
 | `grn` | Normal | rename symbol (language server) | lsp | m3 |
 | `gra` | Normal | code action (language server) | lsp | m3 |
-| `gh` | Normal | +stage hunks (gh{motion}) | git | m3 |
-| `gH` | Normal | +reset hunks (gH{motion}) | git | m3 |
+| `gh` | Normal | +hunks | git | m3 |
+| `ghs` | Normal | stage or unstage the hunk (Visual: the selected lines) | git | m3 |
+| `ghr` | Normal | reset the hunk (Visual: the selected lines) | git | m3 |
+| `ghS` | Normal | stage or unstage the whole buffer | git | m3 |
+| `ghR` | Normal | reset the buffer to the index | git | m3 |
+| `ghd` | Normal | diff the hunk (inline preview) | git | m3 |
+| `ghD` | Normal | diff the buffer against the index | git | m3 |
+| `ghb` | Normal | blame the line | git | m3 |
+| `ghl` | Normal | hunks of the buffer in the generic list | git | m3 |
 | `ys` | Normal | +surround add (ys{motion}{char}) | surround | vim |
 | `yss` | Normal | surround the line | surround | vim |
 | `ds` | Normal | surround delete (ds{char}) | surround | vim |

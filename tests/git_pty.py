@@ -237,18 +237,38 @@ def hunk_operators_and_ends(binary, root):
         assert " 20:" in s.text().split("\n")[-2], s.text()
         s.send("[H", 0.4)
         assert " 5:" in s.text().split("\n")[-2], s.text()
-        # ghh stages the hunk on this line only
-        s.send("5Gghh", 0.8)         # ghh: the hunks on this line
+        # ghs stages the hunk under the cursor, and the same key unstages it again
+        s.send("5Gghs", 0.8)
         staged = git(root, "diff", "--cached", "-U0")
         assert "+changed 5" in staged and "changed 20" not in staged, staged
-        assert "1 hunk staged" in s.text(), s.text()
-        # gHH resets the hunk of the line: line 20 goes back
-        s.send("20GgHH", 0.8)
+        assert "Hunk staged" in s.text(), s.text()
+        s.send("5Gghs", 0.8)
+        assert git(root, "diff", "--cached", "-U0").strip() == "", "ghs a second time must unstage"
+        assert "Hunk unstaged" in s.text(), s.text()
+        # ghd previews the hunk, ghl lists the hunks of the buffer in the generic list
+        s.send("20Gghd", 0.6)
+        assert "-line 20" in s.text() and "+changed 20" in s.text(), s.text()
+        s.send("\x1b", 0.3)
+        s.send("ghl", 0.8)
+        assert "hunk 1" in s.text() and "hunk 2" in s.text(), s.text()
+        s.send("\x1b", 0.3)
+        # ghr resets the hunk under the cursor: line 20 goes back
+        s.send("20Gghr", 0.8)
         s.send(":w\r", 0.6)
         body = open(os.path.join(root, "f.txt")).read()
         assert "changed 20" not in body and "changed 5" in body, body
-        # the range forms with a count and Visual mode
-        s.send("1GVGgh", 0.8)
+        # Visual mode: ghs stages the hunks in the selected lines
+        s.send("1GVGghs", 0.8)
+        staged = git(root, "diff", "--cached", "-U0")
+        assert "+changed 5" in staged, staged
+        # ghS unstages the whole buffer when nothing is left to stage; ghR types the reset for the user to confirm
+        s.send("ghS", 0.8)
+        assert git(root, "diff", "--cached", "-U0").strip() == "", "ghS with nothing unstaged must unstage the file"
+        s.send("ghR", 0.5)
+        assert ":Hunk reset-buffer" in s.text(), s.text()
+        s.send("\x1b", 0.3)
+        assert "changed 5" in open(os.path.join(root, "f.txt")).read(), "Escape must leave the buffer alone"
+        s.send("ghS", 0.8)
         staged = git(root, "diff", "--cached", "-U0")
         assert "+changed 5" in staged, staged
         # commit what is staged, from the command line (the job answers in the message line)
@@ -283,7 +303,7 @@ def main():
     scenario(binary, ":Git show and :Git diff open scratch buffers", show_and_diff_scratch)
     scenario(binary, ":Hunk stage, undo, preview, reset and dih", hunk_stage_and_undo)
     scenario(binary, "the gutter, the branch and the plugin switch", gutter_and_plugin_switch)
-    scenario(binary, "gh{motion}, gH{motion}, ]H [H, :Git commit", hunk_operators_and_ends)
+    scenario(binary, "ghs ghr ghS ghR ghd ghl, ]H [H, :Git commit", hunk_operators_and_ends)
 
 
 main()

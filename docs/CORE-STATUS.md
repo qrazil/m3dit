@@ -154,7 +154,7 @@ Generated from `tests/oracles/divergences.tsv` by `python3 scripts/divergences.p
 | `list-location` | a location list per window (`:lopen`, `:lnext` ...) | one list store of named lists; `:lnext` `:lprev` `:lfirst` `:llast` `:lclear` work on it; `:lopen` `:lwindow` `:lolder` do not exist | a second store would hold nothing the first cannot (docs/LIST.md) | no case affected |
 | `bracket-q` | nvim 0.11 maps `[q ]q [Q ]Q` to quickfix prev / next / first / last | not mapped; `[l ]l [L ]L` walk the default list | the quickfix list is the generic list now; keys are not in the oracle corpus | no case affected |
 | `ex-q` | vi's `Q` enters Ex mode (vim), nvim 0.11 replays the last macro | follows nvim 0.11; Ex mode is `gQ` | Vim commands behave like nvim (owner rule) | no case affected |
-| `select-gh` | `gh` / `gH` start Select mode | git hunk operators `gh{motion}` / `gH{motion}` (0.23.0) | m3 has no Select mode; the keys serve staging and resetting hunks | no case affected |
+| `select-gh` | `gh` / `gH` start Select mode | the hunk family `ghs ghr ghS ghR ghd ghD ghb ghl` (0.31.0); `gH` is refused | m3 has no Select mode; the `gh` prefix serves staging, resetting, diffing and blaming hunks | no case affected |
 | `ctrl-r-redo` | vi's CTRL-R redraws the screen | CTRL-R redoes (as Vim and nvim do); CTRL-L redraws | Vim wins over vi | no case affected |
 | `remap-option` | vi has 'remap'; nvim has no such option | `:set remap` is accepted and ignored | a shared config must load | no case affected |
 | `open-mode` | vi's `:open` and `:ex` open mode | not built | nvim has no open mode either | no case affected |

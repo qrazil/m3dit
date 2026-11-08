@@ -267,7 +267,7 @@ pub List<Binding> prefixes() {
     for (Binding row in prefix_data("lsp", "m3", ["K :: hover documentation (language server)", "gd :: go to definition (language server)", "grr :: references (language server)", "grn :: rename symbol (language server)", "gra :: code action (language server)"])) {
         rows.push(row);
     }
-    for (Binding row in prefix_data("git", "m3", ["gh :: +stage hunks (gh{motion})", "gH :: +reset hunks (gH{motion})"])) {
+    for (Binding row in prefix_data("git", "m3", ["gh :: +hunks", "ghs :: stage or unstage the hunk (Visual: the selected lines)", "ghr :: reset the hunk (Visual: the selected lines)", "ghS :: stage or unstage the whole buffer", "ghR :: reset the buffer to the index", "ghd :: diff the hunk (inline preview)", "ghD :: diff the buffer against the index", "ghb :: blame the line", "ghl :: hunks of the buffer in the generic list"])) {
         rows.push(row);
     }
     for (Binding row in prefix_data("surround", "vim", ["ys :: +surround add (ys{motion}{char})", "yss :: surround the line", "ds :: surround delete (ds{char})", "cs :: surround change (cs{old}{new})", "yS :: surround add, on own lines"])) {
