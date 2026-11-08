@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.32.1
+
+Fixes the CI of 0.32.0, which was red on all three platforms: `t_ext` declared its "wrong API" fixture with minor 9, which was the wrong one while the API was 0.8 and became the right one when 0.32.0 made it 0.9.
+Tests only, no behaviour change.
+
+- Every test that mentioned the API version now reads it: `t_ext` and `t_plugins` use `MED_ext.API_MAJOR`, `API_MINOR` and `API_VERSION` (the wrong-API fixture is `API_MINOR + 1`), the shell tests (`test_entry.sh`,
+  `test_plugins.sh`, `core_only.sh`) get it from `api_version()` (read from `ext/MED_ext.m31`), and `plugins_pty.py` reads the same file. A bump of the API no longer needs an edit in any test; it needs the golden screen
+  `plugins_list` re-recorded (`python3 tests/screen_pty.py ./m3 --record --only plugins_list`), which shows the version.
+- `scripts/prepush.sh` prints the failed checks and keeps the whole log (`$TMPDIR/m3-prepush-failed.log`) when the suite fails; before, a failure scrolled off the last forty lines.
+- `docs/TREE-SITTER.md`: the feasibility spike for tree-sitter (a requirement before 1.0 now; docs only, nothing vendored); NORTH-STAR and ROADMAP follow.
+
 ## 0.32.0
 
 The plugin toolkit, extension API 0.9.0 (docs/EXTENSIONS.md 0.7, with a porting guide and "a floating plugin in 20 lines"; docs/TOOLKIT-ADOPTION.md ranks the shipped plugins by what a port would drop). Native m31, in the spirit of
