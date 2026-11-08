@@ -303,7 +303,7 @@ check.ok("unmap data", keys.did_unmap(MED_ext.MapMode.Normal, "<Space>q", 0) && 
 // hook ids, once, unhook, and the run-time switch
 MED_ext.Registry hooks = MED_ext.Registry();
 Log hook_log = Log();
-hooks.did_declare("Hooks", "x", 0, 9);
+hooks.did_declare("Hooks", "x", MED_ext.API_MAJOR, MED_ext.API_MINOR);
 check.ok("a once handler", hooks.hook_with(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => seen(hook_log, info), MED_ext.HookOpts(is_once: true)).is_ok());
 int always = 0;
 match (hooks.hook_with(MED_ext.Event.Tick, (MED_ext.Ctx context, MED_ext.Info info) => seen(hook_log, info), MED_ext.HookOpts())) {
@@ -340,7 +340,7 @@ switched.set_off(0, true);
 check.eq_int("not while it is off", switched.fire(MED_ext.Event.Tick, switch_context, MED_ext.Info()), 0);
 // groups
 MED_ext.Registry groups = MED_ext.Registry();
-groups.did_declare("Groups", "x", 0, 9);
+groups.did_declare("Groups", "x", MED_ext.API_MAJOR, MED_ext.API_MINOR);
 check.ok("a group", groups.did_group("<Space>g", "git"));
 check.ok("the first label stays", !groups.did_group("<Space>g", "other"));
 check.eq_str("the label", groups.group_label("<Space>g"), "git");
@@ -368,7 +368,7 @@ match (MED_app.open("")) {
         check.ok("the key is mapped", app.editor.maps.has_prefix("n", 92));
         type_text(app, ":Plugins\r");
         check.ok("the core features are still listed first", app.overlay[1].contains("core"));
-        check.ok("the compiled plugins follow", app.overlay.join("\n").contains("Compiled plugins (api 0.9.0):"));
+        check.ok("the compiled plugins follow", app.overlay.join("\n").contains("Compiled plugins (api " + MED_ext.API_VERSION + "):"));
         check.ok("a lazy plugin is shown as lazy", app.overlay.join("\n").contains("  lazy  hello  the hello plugin"));
         check.ok("a refused plugin says why", app.overlay.join("\n").contains("  refused: requires nothere (not built in)  needs  the needs plugin"));
         type_text(app, "\x1b:Hello now\r");
@@ -396,7 +396,7 @@ match (MED_app.open("")) {
 // <buffer> maps belong to one buffer, and a handler can set them (Ctx.did_map) for the buffer it runs for
 match (MED_app.open("")) {
     case Ok(MED_app.App app): {
-        app.ext.did_declare("Mapper", "x", 0, 9);
+        app.ext.did_declare("Mapper", "x", MED_ext.API_MAJOR, MED_ext.API_MINOR);
         app.ext.did_command("Mapbuf", "map Q here", (MED_ext.Ctx context, str arguments, bool is_bang) => map_here(context, arguments));
         app.ext.did_command("Mapfn", "map Z here", (MED_ext.Ctx context, str arguments, bool is_bang) => map_function(context));
         app.ext.did_command("Mapother", "map a foreign buffer", (MED_ext.Ctx context, str arguments, bool is_bang) => map_foreign(context));
@@ -419,10 +419,10 @@ match (MED_app.open("")) {
         print("cannot open: " + message);
     }
 }
-// a plugin fills the generic list (API 0.9.0)
+// a plugin fills the generic list (API 0.7.0)
 match (MED_app.open("")) {
     case Ok(MED_app.App app): {
-        app.ext.did_declare("Lister", "x", 0, 9);
+        app.ext.did_declare("Lister", "x", MED_ext.API_MAJOR, MED_ext.API_MINOR);
         app.ext.did_command("Fill", "fill lists", (MED_ext.Ctx context, str arguments, bool is_bang) => fill_lists(context));
         app.ext_install();
         type_text(app, ":Fill\r");

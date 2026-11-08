@@ -18,13 +18,14 @@ bin="$work/m3-core"
 fail=0
 say() { printf '%s\n' "$*"; }
 bad() { say "FAIL $*"; fail=1; }
+api_version() { sed -n 's/^pub const str API_VERSION = "\(.*\)";/\1/p' ext/MED_ext.m31; }
 
 if ! LANGC="${LANGC:-./m31c}" bash scripts/build.sh --no-plugins -o "$bin" >"$work/m3-core.log" 2>&1; then
     bad "build --no-plugins"; grep -v '^warning' "$work/m3-core.log" | tail -8; exit 1
 fi
 grep -q '^plugins: none' "$work/m3-core.log" || bad "the build did not report 'plugins: none'"
 version=$("$bin" --version 2>&1)
-case "$version" in *"(api 0.9.0; plugins: none)") ;; *) bad "--version says: $version" ;; esac
+case "$version" in *"(api $(api_version); plugins: none)") ;; *) bad "--version says: $version" ;; esac
 [ -z "$("$bin" --list-plugins 2>&1)" ] || bad "--list-plugins prints something"
 
 if python3 -c 'import pyte' 2>/dev/null; then

@@ -67,15 +67,22 @@ step "full tests/test.sh from a clean clone of $(git rev-parse --short HEAD)"
 work=$(mktemp -d "${TMPDIR:-/tmp}/m3-prepush.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 git clone -q . "$work/clone"
-head=$(git rev-parse HEAD)
-[ "$(git -C "$work/clone" rev-parse HEAD)" = "$head" ] || fail "the clone is not at HEAD"
+head=$(git rev-parse --short HEAD)
+[ "$(git -C "$work/clone" rev-parse --short HEAD)" = "$head" ] || fail "the clone is not at HEAD"
 log="$work/test.log"
 set +e
-(cd "$work/clone" && bash tests/test.sh) 2>&1 | tee "$log" | tail -40
-status=${PIPESTATUS[0]}
+(cd "$work/clone" && bash tests/test.sh) > "$log" 2>&1
+status=$?
 set -e
 summary=$(grep -E '^[0-9]+ passed, [0-9]+ failed' "$log" | tail -1 || true)
 echo
-echo "prepush: $summary (commit $(git rev-parse --short HEAD), clean clone)"
+if [ "$status" != 0 ]; then
+    echo "the failed checks:"
+    grep -a -A6 'FAIL' "$log" | head -80
+    keep="${TMPDIR:-/tmp}/m3-prepush-failed.log"
+    cp "$log" "$keep"
+    echo "(the whole log: $keep)"
+fi
+echo "prepush: $summary (commit $head, clean clone)"
 [ "$status" = 0 ] || fail "tests/test.sh failed: $summary"
 echo "prepush: ok"

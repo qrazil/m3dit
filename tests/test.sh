@@ -38,6 +38,8 @@ export M3_CLIP_PASTE="cat $WORK/clipboard"
 trap 'rm -rf "$WORK"' EXIT
 pass=0
 fail=0
+# the extension API version, read from the one place it is written (so that a bump needs no edit here)
+api_version() { sed -n 's/^pub const str API_VERSION = "\(.*\)";/\1/p' ext/MED_ext.m31; }
 
 note() { printf '\033[32mok\033[0m   %s\n' "$1"; pass=$((pass + 1)); }
 bad()  { printf '\033[31mFAIL\033[0m %s\n' "$1"; shift; printf '%s\n' "$@" | sed 's/^/     /'; fail=$((fail + 1)); }
