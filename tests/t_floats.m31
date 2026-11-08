@@ -1,0 +1,173 @@
+/* The UI kit through the App (API 0.9.0): a plugin opens a popup, a prompt, a select menu and its own float; the screen shows them, the keys go
+ * to the focused one, Escape and `q` close, the toggle opens / focuses / closes, the layer orders them, and switching the plugin off hides them. */
+
+import tests.MED_check;
+import term;
+import tui.core.TUI_buffer;
+import ui.MED_app;
+import ext.MED_ext;
+import ext.MED_ui;
+import engine.MED_editor;
+
+term.Event press(int code_point) {
+    return term.Event.Key(term.Key(term.Code.Char(code_point), 0));
+}
+
+void type_text(MED_app.App app, str text) {
+    for (int index in 0 .. text.size()) {
+        if (text.byte_at(index) == 13) {
+            app.handle(term.Event.Key(term.Key(term.Code.Enter, 0)));
+        } else {
+            app.handle(press(text.byte_at(index)));
+        }
+    }
+}
+
+/// What the callbacks saw.
+type Seen {
+    str typed = "";
+    int chosen = -1;
+    int ticks = 0;
+    int closes = 0;
+}
+
+type SeenInput {
+    Seen seen;
+}
+
+void SeenInput.run(MED_ext.Ctx context, str value) {
+    seen.typed = value;
+}
+
+type SeenSelect {
+    Seen seen;
+}
+
+void SeenSelect.run(MED_ext.Ctx context, int index) {
+    seen.chosen = index;
+}
+
+/// A float of a plugin's own: a word on the first row, counting ticks and closes.
+type Word {
+    str text;
+    Seen seen;
+}
+
+void Word.draw(MED_ext.Canvas canvas, bool is_focused) {
+    canvas.text(0, 0, text, "ui.popup", false, canvas.width);
+}
+
+bool Word.did_key(MED_ext.Ctx context, int key) {
+    return key == 120;
+}
+
+bool Word.did_tick(MED_ext.Ctx context, int elapsed_ms) {
+    seen.ticks = seen.ticks + 1;
+    return false;
+}
+
+void Word.did_close(MED_ext.Ctx context) {
+    seen.closes = seen.closes + 1;
+}
+
+str screen_text(MED_app.App app) {
+    TUI_buffer.Buffer screen = TUI_buffer.Buffer.sized(80, 24);
+    app.render(screen, screen.area());
+    List<str> rows = [];
+    for (int row in 0 .. 24) {
+        rows.push(screen.row_text(row));
+    }
+    return rows.join("\n");
+}
+
+MED_check.Check check = MED_check.Check();
+Seen seen = Seen();
+match (MED_app.open("")) {
+    case Ok(MED_app.App app): {
+        app.ext.did_declare("Floaty", "floats", 0, MED_ext.API_MINOR);
+        app.ext.did_command("Pop", "popup", (MED_ext.Ctx context, str arguments, bool is_bang) => open_popup(context));
+        app.ext.did_command("Ask", "prompt", (MED_ext.Ctx context, str arguments, bool is_bang) => open_prompt(context, seen));
+        app.ext.did_command("Pick", "select", (MED_ext.Ctx context, str arguments, bool is_bang) => open_select(context, seen));
+        app.ext.did_command("Mine", "own float", (MED_ext.Ctx context, str arguments, bool is_bang) => open_mine(context, seen, arguments));
+        app.ext.did_command("Flip", "toggle", (MED_ext.Ctx context, str arguments, bool is_bang) => flip(context, seen));
+        app.ext_install();
+        type_text(app, ":Pop\r");
+        str shown = screen_text(app);
+        check.ok("a popup shows its title and its text", shown.contains("Notes") && shown.contains("second line"));
+        check.ok("and has a border", shown.contains("╭") || shown.contains("+"));
+        type_text(app, "j");
+        check.ok("j scrolls it", !screen_text(app).contains("first line"));
+        type_text(app, "q");
+        check.ok("q closes it", !screen_text(app).contains("Notes"));
+        type_text(app, ":Pop\r\x1b");
+        check.ok("Escape closes it too", !screen_text(app).contains("Notes"));
+        type_text(app, ":Ask\r");
+        check.ok("a prompt shows its title and the initial text", screen_text(app).contains("Who") && screen_text(app).contains("ab"));
+        type_text(app, "cd");
+        check.ok("typing goes to the prompt, not the buffer", screen_text(app).contains("abcd") && app.editor.buffer.line(0) == "");
+        type_text(app, "\x7f");
+        type_text(app, "\r");
+        check.eq_str("Enter runs the function with the text", seen.typed, "abc");
+        check.ok("and closes the prompt", !screen_text(app).contains("Who"));
+        type_text(app, ":Pick\r");
+        check.ok("a menu shows its items", screen_text(app).contains("alpha") && screen_text(app).contains("beta"));
+        type_text(app, "j\r");
+        check.eq_int("Enter runs the function with the row", seen.chosen, 1);
+        type_text(app, ":Mine low\r");
+        check.ok("a plugin's own float is drawn", screen_text(app).contains("low"));
+        type_text(app, "x");
+        check.ok("its content takes the keys it wants", screen_text(app).contains("low"));
+        app.tick(300);
+        app.tick(300);
+        check.ok("the float gets the timer", seen.ticks >= 1);
+        type_text(app, "\x1b");
+        check.ok("Escape closes it", !screen_text(app).contains("low"));
+        check.eq_int("and tells its content", seen.closes, 1);
+        MED_ext.Ctx held = MED_ext.context(app.ext, app.editor, "");
+        app.ext.did_run_command("Flip", held, "", false);
+        check.ok("the toggle opens the float", screen_text(app).contains("toggled") && held.is_float_focused("flip"));
+        held.float_blur("flip");
+        check.ok("a blurred float stays visible and gives the keys back", screen_text(app).contains("toggled") && !held.is_float_focused("flip"));
+        type_text(app, "ix\x1b");
+        check.eq_str("the editor has the keys again", app.editor.buffer.dump(), "x\n");
+        app.ext.did_run_command("Flip", held, "", false);
+        check.ok("the toggle focuses an open float that has no keys", held.is_float_focused("flip"));
+        app.ext.did_run_command("Flip", held, "", false);
+        check.ok("and closes it when it has them", !screen_text(app).contains("toggled") && !held.is_float_open("flip"));
+        app.ext.did_run_command("Mine", held, "one", false);
+        app.ext.did_run_command("Mine", held, "two", false);
+        check.ok("an id that is open again is replaced", screen_text(app).contains("two") && !screen_text(app).contains("one"));
+        check.eq_int("and the old content was told", seen.closes, 3);
+        app.ext.set_off(app.ext.floats[app.ext.float_index("mine")].owner, true);
+        check.ok("switching the plugin off hides its floats", !screen_text(app).contains("two"));
+    }
+    case Err(str message): {
+        print("cannot open: " + message);
+    }
+}
+check.finish("t_floats");
+
+Result<bool, str> open_popup(MED_ext.Ctx context) {
+    MED_ui.popup(context, "pop", "Notes", ["first line", "second line", "third line"]);
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> open_prompt(MED_ext.Ctx context, Seen seen) {
+    MED_ui.prompt(context, "ask", "Who", "ab", SeenInput(seen));
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> open_select(MED_ext.Ctx context, Seen seen) {
+    MED_ui.select(context, "pick", "Choose", ["alpha", "beta", "gamma"], SeenSelect(seen));
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> open_mine(MED_ext.Ctx context, Seen seen, str word) {
+    context.float_open(MED_ext.FloatSpec("mine", title: "Mine", width: 20, height: 3, anchor: "bottom-right"), Word(word, seen));
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> flip(MED_ext.Ctx context, Seen seen) {
+    context.float_toggle(MED_ext.FloatSpec("flip", title: "Flip", width: 20, height: 3), Word("toggled", seen));
+    return Result<bool, str>.Ok(true);
+}

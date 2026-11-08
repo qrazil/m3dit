@@ -69,9 +69,9 @@ import ui.MED_theme;
 /** The API version: major.minor.patch. While the major is 0 a plugin built for 0.M.p runs on a host 0.M.q with
  * p <= q (a patch only adds) and another minor is refused; from 1.0 only the major breaks and a minor adds. */
 pub const int API_MAJOR = 0;
-pub const int API_MINOR = 8;
+pub const int API_MINOR = 9;
 pub const int API_PATCH = 0;
-pub const str API_VERSION = "0.8.0";
+pub const str API_VERSION = "0.9.0";
 /// `Ctx.mode()` of Normal mode (0.5.0).
 pub const int MODE_NORMAL = 0;
 /// The longest `context.run` may block the editor.
@@ -469,6 +469,13 @@ pub void Canvas.text(int x, int y, str text, str scope, bool is_bold, int max_ce
     buffer.set_str(origin_x + x, origin_y + y, text, style_of(scope, is_bold), max: room);
 }
 
+/// Show the cursor at column `x`, row `y` of the canvas (a reverse-video cell: the terminal's own cursor is hidden) (0.9.0).
+pub void Canvas.cursor(int x, int y) {
+    if (y >= 0 && y < height && x >= 0 && x < width) {
+        buffer.set_style(origin_x + x, origin_y + y, theme.cursor("normal"));
+    }
+}
+
 /// Fill `columns` cells from column `x` of row `y` with spaces in the style of `scope`.
 pub void Canvas.fill(int x, int y, int columns, str scope, bool is_bold) {
     TUI_style.Style look = style_of(scope, is_bold);
@@ -539,6 +546,71 @@ pub type PaneOp {
     pub int row = 0;
     pub int column = 0;
     pub bool is_on = false;
+}
+
+/** Where and how a floating window appears (0.9.0, the UI kit, docs/EXTENSIONS.md). Sizes and positions are cells, or percentages of the
+ * editor area when `is_relative`; a `row` or `column` of -1 means "by the anchor". The host draws the border and the title and gives the
+ * content a Canvas of the inside. */
+pub type FloatSpec {
+    /// The name the float is opened, focused and closed by; one float has one id.
+    pub str id;
+    pub str title = "";
+    /// center, top, bottom, left, right, top-left, top-right, bottom-left or bottom-right.
+    pub str anchor = "center";
+    pub int width = 60;
+    pub int height = 12;
+    pub bool is_relative = false;
+    pub int row = -1;
+    pub int column = -1;
+    /// none, single, double or rounded.
+    pub str border = "rounded";
+    /// Floats are drawn in ascending layer; the first opened is below on a tie.
+    pub int layer = 50;
+    /// Dim the text under it, as the finder does.
+    pub bool has_backdrop = false;
+    /// The float takes the keys when it opens.
+    pub bool has_focus = true;
+    /// Escape closes the float when its content did not take the key.
+    pub bool is_closed_by_escape = true;
+}
+
+/** What a float shows and does. All four calls happen on the editor's thread, in the plugin's context. */
+pub interface Float {
+    /// Draw into the canvas (the inside of the border); `is_focused` says whether the float has the keys.
+    void draw(Canvas canvas, bool is_focused);
+    /// A key while the float is focused (it gets every key); true when it took it.
+    bool did_key(Ctx context, int key);
+    /// About every app tick while the float is open (also when it is not focused); true: redraw.
+    bool did_tick(Ctx context, int elapsed_ms);
+    /// The float was closed (by `float_close`, Escape or the plugin being switched off).
+    void did_close(Ctx context);
+}
+
+/// An open float: its spec, its content, the plugin that opened it and whether it has the keys.
+pub type FloatEntry {
+    pub FloatSpec spec;
+    pub Float content;
+    pub int owner;
+    pub bool is_focused = false;
+    /// Opened order, for the layer tie.
+    pub int serial = 0;
+}
+
+type NoFloat {
+}
+
+void NoFloat.draw(Canvas canvas, bool is_focused) {
+}
+
+bool NoFloat.did_key(Ctx context, int key) {
+    return false;
+}
+
+bool NoFloat.did_tick(Ctx context, int elapsed_ms) {
+    return false;
+}
+
+void NoFloat.did_close(Ctx context) {
 }
 
 type NoPanel {
@@ -638,7 +710,7 @@ pub type Spec {
     pub str name;
     pub str summary = "";
     pub int api_major = 0;
-    pub int api_minor = 8;
+    pub int api_minor = 9;
     pub int api_patch = 0;
     /// Not registered unless every one of these is built in and on.
     pub List<str> requires = [];
@@ -873,6 +945,9 @@ pub type Registry {
     pub Map<str, GitSummary> git_summaries = {};
     /// The key profile (`minimal`, `default`, `nvim`, `legacy`); the maps of other profiles are not installed.
     pub str profile = "default";
+    /// The open floats (0.9.0), in the order they were opened.
+    pub List<FloatEntry> floats = [];
+    int next_float = 1;
     /// The ptys (0.8.0), the pane driver and who gave it, whether it wants fast ticks, and the size a pane may use.
     pub PtyTable ptys = PtyTable();
     pub PaneDriver pane_driver = no_pane_driver();
@@ -1588,6 +1663,45 @@ pub bool Registry.did_panes(PaneDriver run) {
     has_pane_driver = true;
     pane_owner = current;
     return true;
+}
+
+/// Whether extension number `owner` is switched off.
+pub bool Registry.is_extension_off(int owner) {
+    return owner < 0 || owner >= extensions.size() || extensions[owner].is_off;
+}
+
+/// The index in `floats` of float `id`, or -1.
+pub int Registry.float_index(str id) {
+    for (int position in 0 .. floats.size()) {
+        if (floats[position].spec.id == id) {
+            return position;
+        }
+    }
+    return -1;
+}
+
+/// The index of the focused float that draws last (the one that has the keys), or -1.
+pub int Registry.focused_float() {
+    int best = -1;
+    for (int position in 0 .. floats.size()) {
+        if (!floats[position].is_focused || extensions[floats[position].owner].is_off) {
+            continue;
+        }
+        if (best < 0 || floats[position].spec.layer >= floats[best].spec.layer) {
+            best = position;
+        }
+    }
+    return best;
+}
+
+/// Whether a float of a live plugin is open.
+pub bool Registry.has_floats() {
+    for (FloatEntry one in floats) {
+        if (!extensions[one.owner].is_off) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Whether a live plugin has the panes.
@@ -2808,6 +2922,88 @@ pub int Ctx.pty_exit_code(int id) {
         case Err(proc.Error error): {
             return 1;
         }
+    }
+}
+
+/** Open a float (0.9.0). An id that is already open is replaced (its content gets `did_close` first). With `has_focus` the float takes the
+ * keys at once and the other floats lose them. */
+pub void Ctx.float_open(FloatSpec spec, Float content) {
+    int known = registry.float_index(spec.id);
+    if (known >= 0) {
+        registry.floats[known].content.did_close(this);
+        registry.floats.remove_at(known);
+    }
+    if (spec.has_focus) {
+        for (int position in 0 .. registry.floats.size()) {
+            registry.floats[position].is_focused = false;
+        }
+    }
+    FloatEntry entry = FloatEntry(spec, content, owner);
+    entry.is_focused = spec.has_focus;
+    entry.serial = registry.next_float;
+    registry.next_float = registry.next_float + 1;
+    registry.floats.push(entry);
+}
+
+/// Close float `id` (0.9.0); nothing happens when it is not open.
+pub void Ctx.float_close(str id) {
+    int known = registry.float_index(id);
+    if (known < 0) {
+        return;
+    }
+    FloatEntry gone = registry.floats[known];
+    registry.floats.remove_at(known);
+    gone.content.did_close(this);
+}
+
+/// Give the keys to float `id` (0.9.0).
+pub void Ctx.float_focus(str id) {
+    int known = registry.float_index(id);
+    if (known < 0) {
+        return;
+    }
+    for (int position in 0 .. registry.floats.size()) {
+        registry.floats[position].is_focused = position == known;
+    }
+}
+
+/// Hand the keys of float `id` back to the editor windows; the float stays visible (0.9.0).
+pub void Ctx.float_blur(str id) {
+    int known = registry.float_index(id);
+    if (known >= 0) {
+        registry.floats[known].is_focused = false;
+    }
+}
+
+/// Whether float `id` is open (0.9.0).
+pub bool Ctx.is_float_open(str id) {
+    return registry.float_index(id) >= 0;
+}
+
+/// Whether float `id` is open and has the keys (0.9.0).
+pub bool Ctx.is_float_focused(str id) {
+    int known = registry.float_index(id);
+    return known >= 0 && registry.floats[known].is_focused;
+}
+
+/** The one-key toggle of a panel (0.9.0): when float `id` is not open it is opened with `content`; when it is open but does not have the
+ * keys it gets them; when it has them it is closed. */
+pub void Ctx.float_toggle(FloatSpec spec, Float content) {
+    int known = registry.float_index(spec.id);
+    if (known < 0) {
+        float_open(spec, content);
+    } else if (!registry.floats[known].is_focused) {
+        float_focus(spec.id);
+    } else {
+        float_close(spec.id);
+    }
+}
+
+/// Change the title of float `id` (0.9.0).
+pub void Ctx.float_title(str id, str title) {
+    int known = registry.float_index(id);
+    if (known >= 0) {
+        registry.floats[known].spec.title = title;
     }
 }
 

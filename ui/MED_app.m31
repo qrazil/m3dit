@@ -21,6 +21,7 @@ import tui.core.TUI_geometry;
 import tui.widgets.TUI_menu;
 import tui.core.TUI_mouse;
 import tui.core.TUI_style;
+import tui.core.TUI_widget;
 import engine.MED_buffer;
 import engine.MED_fileio;
 import engine.MED_editor;
@@ -3482,7 +3483,7 @@ List<MED_keymap.Binding> App.prefix_table(str typed) {
 
 /// The timer: animation frames, then the app's own work (`tick_work`).
 pub TUI_app.Action App.tick(int elapsed_ms) {
-    motion.is_app_busy = has_picker || is_leader || is_prefix_help || prefix_ms > 0 || editor.ta_keys.size() > 0 || ext.is_pane_busy || servers.size() > 0 || is_lsp_wanted() || panel_columns(screen_rect().width) > 0 || is_grep_due || !source.is_done || is_dragging || editor.mode == MED_editor.CMDLINE || editor.pending.size() > 0;
+    motion.is_app_busy = has_picker || is_leader || is_prefix_help || prefix_ms > 0 || editor.ta_keys.size() > 0 || ext.is_pane_busy || ext.has_floats() || servers.size() > 0 || is_lsp_wanted() || panel_columns(screen_rect().width) > 0 || is_grep_due || !source.is_done || is_dragging || editor.mode == MED_editor.CMDLINE || editor.pending.size() > 0;
     bool is_frame_due = motion.did_tick(elapsed_ms);
     if (did_autoscroll(elapsed_ms)) {
         is_frame_due = true;
@@ -3631,6 +3632,9 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
     if (ext.is_panes_live() && did_pane_tick(elapsed_ms)) {
         return TUI_app.Action.Redraw;
     }
+    if (ext.has_floats() && did_float_tick(elapsed_ms)) {
+        return TUI_app.Action.Redraw;
+    }
     // a yank or delete reaches the system clipboard here, not in the key that made it (no process is started per keystroke)
     flush_clipboard(true);
     if ((servers.size() > 0 || is_lsp_wanted()) && did_tick_lsp(elapsed_ms)) {
@@ -3692,6 +3696,10 @@ TUI_app.Action App.tick_rest(int elapsed_ms) {
 /** One key for the engine, with the front end's own mappings first. True when
  * the editor should quit. */
 bool App.should_quit_after(int key) {
+    if (!has_picker && editor.mode != MED_editor.CMDLINE && ext.focused_float() >= 0) {
+        did_float_key(key);
+        return false;
+    }
     if (is_leader) {
         return should_quit_after_leader(key);
     }
@@ -5303,6 +5311,7 @@ pub void App.render(TUI_buffer.Buffer buffer, TUI_geometry.Rect full) {
     if (rows < 1) {
         rows = 1;
     }
+    draw_floats(buffer, area);
     if (editor.mode == MED_editor.CMDLINE && editor.comp_items.size() > 1) {
         draw_wildmenu(buffer, area);
     }
@@ -5315,6 +5324,9 @@ pub void App.render(TUI_buffer.Buffer buffer, TUI_geometry.Rect full) {
         popup_kind = 1;
     }
     if (has_picker) {
+        popup_kind = 2;
+    }
+    if (has_float_backdrop() && popup_kind == 0) {
         popup_kind = 2;
     }
     motion.before_popup(buffer, popup_kind, editor);
@@ -6492,6 +6504,155 @@ bool App.did_pane_tick(int elapsed_ms) {
     MED_ext.Ctx context = pane_context();
     bool did_change = ext.pane_driver.did_tick(context, elapsed_ms);
     ext_finish(context);
+    return did_change;
+}
+
+// ------------------------------------------------------------------ floats (API 0.9.0)
+
+/// The rectangle of a float in `area`, from its spec.
+TUI_geometry.Rect App.float_rect(MED_ext.FloatSpec spec, TUI_geometry.Rect area) {
+    int width = spec.width;
+    int height = spec.height;
+    if (spec.is_relative) {
+        width = area.width * MED_num.clamp(spec.width, 1, 100) / 100;
+        height = area.height * MED_num.clamp(spec.height, 1, 100) / 100;
+    }
+    width = MED_num.clamp(width, 6, MED_num.larger(area.width, 6));
+    height = MED_num.clamp(height, 3, MED_num.larger(area.height, 3));
+    if (width > area.width) {
+        width = area.width;
+    }
+    if (height > area.height) {
+        height = area.height;
+    }
+    int x = area.x + (area.width - width) / 2;
+    int y = area.y + (area.height - height) / 2;
+    str anchor = spec.anchor;
+    if (anchor.starts_with("top")) {
+        y = area.y;
+    } else if (anchor.starts_with("bottom")) {
+        y = area.y + area.height - height;
+    }
+    if (anchor.ends_with("left") || anchor == "left") {
+        x = area.x;
+    } else if (anchor.ends_with("right") || anchor == "right") {
+        x = area.x + area.width - width;
+    }
+    if (spec.row >= 0) {
+        y = area.y + spec.row;
+        if (spec.is_relative) {
+            y = area.y + area.height * MED_num.clamp(spec.row, 0, 100) / 100;
+        }
+    }
+    if (spec.column >= 0) {
+        x = area.x + spec.column;
+        if (spec.is_relative) {
+            x = area.x + area.width * MED_num.clamp(spec.column, 0, 100) / 100;
+        }
+    }
+    if (x + width > area.x + area.width) {
+        x = area.x + area.width - width;
+    }
+    if (y + height > area.y + area.height) {
+        y = area.y + area.height - height;
+    }
+    return TUI_geometry.Rect(MED_num.larger(x, area.x), MED_num.larger(y, area.y), width, height);
+}
+
+/// Whether a float of a live plugin dims the text under it.
+bool App.has_float_backdrop() {
+    for (MED_ext.FloatEntry one in ext.floats) {
+        if (one.spec.has_backdrop && !ext.is_extension_off(one.owner)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Draw the floats of the live plugins, lowest z first.
+void App.draw_floats(TUI_buffer.Buffer buffer, TUI_geometry.Rect area) {
+    if (!ext.has_floats()) {
+        return;
+    }
+    List<int> order = [];
+    for (int position in 0 .. ext.floats.size()) {
+        if (ext.is_extension_off(ext.floats[position].owner)) {
+            continue;
+        }
+        int spot = order.size();
+        while (spot > 0 && (ext.floats[order[spot - 1]].spec.layer > ext.floats[position].spec.layer)) {
+            spot = spot - 1;
+        }
+        order.insert(spot, position);
+    }
+    TUI_style.Style plain = theme.look("ui.popup");
+    for (int position in order) {
+        MED_ext.FloatEntry one = ext.floats[position];
+        TUI_geometry.Rect box = float_rect(one.spec, area);
+        TUI_widget.Borders borders = TUI_widget.Borders.Rounded;
+        if (one.spec.border == "none") {
+            borders = TUI_widget.Borders.None;
+        } else if (one.spec.border == "single") {
+            borders = TUI_widget.Borders.Single;
+        } else if (one.spec.border == "double") {
+            borders = TUI_widget.Borders.Double;
+        }
+        str title = one.spec.title;
+        if (title.size() > 0) {
+            title = " " + title + " ";
+        }
+        TUI_widget.Block block = TUI_widget.Block(title: title, borders: borders, style: plain, title_style: theme.over("ui.popup", "ui.picker.title"), pad_x: 0);
+        block.render(buffer, box);
+        TUI_geometry.Rect inner = block.inner(box);
+        if (inner.width < 1 || inner.height < 1) {
+            continue;
+        }
+        MED_ext.Canvas canvas = MED_ext.canvas_over(buffer, theme, inner.x, inner.y, inner.width, inner.height);
+        one.content.draw(canvas, one.is_focused);
+    }
+}
+
+/// The context a float's handlers run with (the plugin that opened it).
+MED_ext.Ctx App.float_context(int owner) {
+    MED_ext.Ctx context = MED_ext.context(ext, editor, path);
+    context.buffer_id = current_id;
+    context.owner = owner;
+    ext.pane_rows = current_text_rows();
+    ext.pane_columns = MED_num.larger(screen_rect().width, 20);
+    return context;
+}
+
+/// A key while a float has the keys; Escape closes it when its content left the key alone. Never quits.
+void App.did_float_key(int key) {
+    int found = ext.focused_float();
+    if (found < 0) {
+        return;
+    }
+    MED_ext.FloatEntry one = ext.floats[found];
+    MED_ext.Ctx context = float_context(one.owner);
+    bool did_take = one.content.did_key(context, key);
+    if (!did_take && key == MED_key.ESC && one.spec.is_closed_by_escape) {
+        context.float_close(one.spec.id);
+    }
+    ext_finish(context);
+}
+
+/// The floats' timer; true when one wants a redraw.
+bool App.did_float_tick(int elapsed_ms) {
+    bool did_change = false;
+    List<MED_ext.FloatEntry> live = [];
+    for (MED_ext.FloatEntry one in ext.floats) {
+        if (!ext.is_extension_off(one.owner)) {
+            live.push(one);
+        }
+    }
+    for (MED_ext.FloatEntry one in live) {
+        MED_ext.Ctx context = float_context(one.owner);
+        if (one.content.did_tick(context, elapsed_ms)) {
+            did_change = true;
+        }
+        ext_finish(context);
+    }
     return did_change;
 }
 

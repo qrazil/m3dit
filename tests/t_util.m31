@@ -1,0 +1,23 @@
+// The timing helpers of MED_util: debounce, throttle and the once guard.
+
+import ext.MED_util;
+import tests.MED_check;
+
+MED_check.Check check = MED_check.Check();
+MED_util.Debounce debounce = MED_util.Debounce(200);
+check.ok("a debounce that was never touched does not fire", !debounce.did_fire(1000));
+debounce.touch();
+check.ok("it waits", !debounce.did_fire(100));
+debounce.touch();
+check.ok("a touch starts the wait again", !debounce.did_fire(150));
+check.ok("it fires after the quiet time", debounce.did_fire(100));
+check.ok("and only once", !debounce.did_fire(1000));
+MED_util.Throttle throttle = MED_util.Throttle(100);
+check.ok("a throttle lets the first call through", throttle.is_due(0));
+check.ok("then holds", !throttle.is_due(40));
+check.ok("until the interval has passed", throttle.is_due(70));
+check.ok("and holds again", !throttle.is_due(10));
+MED_util.Once once = MED_util.Once();
+check.ok("once: the first time", once.is_first());
+check.ok("never again", !once.is_first());
+check.finish("t_util");

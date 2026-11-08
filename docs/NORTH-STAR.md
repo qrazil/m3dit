@@ -54,17 +54,18 @@ a startup dashboard; a Vimscript or Lua interpreter (the extension language is m
 
 ## 5. Milestones (an order, not dates)
 
-Done: 0.29 terminal plugin, 0.30 keymap audit, 0.31 the `gh*` hunk keys.
+Done: 0.29 terminal plugin, 0.30 keymap audit, 0.31 the `gh*` hunk keys. The LSP navigation and installer work (0.33) is written and parked on a branch while the toolkit and the terminal come first.
 
 | version | content |
 |---|---|
-| 0.32 | LSP navigation and the server installer. **The owner dogfoods m3 for real work from here on** |
-| 0.33 | project search and replace (the finder plus the generic list) |
-| 0.34 | virtual text API (one decorator for diagnostics, blame and plugins) |
-| 0.35 | miller columns on `<Space>E` |
-| 0.36 | `:diffthis` (two-window diff; `ghD` moves onto it) |
-| 0.37 | text-object registry (kept small; if LSP semantic tokens can supply objects, they are used) |
-| 0.38 and on | the owner's nvim keymap and plugin list, then 1.0 hardening |
+| 0.32 | the plugin toolkit (floats, popup, prompt, select, layout, timing helpers) and an excellent terminal (float, split, sessions, smooth under flood). **The owner dogfoods m3 for real work from here on** |
+| 0.33 | LSP navigation and the server installer |
+| 0.34 | project search and replace (the finder plus the generic list) |
+| 0.35 | virtual text API (one decorator for diagnostics, blame and plugins) |
+| 0.36 | miller columns on `<Space>E` |
+| 0.37 | `:diffthis` (two-window diff; `ghD` moves onto it) |
+| 0.38 | text-object registry, folds and expand/shrink selection. Sources in this order: LSP ranges (`documentSymbol`, `foldingRange`, `selectionRange`, semantic tokens), then a lexical fallback (the `syntax` library plus bracket and indent rules) for files without a server, then user-defined objects. The registry is designed so a tree-sitter source could be added without an API change; tree-sitter is not built, and is revisited after the dogfooding |
+| 0.39 and on | the owner's nvim keymap and plugin list, then 1.0 hardening |
 
 **Dogfood from 0.32.** Every gap the owner hits while working in m3 goes to the front of the queue, ahead of the list above. The CHANGELOG and its one-line migration notes are kept tidy so that
 he can follow what changes under him. Before anything is pushed or handed back, `bash scripts/prepush.sh` regenerates the generated files, runs lint and format, and runs the full `tests/test.sh` from

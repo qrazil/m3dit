@@ -1,0 +1,67 @@
+/* Small timing helpers for plugins (API 0.9.0): the debounce, throttle and once-guard that every plugin with a timer wrote for itself.
+ * They count the milliseconds a plugin's Tick or `did_tick` hands it, so they need no clock of their own.
+ *
+ *   MED_util.Debounce(delay_ms)   touch() on every event; did_fire(elapsed_ms) is true once, `delay_ms` after the last touch
+ *   MED_util.Throttle(interval)   is_due(elapsed_ms) is true at most once in `interval` ms
+ *   MED_util.Once()               is_first() is true the first time and never again
+ *
+ * Generic path, process and time helpers are the standard library's business, not m3's (docs/EXTENSIONS.md lists what was asked of m31). */
+
+pub type Debounce {
+    pub int delay_ms;
+    int waited = 0;
+    bool is_pending = false;
+}
+
+/// An event happened: the countdown starts again.
+pub void Debounce.touch() {
+    waited = 0;
+    is_pending = true;
+}
+
+/// Whether the quiet time has passed since the last touch (true once per run of touches).
+pub bool Debounce.did_fire(int elapsed_ms) {
+    if (!is_pending) {
+        return false;
+    }
+    waited = waited + elapsed_ms;
+    if (waited >= delay_ms) {
+        is_pending = false;
+        return true;
+    }
+    return false;
+}
+
+pub type Throttle {
+    pub int interval_ms;
+    int waited = 0;
+    bool is_started = false;
+}
+
+/// Whether `interval_ms` has passed since the last true answer (the first call is true).
+pub bool Throttle.is_due(int elapsed_ms) {
+    if (!is_started) {
+        is_started = true;
+        waited = 0;
+        return true;
+    }
+    waited = waited + elapsed_ms;
+    if (waited >= interval_ms) {
+        waited = 0;
+        return true;
+    }
+    return false;
+}
+
+pub type Once {
+    bool has_run = false;
+}
+
+/// True the first time, false after.
+pub bool Once.is_first() {
+    if (has_run) {
+        return false;
+    }
+    has_run = true;
+    return true;
+}

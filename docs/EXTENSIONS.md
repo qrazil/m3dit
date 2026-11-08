@@ -1,6 +1,6 @@
 # Extending m3
 
-Status: API 0.8.0, experimental (the plugin layer is section 0, what 0.3.0 to 0.8.0 added is sections 0.1 to 0.6; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
+Status: API 0.9.0, experimental (the plugin layer is section 0, what 0.3.0 to 0.9.0 added is sections 0.1 to 0.7; sections 1 to 14 describe the extension form of 0.1.0, which still works, with the event names of 0.2). Decision D2 (docs/ROADMAP.md section 4): the extension language is m31 itself, used
 as modules. The external-process JSON-RPC option was declined; there is no interpreter, no second language, no
 `dlopen` and no C shim.
 
@@ -162,6 +162,97 @@ Additive; `0.7` plugins are refused until rebuilt (`Spec` defaults to `0.8`). Tw
 | `Ctx.pane_busy(is_on)`, `pane_size()` | ask for app-rate ticks while a program runs; the rows and columns a pane can use | terminal |
 
 `:terminal` is the one command name that may start with a lowercase letter (nvim's own).
+
+### 0.7 API 0.9.0 (m3 0.32.0): the UI kit and the timing helpers
+
+Additive; `0.8` plugins are refused until rebuilt (`Spec` defaults to `0.9`). Floating windows, ready-made popups, prompts and menus, a layout helper and the debounce / throttle /
+once helpers, so that a plugin which wants a float opens one in a few lines. The ideas are those of nui.nvim, snacks.nvim and plenary.nvim; nothing is ported from Lua.
+
+| addition | what it is |
+|---|---|
+| `FloatSpec` | where and how a float appears: `id`, `title`, `anchor` (center, top, bottom, left, right, top-left, ...), `width` and `height` in cells or percent (`is_relative`), `row` and `column` (-1: by the anchor), `border` (none, single, double, rounded), `layer`, `has_backdrop` (dims the text under it), `has_focus`, `is_closed_by_escape` |
+| `Float` | the content: `draw(canvas, is_focused)`, `did_key(ctx, key)` (every key while focused; true: taken), `did_tick(ctx, ms)` (at the app's tick while open), `did_close(ctx)` |
+| `Ctx.float_open(spec, content)`, `float_close(id)`, `float_focus(id)`, `float_blur(id)`, `float_title(id, title)` | the life of a float; an id that is open is replaced; the host draws the border and the title, clips the content to a `Canvas` and draws floats in ascending `layer` |
+| `Ctx.float_toggle(spec, content)` | the one-key panel: opens the float, or focuses it when it is open without the keys, or closes it when it has them |
+| `Ctx.is_float_open(id)`, `is_float_focused(id)` | |
+| `Canvas.cursor(x, y)` | a cursor cell inside a float (the terminal's cursor is hidden) |
+| `MED_ui.popup(ctx, id, title, lines)` | a scrollable text popup, sized to its text; `j k g G`, `q` or Escape closes |
+| `MED_ui.prompt(ctx, id, title, initial, InputFn)` | one line of input; Enter closes it and runs `InputFn.run(ctx, text)` |
+| `MED_ui.select(ctx, id, title, items, SelectFn)` | a menu; `j k`, the arrows or `<C-n>` `<C-p>`; Enter runs `SelectFn.run(ctx, row)` |
+| `MED_ui.divide(total, weights, gap)`, `MED_ui.stack(whole, ids, weights, is_vertical)` | the layout helper: sizes by weight, and the specs of floats side by side or stacked inside a relative `whole` |
+| `MED_util.Debounce`, `Throttle`, `Once` | they count the milliseconds a Tick or `did_tick` hands over; no clock of their own |
+
+A focused float gets every key (so `:` does not open the command line while a prompt is up); `Escape` closes it unless the content took the key; a plugin that is switched off
+(`:PluginDisable`) takes its floats off the screen. Floats do not take the mouse yet.
+
+**A floating plugin in 20 lines.** `:Notes` opens a popup:
+
+```m31
+import ext.MED_ext;
+import ext.MED_ui;
+
+type Notes {
+}
+
+Result<bool, str> Notes.activate(MED_ext.Registry api) {
+    api.did_command("Notes", "show the notes", (MED_ext.Ctx context, str arguments, bool is_bang) => show(context));
+    return Result<bool, str>.Ok(true);
+}
+
+Result<bool, str> show(MED_ext.Ctx context) {
+    MED_ui.popup(context, "notes", "Notes", ["buy milk", "write the changelog"]);
+    return Result<bool, str>.Ok(true);
+}
+
+pub void register(MED_ext.Registry api) {
+    MED_ext.Spec spec = MED_ext.Spec("notes", summary: "a floating notes popup");
+    spec.commands.push(MED_ext.command("Notes", "show the notes"));
+    api.did_plugin(spec, Notes());
+}
+```
+
+A float of your own implements `Float` (the test `tests/t_floats.m31` has one that counts ticks and closes):
+
+```m31
+type Clock {
+    int seconds = 0;
+}
+
+void Clock.draw(MED_ext.Canvas canvas, bool is_focused) {
+    canvas.text(1, 0, "up " + seconds.to_str() + " s", "ui.popup", false, canvas.width);
+}
+
+bool Clock.did_key(MED_ext.Ctx context, int key) {
+    return false;
+}
+
+bool Clock.did_tick(MED_ext.Ctx context, int elapsed_ms) {
+    seconds = seconds + elapsed_ms / 1000;
+    return true;
+}
+
+void Clock.did_close(MED_ext.Ctx context) {
+}
+
+// context.float_toggle(MED_ext.FloatSpec("clock", title: "Clock", width: 14, height: 3, anchor: "top-right", has_focus: false), Clock());
+```
+
+**Porting a plugin onto the kit, before and after.**
+
+| a plugin that ... | before | after |
+|---|---|---|
+| shows a result in a popup | `Ctx.show_text(lines)`: the host overlays the text on the window until a key is typed; no scrolling, no title | `MED_ui.popup(ctx, "id", "Title", lines)` |
+| asks for a line of text | `Ctx.begin_command("Name add ")`: the user types on the command line and the plugin parses an ex line | `MED_ui.prompt(ctx, "id", "Name", "", callback)`: the plugin gets the text itself |
+| offers a choice | `Ctx.pick_list(title, entries, line)`: a finder with fuzzy matching, right for long lists | `MED_ui.select(ctx, "id", "Title", items, callback)` for a short fixed menu; keep the finder for long lists |
+| has a side panel | `Registry.did_panel(panel)`: one docked column | keep the panel for a sidebar; use a float for anything that should not move the windows |
+| has a timer | a `Tick` hook and a counter of elapsed milliseconds written by hand | `MED_util.Debounce`, `Throttle` and `Float.did_tick` |
+| toggles with one key | a flag in the plugin state and an `is_open` branch in every handler | `Ctx.float_toggle(spec, content)` |
+
+What a port keeps: the model (the folders of the tree, the commits of the log) stays in the plugin; what goes is the drawing code, the key loop and the open / close bookkeeping.
+docs/TOOLKIT-ADOPTION.md ranks the shipped plugins by what a port would remove.
+
+**Asked of m31, not built here.** The standard library should carry the generic parts, and m3 does not copy them: path helpers (`join`, `dirname`, `basename`, `relative`, `extension`), a
+monotonic clock readable from the plugin layer, and a process runner with a timeout and a streaming reader that is not tied to a pty.
 
 ## 1. What an extension is
 

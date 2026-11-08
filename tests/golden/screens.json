@@ -1300,7 +1300,7 @@
     100,
     true
    ],
-   "raw": "22665e2d21e23101f89026acc7e04bf56bbf11ac",
+   "raw": "bf77e4210a110203b0ba7dc5fbccf46d64378aa7",
    "style": "a22ee6f042b61d94086b085ba3018ea69210b004",
    "text": [
     "  1",
@@ -1328,7 +1328,7 @@
     "  on   terminal  :terminal, <Space>t, a shell or command on a pty in a buffer",
     "  on   session  remember the cursor position of each file",
     "  on   lsp  language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13)",
-    "Compiled plugins (api 0.8.0):",
+    "Compiled plugins (api 0.9.0):",
     "  lazy  notify  toast notifications in the top right corner, and :Notifications history",
     "Press ENTER or type command to continue",
     " NORMAL  [No Name]                                                                        1:1  100%",

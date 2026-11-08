@@ -1,0 +1,279 @@
+/* The UI kit for plugins (API 0.9.0, docs/EXTENSIONS.md "A floating plugin in 20 lines"): ready-made floating windows over the Float
+ * interface of MED_ext, so that a plugin which wants a popup, a prompt or a menu does not write the drawing and the keys again.
+ *
+ *   MED_ui.popup(ctx, id, title, lines)                   a scrollable text popup (j k g G, q closes)
+ *   MED_ui.prompt(ctx, id, title, initial, InputFn)       one line of input; Enter runs the function, Escape closes
+ *   MED_ui.select(ctx, id, title, items, SelectFn)        a menu; j k or the arrows move, Enter runs the function with the row
+ *   MED_ui.divide(total, weights, gap)                    sizes that share `total` cells by weights (a layout helper)
+ *   MED_ui.stack(whole, ids, weights, is_vertical)        the specs of floats side by side (or stacked) inside `whole`
+ *
+ * Every function opens a float with `Ctx.float_open`, so the plugin can close or move it with the same id. */
+
+import ext.MED_ext;
+import engine.MED_key;
+
+/// What `prompt` calls when Enter is pressed: the text typed.
+pub interface InputFn {
+    void run(MED_ext.Ctx context, str value);
+}
+
+/// What `select` calls when Enter is pressed: the 0-based row.
+pub interface SelectFn {
+    void run(MED_ext.Ctx context, int index);
+}
+
+// ------------------------------------------------------------------ popup
+
+type TextPopup {
+    str id;
+    List<str> lines;
+    int top = 0;
+}
+
+void TextPopup.draw(MED_ext.Canvas canvas, bool is_focused) {
+    for (int row in 0 .. canvas.height) {
+        canvas.fill(0, row, canvas.width, "ui.popup", false);
+        if (top + row < lines.size()) {
+            canvas.text(0, row, lines[top + row], "ui.popup", false, canvas.width);
+        }
+    }
+}
+
+bool TextPopup.did_key(MED_ext.Ctx context, int key) {
+    if (key == 106 || key == MED_key.DOWN || key == 5) {
+        if (top + 1 < lines.size()) {
+            top = top + 1;
+        }
+        return true;
+    }
+    if (key == 107 || key == MED_key.UP_KEY || key == 25) {
+        if (top > 0) {
+            top = top - 1;
+        }
+        return true;
+    }
+    if (key == 103) {
+        top = 0;
+        return true;
+    }
+    if (key == 71) {
+        top = lines.size() - 1;
+        if (top < 0) {
+            top = 0;
+        }
+        return true;
+    }
+    if (key == 113) {
+        context.float_close(id);
+        return true;
+    }
+    return false;
+}
+
+bool TextPopup.did_tick(MED_ext.Ctx context, int elapsed_ms) {
+    return false;
+}
+
+void TextPopup.did_close(MED_ext.Ctx context) {
+}
+
+/// Open a text popup sized to its text (at most 90 columns and 24 rows); scroll with `j` and `k`, `q` or Escape closes it.
+pub void popup(MED_ext.Ctx context, str id, str title, List<str> lines) {
+    int widest = title.size() + 2;
+    for (str one in lines) {
+        if (one.size() > widest) {
+            widest = one.size();
+        }
+    }
+    int width = widest + 2;
+    if (width > 90) {
+        width = 90;
+    }
+    int height = lines.size() + 2;
+    if (height > 24) {
+        height = 24;
+    }
+    MED_ext.FloatSpec spec = MED_ext.FloatSpec(id, title: title, width: width, height: height);
+    context.float_open(spec, TextPopup(id, lines));
+}
+
+// ------------------------------------------------------------------ prompt
+
+type InputPrompt {
+    str id;
+    str value;
+    InputFn done;
+}
+
+void InputPrompt.draw(MED_ext.Canvas canvas, bool is_focused) {
+    canvas.fill(0, 0, canvas.width, "ui.popup", false);
+    canvas.text(0, 0, value, "ui.popup", false, canvas.width);
+    if (is_focused) {
+        canvas.cursor(value.chars().size(), 0);
+    }
+}
+
+bool InputPrompt.did_key(MED_ext.Ctx context, int key) {
+    if (key == MED_key.CARRIAGE_RETURN || key == 10) {
+        str typed = value;
+        context.float_close(id);
+        done.run(context, typed);
+        return true;
+    }
+    if (key == MED_key.BACKSPACE || key == 127 || key == 8) {
+        List<int> cells = value.chars();
+        if (cells.size() > 0) {
+            cells.pop();
+            value = str.from_chars(cells);
+        }
+        return true;
+    }
+    if (key == 21) {
+        value = "";
+        return true;
+    }
+    if (key == MED_key.ESC) {
+        return false;
+    }
+    if (key >= 32 && key < MED_key.UP_KEY) {
+        value = value + str.from_chars([key]);
+    }
+    return true;
+}
+
+bool InputPrompt.did_tick(MED_ext.Ctx context, int elapsed_ms) {
+    return false;
+}
+
+void InputPrompt.did_close(MED_ext.Ctx context) {
+}
+
+/// Open a one-line input with `initial` text; Enter closes it and runs `done` with the text, Escape closes it.
+pub void prompt(MED_ext.Ctx context, str id, str title, str initial, InputFn done) {
+    MED_ext.FloatSpec spec = MED_ext.FloatSpec(id, title: title, width: 50, height: 3, anchor: "top", row: 4);
+    context.float_open(spec, InputPrompt(id, initial, done));
+}
+
+// ------------------------------------------------------------------ select
+
+type SelectMenu {
+    str id;
+    List<str> items;
+    int selected = 0;
+    SelectFn done;
+}
+
+void SelectMenu.draw(MED_ext.Canvas canvas, bool is_focused) {
+    int first = 0;
+    if (selected >= canvas.height) {
+        first = selected - canvas.height + 1;
+    }
+    for (int row in 0 .. canvas.height) {
+        int index = first + row;
+        str scope = "ui.menu";
+        if (index == selected) {
+            scope = "ui.menu.selected";
+        }
+        canvas.fill(0, row, canvas.width, scope, false);
+        if (index < items.size()) {
+            canvas.text(1, row, items[index], scope, false, canvas.width - 1);
+        }
+    }
+}
+
+bool SelectMenu.did_key(MED_ext.Ctx context, int key) {
+    if (key == 106 || key == MED_key.DOWN || key == 14) {
+        if (selected + 1 < items.size()) {
+            selected = selected + 1;
+        }
+        return true;
+    }
+    if (key == 107 || key == MED_key.UP_KEY || key == 16) {
+        if (selected > 0) {
+            selected = selected - 1;
+        }
+        return true;
+    }
+    if (key == MED_key.CARRIAGE_RETURN || key == 10) {
+        int chosen = selected;
+        context.float_close(id);
+        if (chosen < items.size()) {
+            done.run(context, chosen);
+        }
+        return true;
+    }
+    return key != MED_key.ESC;
+}
+
+bool SelectMenu.did_tick(MED_ext.Ctx context, int elapsed_ms) {
+    return false;
+}
+
+void SelectMenu.did_close(MED_ext.Ctx context) {
+}
+
+/// Open a menu of `items`; Enter closes it and runs `done` with the row, Escape closes it.
+pub void select(MED_ext.Ctx context, str id, str title, List<str> items, SelectFn done) {
+    int widest = title.size() + 2;
+    for (str one in items) {
+        if (one.size() + 2 > widest) {
+            widest = one.size() + 2;
+        }
+    }
+    int height = items.size() + 2;
+    if (height > 20) {
+        height = 20;
+    }
+    MED_ext.FloatSpec spec = MED_ext.FloatSpec(id, title: title, width: widest + 2, height: height);
+    context.float_open(spec, SelectMenu(id, items, done));
+}
+
+// ------------------------------------------------------------------ layout
+
+/// `total` cells shared by `weights` with `gap` cells between the parts; the last part takes the rest of the division.
+pub List<int> divide(int total, List<int> weights, int gap) {
+    List<int> sizes = [];
+    int sum = 0;
+    for (int one in weights) {
+        sum = sum + one;
+    }
+    if (sum <= 0 || weights.size() == 0) {
+        return sizes;
+    }
+    int room = total - gap * (weights.size() - 1);
+    int used = 0;
+    for (int index in 0 .. weights.size()) {
+        int part = room * weights[index] / sum;
+        if (index == weights.size() - 1) {
+            part = room - used;
+        }
+        sizes.push(part);
+        used = used + part;
+    }
+    return sizes;
+}
+
+/** The specs of floats side by side (`is_vertical` false) or stacked inside `whole`: `whole` must be relative with its `row` and `column`
+ * set (percentages of the editor area); the parts keep its border, layer and focus. A spec per id, in order. */
+pub List<MED_ext.FloatSpec> stack(MED_ext.FloatSpec whole, List<str> ids, List<int> weights, bool is_vertical) {
+    List<MED_ext.FloatSpec> out = [];
+    int total = whole.width;
+    if (is_vertical) {
+        total = whole.height;
+    }
+    List<int> sizes = divide(total, weights, 0);
+    int offset = 0;
+    for (int index in 0 .. sizes.size()) {
+        MED_ext.FloatSpec part = MED_ext.FloatSpec(ids[index], title: whole.title, width: whole.width, height: whole.height, is_relative: whole.is_relative, row: whole.row, column: whole.column, border: whole.border, layer: whole.layer, has_focus: index == 0 && whole.has_focus);
+        if (is_vertical) {
+            part.height = sizes[index];
+            part.row = whole.row + offset;
+        } else {
+            part.width = sizes[index];
+            part.column = whole.column + offset;
+        }
+        offset = offset + sizes[index];
+        out.push(part);
+    }
+    return out;
+}
