@@ -1,5 +1,7 @@
 # m3 as a daily driver: what is there, what is missing
 
+> Written at 0.17.0/0.18.0. Several rows moved since: explorer, git, statusline and (on a branch) terminal are plugins; the quickfix list is the generic list; `:cdo`/`:cfdo` are `:ldo`/`:lfdo`; miller columns and `:diffthis` are planned, no longer declined. [NORTH-STAR.md](NORTH-STAR.md) has the current state and the order of the work.
+
 Status: audit of m3 0.17.0 plus the plugin work of 0.18.0, written 2026-11-01. Sources: README, `docs/KEYMAP.md` (generated),
 `docs/ROADMAP.md`, the command table in `engine/MED_ex.m31`, `~/homelab/apps/nox/VIM_PARITY.md` for what the owner's earlier
 editor was held to, and the code. A row says where the feature lives: **core** (always built), a **plugin** (default profile;

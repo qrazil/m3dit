@@ -6,6 +6,8 @@ library. IDE-lite: keyboard first, no toolbar or menu chrome, discoverable
 through which-key, a command palette and a keymap help picker. (`medit` is the
 design codename that `DESIGN.md` still uses.)
 
+Where m3 is going and how far it is: [docs/NORTH-STAR.md](docs/NORTH-STAR.md).
+
 **Status: v0.8.0.** The Vim engine is checked against `nvim --headless` on
 more than 38,500 generated and hand-written cases (20 known divergences, listed in
 `tests/oracles/known_divergences.txt`); on top of it sit the built-in plugins that make it a daily editor:

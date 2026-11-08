@@ -1,5 +1,7 @@
 # Roadmap: 0.7.0 to 1.0.0
 
+> The current direction, the design laws and the milestone order from 0.29 on are in [NORTH-STAR.md](NORTH-STAR.md); this file is the older queue and several of its rows are stale.
+
 Written 2026-10-15 from DESIGN.md (sections 9, 11, 12, 13, 14), CHANGELOG.md, docs/KEYMAP.md,
 `tests/oracles/known_divergences.txt`, `tests/oracles/pending/` and the open items of the 0.4.x line. The
 0.5.0 (themes) and 0.6.0 (renderer diffing, animation, UX performance) releases are being built on other
