@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.30.0
+
+The keymap audit (docs/KEYMAP-AUDIT.md): prefer toggles and combined keys over paired keys; fewer keys with an obvious meaning. It changes the **`default` profile** only (and one m3-made
+duplicate in `nvim`/`legacy`); vim motions, operators and the `[` `]` pairs are untouched. Any key can be rebound in the keymap file. Migration, one line per key (the keys after `<Space>`):
+
+- `<Space>` `<Space>` (find files) -> `ff`.  `,` (buffers) -> `fb`.  `/` (project grep) -> `sg`.  `:` (commands) -> `sC` (or just `:`).
+- `sh`, `sk` (help, keymaps) -> `?`.  `fG` (project grep) -> `sg`.  `sb` (lines of this buffer) -> `fg`.
+- `sd`, `xx` (diagnostics) -> `Dd`.  `xX` (buffer diagnostics) -> `Db`.  `xQ`, `xL` (the list) -> `sq`.  The `x` group is gone from the `default` tree.
+- `Dl` (diagnostic at the cursor) -> `cd`.  `Ds`, `cs` (symbols) -> `ss`.
+- `bn`, `bp` (next, previous buffer) -> `]b`, `[b`.  `bl` (list buffers) -> `fb`.
+- `ws`, `wv` (split) -> `-`, `|`.
+- `gs`, `gf` (changed files) -> `gg`.
+- `tt` -> `t`: one key opens a terminal (the `t` group is a single key now).
+- `nvim` and `legacy`: `fk` (keymaps, an m3 extra) -> `fh`; every key from the owner's config is unchanged.
+- No on/off key pairs for an option existed in the `default` tree, so no switch needed turning into a toggle; the `u` group already has one key per switch, and `e` (the file tree) opens and closes.
+- Planned for the git milestone (0.31), decided here: `ghs` toggles stage and unstage for the hunk, and the hunk family becomes `ghs ghr ghS ghR ghd ghD ghb ghl` (docs/KEYMAP-AUDIT.md lists a collision of
+  `ghb` and `ghl` with the `gh{motion}` operators that has to be settled first).
+- Tests: the unit tests and the pty scenarios that typed a removed key use its replacement; the golden screens `command_palette`, `which_key_leader` and `keys_browser` were re-recorded.
+
 ## 0.29.0
 
 The `terminal` plugin, and extension API 0.8.0. `:terminal` left the core: `Term`, the pty polling, the key forwarding and about 300 lines of `ui/MED_app.m31` and
