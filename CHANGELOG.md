@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.31.0
+
+The hunk keys under one prefix, `gh` (docs/KEYMAP-AUDIT.md). `gh` is now only a prefix; the git plugin does the work through `:Hunk` (also usable by hand):
+
+| key | does | `:Hunk` |
+|---|---|---|
+| `ghs` | stage the hunk under the cursor, or unstage it if it is staged (Visual: the hunks in the selected lines) | `toggle`, `range-toggle` |
+| `ghr` | reset the hunk (Visual: the selected lines); undo with `u` | `reset`, `range-reset` |
+| `ghS` | stage the whole buffer, or unstage it when nothing is left to stage | `toggle-buffer` |
+| `ghR` | reset the buffer to the index; the command line `:Hunk reset-buffer` is typed and Enter confirms | `reset-buffer` |
+| `ghd` | diff the hunk, as the inline preview | `diff` |
+| `ghD` | diff the buffer against the index, in a scratch buffer (it moves to `:diffthis` when that lands) | `diff-buffer` |
+| `ghb` | blame the line | (`:Git line`) |
+| `ghl` | the hunks of the buffer in the generic list (`:l`, `]l`) | `list` |
+
+Migration (breaking, on purpose):
+- `gh{motion}` and `gH{motion}` (0.23.0) are gone, since `ghb` and `ghl` would have meant "the hunks from the cursor back a word" and "one character right". Select the lines and type `ghs` / `ghr`; `ih` / `ah` still select a hunk (`vihghs`). A lone `gH` answers with this advice, and `ghx` for any other third key is refused (`E492`).
+- `<Space>ghs ghr ghp ghu ghb ghB` (the `default` profile) -> `ghs`, `ghr`, `ghd`, `ghs` (it toggles), `ghb`; the blame list of the buffer is `:Git blame`.
+- `<Space>gB` (`nvim` and `legacy`, blame line) -> `ghb`. The other keys of those profiles (`<Space>gs gr gp gu`) are unchanged.
+- `ghp` (preview) is `ghd`.
+- Visual mode's `gh` (stage the selection) is `ghs`; `gH` is `ghr`.
+- Tests: the git_pty scenario drives `ghs` twice, `ghd`, `ghl`, `ghr`, Visual `ghs`, `ghS`, `ghR` and Escape; the e2e scenario `git_signs_and_pickers` types `ghs`; `t_vi` checks the refusals; the golden screens that show the `g` prefix were re-recorded.
+
 ## 0.30.0
 
 The keymap audit (docs/KEYMAP-AUDIT.md): prefer toggles and combined keys over paired keys; fewer keys with an obvious meaning. It changes the **`default` profile** only (and one m3-made
