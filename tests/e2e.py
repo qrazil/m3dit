@@ -130,7 +130,7 @@ def leader_which_key(binary, root):
     try:
         assert s.wait_for("hello world"), s.text()
         s.send(" ", settle=0.8)
-        assert s.wait_for("Find files"), "leader which-key missing:\n" + s.text()
+        assert s.wait_for("+files"), "leader which-key missing:\n" + s.text()
         assert "windows" in s.text(), s.text()
     finally:
         s.close()
@@ -758,7 +758,7 @@ def user_maps_in_which_key(binary, root):
         s.send("\x1b", settle=0.2)
         s.send(" ", settle=0.8)
         assert s.wait_for("ddp"), "user <leader>q missing:\n" + s.text()
-        assert "Find files" in s.text() or "find" in s.text(), s.text()
+        assert "+files" in s.text() or "find" in s.text(), s.text()
         s.send("q", settle=0.4)
         assert s.wait_for("second line"), s.text()
         lines = s.text().split("\n")

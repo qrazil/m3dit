@@ -435,7 +435,7 @@ def key_profiles(binary, root):
         assert s.wait_for("one"), s.text()
         s.send("x", settle=0.3)
         s.send(" w", settle=0.9)
-        assert "Split below" in s.text(), "the windows group lists its keys:\n" + s.text()
+        assert "Close window" in s.text(), "the windows group lists its keys:\n" + s.text()
         s.send("\x1b", settle=0.3)
         s.send("\x13", settle=0.6)
         with open(os.path.join(root, "a.txt")) as handle:

@@ -42,9 +42,9 @@ match (MED_app.open_all([base + "-a.txt"])) {
         app.ext_install();
         app.ext_started();
         check.eq_str("a build with plugins starts in default", app.profile, "default");
-        // default: <Space>w is the windows group, <Space>ws splits
-        type_text(app, " ws");
-        check.eq_int("<Space>ws splits", app.wins.size(), 2);
+        // default: <Space>w is the windows group, <Space>- splits
+        type_text(app, " -");
+        check.eq_int("<Space>- splits", app.wins.size(), 2);
         type_text(app, " wd");
         check.eq_int("<Space>wd closes", app.wins.size(), 1);
         type_text(app, "x");
