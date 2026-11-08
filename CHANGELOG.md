@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.32.0
+
+The plugin toolkit, extension API 0.9.0 (docs/EXTENSIONS.md 0.7, with a porting guide and "a floating plugin in 20 lines"; docs/TOOLKIT-ADOPTION.md ranks the shipped plugins by what a port would drop). Native m31, in the spirit of
+nui.nvim, snacks.nvim and plenary.nvim, so that plugins stop rewriting the same code. Nothing visible changed for a user: no shipped plugin was ported (that is separate work, plugin by plugin, with the golden screens).
+
+- **Floating windows**: `FloatSpec` (id, title, anchor, size in cells or percent, row/column, border none/single/double/rounded, layer, backdrop, focus, Escape closes) and the `Float` interface (`draw`, `did_key`, `did_tick`, `did_close`);
+  `Ctx.float_open`, `float_close`, `float_focus`, `float_blur`, `float_title`, `is_float_open`, `is_float_focused`, and `float_toggle` (one key opens, focuses or closes). The host draws border, title and backdrop, clips the content to a
+  `Canvas` (which gained `cursor(x, y)`), draws in ascending layer, gives the keys to the focused float (so `:` does not open the command line under a prompt), ticks every open float, and takes the floats of a switched-off plugin off the screen.
+- **`ext/MED_ui.m31`**: `popup` (scrollable text), `prompt` (one line of input with a callback), `select` (a menu with a callback), `divide` and `stack` (a layout helper for floats side by side or stacked).
+- **`ext/MED_util.m31`**: `Debounce`, `Throttle`, `Once`, counting the milliseconds a Tick hands over.
+- Asked of m31 and not built here: path helpers, a monotonic clock readable from the plugin layer, a process runner with a timeout that is not tied to a pty (docs/EXTENSIONS.md).
+- Plugins built for API 0.8 must be rebuilt. Migration: none for users.
+- Tests: `t_floats` (popup, prompt, select, an own float, toggle, replace, layer, plugin off), `t_util`.
+- `scripts/prepush.sh` (the gate: regenerate, lint, format, clean `git status`, the full suite from a clean clone) and the README section "Before you push".
+- The roadmap order: 0.32 toolkit and terminal, 0.33 LSP navigation and installer, 0.34 project search and replace, 0.35 virtual text, 0.36 miller columns, 0.37 `:diffthis`, 0.38 the text-object registry (LSP ranges first); the owner dogfoods from here on.
+
 ## 0.31.1
 
 Fixes the CI of 0.31.0: the git oracle (`tests/oracles/oracle_git.py`) still typed `<Space>ghb`; it types `ghb` now. Tests only, no behaviour change.
