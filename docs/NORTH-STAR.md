@@ -1,6 +1,6 @@
 # North Star
 
-Written 2026-11-07, at m3 0.28.1 with the terminal plugin (0.29.0) built on a branch. This is the one page that says where m3 is going and how far it is.
+Written 2026-11-07, updated 2026-11-09 at m3 0.31.1. This is the one page that says where m3 is going and how far it is.
 It is a summary: the details are in `docs/DAILY-DRIVER.md` (what a working day needs), `docs/CORE-AND-PLUGINS.md` (what is core and what is a plugin),
 `docs/DIVERGENCE-AUDIT.md` and `docs/CORE-STATUS.md` (where m3 differs from vim and why), `docs/KEYMAP.md` and `docs/ROADMAP.md`.
 
@@ -37,35 +37,38 @@ a startup dashboard; a Vimscript or Lua interpreter (the extension language is m
 | Fuzzy finder, live grep, pickers with preview | done |
 | Generic list (`:l`, `]l`) | done (0.25.0) |
 | File tree | done (plugin `explorer`, 0.24.0); miller columns on `<Space>E`: queued |
-| Git: gutter, `:Git` log/show/diff/blame, hunk stage/reset/preview, `gh{motion}` | done (plugin `git`, 0.21 to 0.23); the final `gh*` key set (toggle stage, reset, buffer, diff, blame, list): queued |
+| Git: gutter, `:Git` log/show/diff/blame, hunk stage/reset/diff/blame/list | done (plugin `git`, 0.21 to 0.31; the `gh*` chords: `ghs ghr ghS ghR ghd ghD ghb ghl`; `ghD` becomes a two-window diff with `:diffthis`) |
 | LSP: diagnostics, hover, definition, references, rename, code action, format, completion, signature, inlay hints, semantic tokens | done (core) |
 | LSP navigation (more than the above) and a server installer | queued; the installer is a requirement |
 | Virtual text API (one decorator for diagnostics, blame and plugins) | queued |
-| Terminal | in progress: plugin `terminal`, API 0.8.0, built and tested on a branch (0.29.0), not released |
+| Terminal | done (plugin `terminal`, 0.29.0; API 0.8.0 ptys and panes) |
 | Surround, autopairs, comment, which-key, harpoon, jump, move, guides, TODO, notifications, statusline, bufferline, session | done |
 | Clipboard, mouse, bracketed paste, OSC 52 | done (0.28.x) |
 | Themes, transparency, truecolor fallbacks | done |
 | Two-window diff (`:diffthis`) | queued |
 | Text-object registry (user text objects through the API) | queued |
 | Project search and replace | partly done (`:ldo`, `:lfdo`, `:bufdo` on the list); a finder-based flow on the same list: queued |
-| The keymap audit (toggles for option switches, one key per panel) | queued (docs/KEYMAP-AUDIT.md) |
+| The keymap audit (merged duplicate keys, toggles) | done (0.30.0, docs/KEYMAP-AUDIT.md) |
 | The owner's own nvim keymap and plugin list | owner input pending: the `nvim` profile follows his config once it is supplied |
 | Debugger, spell, remote files, tree-sitter, dashboard | not planned |
 
 ## 5. Milestones (an order, not dates)
 
+Done: 0.29 terminal plugin, 0.30 keymap audit, 0.31 the `gh*` hunk keys.
+
 | version | content |
 |---|---|
-| 0.29 | terminal plugin (ptys and panes in the API) |
-| 0.30 | the keymap audit: toggles, merged keys, `docs/KEYMAP-AUDIT.md` |
-| 0.31 | git write ops under `gh*` |
-| 0.32 | LSP navigation and the installer |
-| 0.33 | virtual text API (shared with diagnostics and blame) |
-| 0.34 | miller columns and `:diffthis` |
-| 0.35 | text-object registry |
-| 0.36 | project search and replace on the finder and the list |
-| 0.37 and on | the owner's nvim keymap and plugin list, gaps found by using it; then 1.0 hardening |
+| 0.32 | LSP navigation and the server installer. **The owner dogfoods m3 for real work from here on** |
+| 0.33 | project search and replace (the finder plus the generic list) |
+| 0.34 | virtual text API (one decorator for diagnostics, blame and plugins) |
+| 0.35 | miller columns on `<Space>E` |
+| 0.36 | `:diffthis` (two-window diff; `ghD` moves onto it) |
+| 0.37 | text-object registry (kept small; if LSP semantic tokens can supply objects, they are used) |
+| 0.38 and on | the owner's nvim keymap and plugin list, then 1.0 hardening |
 
-**Done enough to switch** means: the owner uses m3 for a full working day, editing, searching, using git and the language servers he works with, without
-opening nvim once. The first honest test is after 0.36, with the nvim profile filled in from his config; whatever he reaches for and does not find becomes the
-next item, ahead of everything else on this page.
+**Dogfood from 0.32.** Every gap the owner hits while working in m3 goes to the front of the queue, ahead of the list above. The CHANGELOG and its one-line migration notes are kept tidy so that
+he can follow what changes under him. Before anything is pushed or handed back, `bash scripts/prepush.sh` regenerates the generated files, runs lint and format, and runs the full `tests/test.sh` from
+a clean clone of the commit; work only ever goes on top of `origin/master`.
+
+**Done enough to switch** means: the owner uses m3 for a full working day, editing, searching, using git and the language servers he works with, without opening nvim once. The first honest test is
+the dogfooding that starts at 0.32; whatever he reaches for and does not find becomes the next item.

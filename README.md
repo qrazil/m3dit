@@ -460,6 +460,15 @@ runs of the real binary (`tests/e2e.py`, which needs `pyte`: `pip install pyte`;
 otherwise). The oracles need `nvim` 0.11 and `python3`. `bash scripts/oracle.sh --fuzz --seed 7 --cases 500`
 runs the engine oracle on its own.
 
+## Before you push
+
+    M31_ROOT=... LANGC=... bash scripts/prepush.sh          # the gate: about an hour
+    M31_ROOT=... LANGC=... bash scripts/prepush.sh --quick  # generated files, lint, format, a clean `git status`: a minute
+
+`scripts/prepush.sh` regenerates every generated file (`ext/MED_ext_enabled.m31` from the default profile, `docs/KEYMAP.md`, `docs/OPTIONS.md`, the divergences table of
+`docs/CORE-STATUS.md`), runs `scripts/check_plugins.sh`, `m31c -lint .` and `m31c -fmt --check --recursive .`, fails when `git status` is not clean afterwards (commit what was regenerated), and then clones
+`HEAD` into a temporary directory and runs the whole `tests/test.sh` there, so that what was tested is exactly what is committed. Work goes on top of `origin/master` only; a pushed commit is never rewritten.
+
 ## File tree keys
 
 With the tree focused (`<C-w>h` from the leftmost window, `<Space>e`, a click):
