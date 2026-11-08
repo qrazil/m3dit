@@ -1300,7 +1300,7 @@
     100,
     true
    ],
-   "raw": "527f5fdb958b58bc17c61d4de7348dd54d155bf0",
+   "raw": "22665e2d21e23101f89026acc7e04bf56bbf11ac",
    "style": "a22ee6f042b61d94086b085ba3018ea69210b004",
    "text": [
     "  1",
@@ -1325,7 +1325,7 @@
     "  on   jump  label jump: <Space>j, then a character, then a label",
     "  on   guides  indent guides",
     "  on   todo  highlight TODO FIXME HACK NOTE WARN",
-    "  on   terminal  :terminal, <Space>t, :! :r! filters",
+    "  on   terminal  :terminal, <Space>t, a shell or command on a pty in a buffer",
     "  on   session  remember the cursor position of each file",
     "  on   lsp  language server client: diagnostics, K, gd, grr, grn, gra, :Lsp (DESIGN.md section 13)",
     "Compiled plugins (api 0.8.0):",
